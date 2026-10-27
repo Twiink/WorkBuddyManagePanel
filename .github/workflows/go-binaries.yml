@@ -19,6 +19,12 @@ on:
       - "README.md"
       - ".github/workflows/go-binaries.yml"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Create or update the GitHub Release for a v* tag ref"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -250,7 +256,12 @@ jobs:
       - desktop-windows
       - desktop-macos
       - server-binaries
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') &&
+      (
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish)
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
