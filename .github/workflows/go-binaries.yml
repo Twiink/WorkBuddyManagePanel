@@ -84,16 +84,16 @@ jobs:
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Wails v3
-        run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Install native desktop dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev \
             libfuse2 python3-pil
+      - name: Install Wails v3
+        run: |
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Build .deb and AppImage
         env:
           PATH: ${{ runner.temp }}/go/bin:${{ env.PATH }}
@@ -170,7 +170,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Wails v3
         run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Build universal .app and DMG
         run: wails3 task darwin:package
@@ -292,10 +292,13 @@ jobs:
       - name: Create checksums
         run: |
           cd dist
-          find . -maxdepth 1 -type f ! -name checksums.txt -printf '%f\n' |
-            sort | xargs sha256sum > checksums.txt
-          sha256sum -c checksums.txt
-          cat checksums.txt
+          mapfile -t assets < <(
+            find . -maxdepth 1 -type f ! -name checksums.txt -printf '%f\n' |
+              sort
+          )
+          printf 'Created checksums.txt\n'
+          sha256sum "${assets[@]}" | tee checksums.txt
+          sha256sum --check checksums.txt
       - name: Find previous release tag
         id: prev
         run: |

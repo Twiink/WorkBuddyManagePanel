@@ -41,9 +41,17 @@ tasks:
     dir: build/windows/nsis
     cmds:
       - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
-      - >-
-        makensis
-        -DWAILS_INSTALL_SCOPE=user
-        -DREQUEST_EXECUTION_LEVEL=user
-        -DARG_WAILS_AMD64_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe"
-        project.nsi
+      - cmd: >-
+          makensis
+          -DWAILS_INSTALL_SCOPE=user
+          -DREQUEST_EXECUTION_LEVEL=user
+          -DARG_WAILS_AMD64_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe"
+          project.nsi
+        platforms: [windows]
+      - cmd: >-
+          makensis
+          -DWAILS_INSTALL_SCOPE=user
+          -DREQUEST_EXECUTION_LEVEL=user
+          -DARG_WAILS_AMD64_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe"
+          project.nsi
+        platforms: [linux, darwin]
