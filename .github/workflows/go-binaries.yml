@@ -25,6 +25,11 @@ on:
         required: false
         default: false
         type: boolean
+      release_tag:
+        description: "Release source tag, for example v1.14.0 (leave empty for branch builds)"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,6 +47,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -65,6 +72,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - name: Read build version
         id: version
         shell: bash
@@ -82,6 +91,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -127,6 +138,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -166,6 +179,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -218,6 +233,8 @@ jobs:
           - { goos: darwin, goarch: arm64, ext: tar.gz }
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -257,10 +274,11 @@ jobs:
       - desktop-macos
       - server-binaries
     if: >-
-      startsWith(github.ref, 'refs/tags/v') &&
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
       (
-        github.event_name == 'push' ||
-        (github.event_name == 'workflow_dispatch' && inputs.publish)
+        github.event_name == 'workflow_dispatch' &&
+        inputs.publish &&
+        (startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != '')
       )
     runs-on: ubuntu-latest
     permissions:
@@ -268,20 +286,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.release_tag || github.ref }}
           fetch-depth: 0
       - name: Verify tag matches source version
         shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           SRC="${{ needs.read-version.outputs.version }}"
           SRC="${SRC%-panel}"
-          TAG="${GITHUB_REF_NAME#v}"
-          if [[ "$GITHUB_REF_NAME" != *-ci ]]; then
+          TAG="$RELEASE_TAG"
+          git rev-parse --verify "refs/tags/${TAG}^{commit}" >/dev/null
+          if [[ "$TAG" != *-ci ]]; then
+            TAG="${TAG#v}"
             if [[ "$TAG" != "$SRC" ]]; then
-              echo "::error::tag $GITHUB_REF_NAME does not match source version $SRC"
+              echo "::error::tag $RELEASE_TAG does not match source version $SRC"
               exit 1
             fi
           else
-            echo "CI-only tag $GITHUB_REF_NAME skips the release-version assertion"
+            echo "CI-only tag $RELEASE_TAG skips the release-version assertion"
           fi
       - uses: actions/download-artifact@v4
         with:
@@ -312,15 +335,18 @@ jobs:
           sha256sum --check checksums.txt
       - name: Find previous release tag
         id: prev
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          PREV=$(git describe --tags --abbrev=0 "${RELEASE_TAG}^" 2>/dev/null || true)
           echo "prev=${PREV}" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          name: WorkBuddy Manage Panel ${{ github.ref_name }}
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: WorkBuddy Manage Panel ${{ inputs.release_tag || github.ref_name }}
+          prerelease: ${{ contains(inputs.release_tag || github.ref_name, '-') }}
           body: |
-            ## WorkBuddy Manage Panel ${{ github.ref_name }}
+            ## WorkBuddy Manage Panel ${{ inputs.release_tag || github.ref_name }}
 
             ### 桌面应用
 
@@ -342,5 +368,5 @@ jobs:
             可能提示“未知发布者”；macOS Gatekeeper 可能阻止首次打开。所有产物均附带
             `checksums.txt`，可用 SHA-256 校验下载文件。
 
-            完整变更：https://github.com/${{ github.repository }}/compare/${{ steps.prev.outputs.prev }}...${{ github.ref_name }}
+            完整变更：https://github.com/${{ github.repository }}/compare/${{ steps.prev.outputs.prev }}...${{ inputs.release_tag || github.ref_name }}
           files: dist/*
