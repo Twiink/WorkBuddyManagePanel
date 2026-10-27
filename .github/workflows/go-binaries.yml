@@ -348,6 +348,13 @@ jobs:
           body: |
             ## WorkBuddy Manage Panel ${{ inputs.release_tag || github.ref_name }}
 
+            ### v1.14.1
+
+            - 桌面窗口双击后直接进入面板，不再需要先从 `config.json` 复制 API 密钥。
+            - 桌面窗口使用进程内临时令牌；`/v1/*` 仍只接受配置中的真实 API 密钥。
+            - API 密钥可在「配置」中查看或修改，已有桌面会话不会因改密钥中断。
+            - 桌面版监听端口可在「配置」中修改，仅允许本机回环地址，重启应用生效。
+
             ### 桌面应用
 
             - Linux：`.deb`（双击安装）或 `.AppImage`（赋可执行权限后双击）

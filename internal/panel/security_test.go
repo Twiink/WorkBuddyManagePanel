@@ -5,6 +5,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
 )
 
 func newTestPanel() *Panel {
@@ -142,5 +145,61 @@ func TestAuthLayerBehavior(t *testing.T) {
 	p.ServeHTTP(rec2, req2)
 	if rec2.Code == http.StatusUnauthorized {
 		t.Error("valid key must pass the auth layer")
+	}
+}
+
+func TestDesktopPanelTokenAuthentication(t *testing.T) {
+	live := livecfg.New(livecfg.Snapshot{
+		APIKey:   "real-api-key",
+		PanelKey: "desktop-panel-token",
+	})
+	p := New(Config{
+		Version:    "test",
+		APIKey:     "stale-static-key",
+		PanelToken: "stale-panel-token",
+		Live:       live,
+		Pool:       pool.New(""),
+	})
+
+	cases := []struct {
+		name string
+		key  string
+		want int
+	}{
+		{name: "desktop token", key: "desktop-panel-token", want: http.StatusOK},
+		{name: "real API key", key: "real-api-key", want: http.StatusOK},
+		{name: "bad token", key: "wrong", want: http.StatusUnauthorized},
+		{name: "stale token", key: "stale-panel-token", want: http.StatusUnauthorized},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/panel/api/overview", nil)
+			req.Header.Set("Authorization", "Bearer "+tc.key)
+			rec := httptest.NewRecorder()
+			p.ServeHTTP(rec, req)
+			if rec.Code != tc.want {
+				t.Fatalf("status=%d want=%d body=%s", rec.Code, tc.want, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestDesktopPanelTokenSurvivesAPIKeyChange(t *testing.T) {
+	live := livecfg.New(livecfg.Snapshot{
+		APIKey:   "old-api-key",
+		PanelKey: "desktop-panel-token",
+	})
+	p := New(Config{Live: live, Pool: pool.New("")})
+
+	live.Store(livecfg.Snapshot{
+		APIKey:   "new-api-key",
+		PanelKey: live.Load().PanelKey,
+	})
+	req := httptest.NewRequest(http.MethodGet, "/panel/api/overview", nil)
+	req.Header.Set("Authorization", "Bearer desktop-panel-token")
+	rec := httptest.NewRecorder()
+	p.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("desktop token after api_key change: status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }

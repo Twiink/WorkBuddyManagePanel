@@ -1,6 +1,13 @@
 'use strict';
 /* ── 状态 ─────────────────────────────────────────────────────────── */
 const LS_KEY = 'wb2api.key', LS_THEME = 'wb2api.theme';
+/* 桌面主进程通过 URL fragment 传入一次性随机令牌。fragment 不进入 HTTP
+   Referer；写入本机存储后立刻从地址栏删除，刷新窗口仍能进入。 */
+const desktopKey = new URLSearchParams(location.hash.slice(1)).get('desktop');
+if (desktopKey) {
+  localStorage.setItem(LS_KEY, desktopKey);
+  history.replaceState(null, '', location.pathname + location.search + '#accounts');
+}
 /* 账号备注与「积分到期提醒」折叠的本机键（同上：模块级声明放顶部，避开 TDZ）。 */
 const LS_REMARKS = 'wb2api.remarks.v1', LS_EXP_FOLD = 'wb2api.expfold.v1';
 let remarksCache = null;
@@ -49,7 +56,10 @@ async function api(path, opts = {}) {
   if (k) h['Authorization'] = 'Bearer ' + k;
   if (opts.body) h['Content-Type'] = 'application/json';
   const r = await fetch('/panel/api/' + path, Object.assign({}, opts, { headers: h }));
-  if (r.status === 401) { openKey(); throw new Error('密钥无效或未填写'); }
+  if (r.status === 401) {
+    openKey();
+    throw new Error('密钥无效或未填写');
+  }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
   return d;

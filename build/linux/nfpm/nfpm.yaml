@@ -6,7 +6,7 @@
 name: "workbuddy-manage-panel"
 arch: ${GOARCH}
 platform: "linux"
-version: "1.14.0"
+version: "1.14.1"
 section: "default"
 priority: "extra"
 maintainer: "Twiink <Twiink@users.noreply.github.com>"

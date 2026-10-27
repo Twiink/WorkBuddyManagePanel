@@ -1,15 +1,18 @@
 package gateway
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/scheduler"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/upstream"
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
 )
 
 func TestRegionStrategyConfigCompatibility(t *testing.T) {
@@ -88,5 +91,55 @@ func TestSaveRegionSchedulingHotAppliesAndRejectsInvalid(t *testing.T) {
 	}
 	if a := p.PickExcludingForRealm(nil, "m", "cn"); a == nil || a.UID != "a" {
 		t.Fatalf("invalid save changed strategy: %v", a)
+	}
+}
+
+func TestSaveConfigDesktopListenValidation(t *testing.T) {
+	fp := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(fp, []byte(`{"listen":":7863"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	live := livecfg.New(livecfg.Snapshot{})
+	p := pool.New("")
+	up := upstream.New()
+	sch := scheduler.New(scheduler.Config{})
+
+	for _, listen := range []string{":7865", "127.0.0.1:7864", "localhost:7866", "[::1]:7867"} {
+		raw := []byte(`{"listen":` + strconv.Quote(listen) + `}`)
+		if _, err := saveConfig(raw, fp, live, p, up, sch, true); err != nil {
+			t.Errorf("saveConfig(%q) = %v", listen, err)
+		}
+		saved, err := os.ReadFile(fp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var savedMap map[string]any
+		if err := json.Unmarshal(saved, &savedMap); err != nil {
+			t.Fatal(err)
+		}
+		want := listen
+		if strings.HasPrefix(listen, ":") {
+			want = "127.0.0.1" + listen
+		}
+		if savedMap["listen"] != want {
+			t.Fatalf("saveConfig(%q) persisted listen %#v, want %q", listen, savedMap["listen"], want)
+		}
+	}
+	before, err := os.ReadFile(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, listen := range []string{"0.0.0.0:7864", "192.168.1.2:7864", "[::]:7864", "7864"} {
+		raw := []byte(`{"listen":` + strconv.Quote(listen) + `}`)
+		if _, err := saveConfig(raw, fp, live, p, up, sch, true); err == nil {
+			t.Errorf("saveConfig(%q) accepted non-loopback/malformed address", listen)
+		}
+		after, err := os.ReadFile(fp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) != string(before) {
+			t.Fatalf("rejected listen %q changed config file", listen)
+		}
 	}
 }

@@ -62,6 +62,30 @@ func TestRequireLoopbackListen(t *testing.T) {
 	}
 }
 
+func TestNormalizeLoopbackListen(t *testing.T) {
+	got, err := normalizeLoopbackListen(":7864")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "127.0.0.1:7864" {
+		t.Fatalf("normalizeLoopbackListen(:7864) = %q", got)
+	}
+	for _, listen := range []string{"127.0.0.1:7864", "localhost:7864", "[::1]:7864"} {
+		got, err := normalizeLoopbackListen(listen)
+		if err != nil {
+			t.Errorf("normalizeLoopbackListen(%q) = %v", listen, err)
+		}
+		if got != listen {
+			t.Errorf("normalizeLoopbackListen(%q) = %q", listen, got)
+		}
+	}
+	for _, listen := range []string{"7864", "127.0.0.1", ":not-a-port", "0.0.0.0:7864"} {
+		if got, err := normalizeLoopbackListen(listen); err == nil {
+			t.Errorf("normalizeLoopbackListen(%q) = %q, want error", listen, got)
+		}
+	}
+}
+
 func TestStartServesPanelAndClosesIdempotently(t *testing.T) {
 	dataDir := t.TempDir()
 	instance, err := Start(context.Background(), Options{
@@ -116,6 +140,23 @@ func TestStartRejectsNonLoopbackInDesktopMode(t *testing.T) {
 	}
 	if err == nil || !strings.Contains(err.Error(), "loopback") {
 		t.Fatalf("Start() error = %v, want loopback rejection", err)
+	}
+}
+
+func TestStartNormalizesWildcardPortForDesktop(t *testing.T) {
+	dataDir := t.TempDir()
+	instance, err := Start(context.Background(), Options{
+		ConfigPath:      filepath.Join(dataDir, "config.json"),
+		DataDir:         dataDir,
+		Listen:          ":0",
+		RequireLoopback: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer instance.Close()
+	if !strings.HasPrefix(instance.URL, "http://127.0.0.1:") {
+		t.Fatalf("desktop URL = %q, want loopback", instance.URL)
 	}
 }
 

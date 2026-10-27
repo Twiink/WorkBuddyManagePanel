@@ -22,3 +22,17 @@ func TestBuildIdentityStable(t *testing.T) {
 		t.Fatalf("BuildUniqueID = %q, want %q", BuildUniqueID, want)
 	}
 }
+
+func TestNewPanelTokenIsRandomAndNonEmpty(t *testing.T) {
+	a, err := newPanelToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := newPanelToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a) < 32 || a == b {
+		t.Fatalf("tokens must be non-empty and unique: len=%d equal=%v", len(a), a == b)
+	}
+}

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
 	_ "embed"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -24,6 +26,7 @@ type desktop struct {
 	app      *application.App
 	gateway  *gateway.Instance
 	window   *application.WebviewWindow
+	panelURL string
 	gatewayM sync.Mutex
 	quitting atomic.Bool
 }
@@ -96,11 +99,15 @@ func run() error {
 	})
 	d.app = app
 
+	panelToken, err := newPanelToken()
+	if err != nil {
+		return fmt.Errorf("create desktop panel token: %w", err)
+	}
 	instance, err := gateway.Start(app.Context(), gateway.Options{
 		ConfigPath:      filepath.Join(dataDir, "config.json"),
 		DataDir:         dataDir,
-		Listen:          "127.0.0.1:7863",
 		RequireLoopback: true,
+		PanelToken:      panelToken,
 		Version:         buildinfo.Version,
 	})
 	if err != nil {
@@ -109,6 +116,7 @@ func run() error {
 	d.gatewayM.Lock()
 	d.gateway = instance
 	d.gatewayM.Unlock()
+	d.panelURL = instance.URL + "#desktop=" + panelToken
 
 	d.window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:            "main",
@@ -118,7 +126,7 @@ func run() error {
 		MinWidth:        900,
 		MinHeight:       600,
 		InitialPosition: application.WindowCentered,
-		URL:             instance.URL,
+		URL:             d.panelURL,
 		BackgroundColour: application.RGBA{
 			Red: 12, Green: 14, Blue: 20, Alpha: 255,
 		},
@@ -185,6 +193,16 @@ func desktopDataDir() (string, error) {
 		return "", fmt.Errorf("resolve user config directory: %w", err)
 	}
 	return filepath.Join(base, "WorkBuddyManagePanel"), nil
+}
+
+// newPanelToken 为本次桌面进程生成一次性的面板令牌。它只交给内嵌窗口，
+// 不落盘、不写日志，也不能用于 /v1/*。
+func newPanelToken() (string, error) {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b[:]), nil
 }
 
 // BuildUniqueID is stable across releases so a second launch focuses the

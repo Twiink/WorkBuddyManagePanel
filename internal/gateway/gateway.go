@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -45,7 +46,10 @@ type Options struct {
 	Listen string
 	// RequireLoopback 供桌面版强制只监听本机回环地址。
 	RequireLoopback bool
-	Version         string
+	// PanelToken 是桌面窗口的一次性进程内鉴权令牌；只在内存中保存，
+	// 只替代面板接口鉴权，不绕过 /v1/* 的 APIKey。
+	PanelToken string
+	Version    string
 }
 
 // Instance 是一个已经完成端口绑定并开始运行的网关实例。
@@ -164,6 +168,11 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 		cfg.Listen = opts.Listen
 	}
 	if opts.RequireLoopback {
+		normalized, err := normalizeLoopbackListen(cfg.Listen)
+		if err != nil {
+			return nil, err
+		}
+		cfg.Listen = normalized
 		if err := requireLoopbackListen(cfg.Listen); err != nil {
 			return nil, err
 		}
@@ -175,7 +184,9 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 	i := &Instance{Config: cfg, listener: listener}
 	runCtx, cancel := context.WithCancel(ctx)
 	i.cancel = cancel
-	instance, err := finishStart(runCtx, i, opts.ConfigPath, opts.Version)
+	instance, err := finishStart(
+		runCtx, i, opts.ConfigPath, opts.Version, opts.PanelToken, opts.RequireLoopback,
+	)
 	if err != nil {
 		_ = i.Close()
 		return nil, err
@@ -217,7 +228,34 @@ func requireLoopbackListen(listen string) error {
 	return nil
 }
 
-func finishStart(ctx context.Context, i *Instance, cfgPath, version string) (*Instance, error) {
+// normalizeLoopbackListen 把配置中常见的 ":7863" 形式补成显式回环地址。
+// 仅桌面模式调用；浏览器/服务端部署仍保留原有监听语义。
+func normalizeLoopbackListen(listen string) (string, error) {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return "", fmt.Errorf("desktop listen address %q: %w", listen, err)
+	}
+	if host != "" && host != "localhost" {
+		ip := net.ParseIP(strings.Trim(host, "[]"))
+		if ip == nil || !ip.IsLoopback() {
+			return "", fmt.Errorf("desktop mode only allows a loopback listen address, got %q", listen)
+		}
+	}
+	if host != "" {
+		return listen, nil
+	}
+	if _, err := net.LookupPort("tcp", port); err != nil {
+		return "", fmt.Errorf("desktop listen port %q: %w", port, err)
+	}
+	return net.JoinHostPort("127.0.0.1", port), nil
+}
+
+func finishStart(
+	ctx context.Context,
+	i *Instance,
+	cfgPath, version, panelToken string,
+	requireLoopback bool,
+) (*Instance, error) {
 	cfg := i.Config
 
 	auths, err := auth.LoadDir(cfg.AuthDir)
@@ -399,6 +437,7 @@ func finishStart(ctx context.Context, i *Instance, cfgPath, version string) (*In
 	// live 承载可热改字段（api_key/soft_rate/脱敏开关），面板保存配置时在线替换。
 	live := livecfg.New(livecfg.Snapshot{
 		APIKey:               cfg.APIKey,
+		PanelKey:             panelToken,
 		SoftCooldown:         cfg.SoftRateDur,
 		SanitizeFingerprints: cfg.Features.SanitizeBlacklistFingerprints,
 		RecordClientInfo:     cfg.Logging.RequestClientInfo,
@@ -444,6 +483,7 @@ func finishStart(ctx context.Context, i *Instance, cfgPath, version string) (*In
 		Scheduler:   sch,
 		AuthDir:     cfg.AuthDir,
 		APIKey:      cfg.APIKey,
+		PanelToken:  panelToken,
 		RedisMode:   redisMode,
 		StickyCount: sessCount,
 		Version:     version,
@@ -456,7 +496,7 @@ func finishStart(ctx context.Context, i *Instance, cfgPath, version string) (*In
 			return Load(cfgPath)
 		},
 		SaveConfig: func(raw []byte) ([]string, error) {
-			return saveConfig(raw, cfgPath, live, p, up, sch)
+			return saveConfig(raw, cfgPath, live, p, up, sch, requireLoopback)
 		},
 		// 积分历史账本（只读展示；写入由上面的余额观察者完成）。
 		CreditHistory: creditHist,
@@ -617,7 +657,23 @@ func panelListenPath(listen string) string {
 // 落盘用"先写 tmp 再 rename"原子替换，且优先保留磁盘上的原始 JSON 结构（只改
 // 面板表单覆盖到的键），避免把用户手写的注释性字段/未知键洗掉——这里直接整体
 // 序列化校验后的配置，未知键在 json.Unmarshal 时已丢失，故先合并原始 map。
-func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up *upstream.Client, sch *scheduler.Scheduler) ([]string, error) {
+func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up *upstream.Client, sch *scheduler.Scheduler, requireLoopback ...bool) ([]string, error) {
+	desktopMode := len(requireLoopback) > 0 && requireLoopback[0]
+	if desktopMode {
+		var incoming map[string]any
+		if err := json.Unmarshal(raw, &incoming); err != nil {
+			return nil, fmt.Errorf("parse submitted config: %w", err)
+		}
+		if listenValue, ok := incoming["listen"]; ok {
+			listen, isString := listenValue.(string)
+			if !isString {
+				return nil, fmt.Errorf("desktop listen address must be a string")
+			}
+			if _, _, err := net.SplitHostPort(listen); err != nil {
+				return nil, fmt.Errorf("desktop listen address %q: %w", listen, err)
+			}
+		}
+	}
 	// 1) 解析原始 JSON 为 map（保留用户手写的未知键），再叠加面板提交的键。
 	oldRaw, err := os.ReadFile(path)
 	if err != nil {
@@ -636,6 +692,21 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	newCfg, err := ParseConfig(mergedJSON(merged))
 	if err != nil {
 		return nil, err
+	}
+	if desktopMode {
+		normalized, err := normalizeLoopbackListen(newCfg.Listen)
+		if err != nil {
+			return nil, err
+		}
+		newCfg.Listen = normalized
+		if incomingListen, ok := incoming["listen"].(string); ok {
+			if _, port, err := net.SplitHostPort(incomingListen); err == nil && strings.HasPrefix(incomingListen, ":") {
+				merged["listen"] = net.JoinHostPort("127.0.0.1", port)
+			}
+		}
+		if err := requireLoopbackListen(newCfg.Listen); err != nil {
+			return nil, err
+		}
 	}
 
 	// 3) 落盘（原子替换）。
@@ -679,6 +750,7 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	// 4) 热应用：能立即生效的字段全部应用，并列出仍需重启的字段。
 	live.Store(livecfg.Snapshot{
 		APIKey:               newCfg.APIKey,
+		PanelKey:             live.Load().PanelKey,
 		SoftCooldown:         newCfg.SoftRateDur,
 		SanitizeFingerprints: newCfg.Features.SanitizeBlacklistFingerprints,
 		RecordClientInfo:     newCfg.Logging.RequestClientInfo,

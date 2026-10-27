@@ -4,8 +4,9 @@
 //
 // 设计约束：
 //   - 前端 go:embed 单文件（index.html），无任何外部构建依赖，与二进制同体部署；
-//   - 鉴权复用网关 api_key（Bearer），与 /v1/* 同一口径；api_key 为空 = 不鉴权
-//     （仅本机/私网使用）。面板 HTML 本身无秘密，可匿名加载，密钥只发给 /panel/api/*；
+//   - 浏览器面板使用 config.json 的 api_key（Bearer）；桌面窗口另持一个进程内
+//     面板令牌，自动进入面板但永远不能访问 /v1/*。api_key 为空 = 不鉴权
+//     （仅本机/私网使用）。面板 HTML 本身无秘密，可匿名加载；
 //   - 不改写既有池语义：所有运维操作落到 pool 已有入口（Revive/Disable/Remove...），
 //     添加账号走 auth.SaveAtomic + pool.Add，重启后与 auths/ 目录天然对齐。
 package panel
@@ -39,8 +40,11 @@ type Config struct {
 	Scheduler *scheduler.Scheduler // 手动触发签到/保活；nil 时对应接口返回 501
 	AuthDir   string               // OAuth 登录完成后凭证落盘目录
 	APIKey    string               // 空 = 不鉴权（与主服务同语义）；与 Live 同时给出时 Live 优先
-	RedisMode string               // "upstash" / "noop"，仅观测透出
-	Version   string               // 面板版本号（展示用）
+	// PanelToken 是桌面进程内面板令牌，仅验证 /panel/api/*。它不参与 /v1/*，
+	// 且在启动后只保存在内存中，不写入 config.json 或日志。
+	PanelToken string
+	RedisMode  string // "upstash" / "noop"，仅观测透出
+	Version    string // 面板版本号（展示用）
 
 	// Live 运行期可变配置（在线改配置立即生效）。
 	Live *livecfg.Holder
@@ -205,17 +209,30 @@ func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.mux.ServeHTTP(w, r)
 }
 
-// withAuth 与 server 包同口径的 Bearer 鉴权（经 httpauth 常量时间比较）；
-// api_key 为空时放行。密钥经 livecfg 快照读取：面板里改了 api_key，下一个请求
-// 即用新值（无需重启）。
+// withAuth 接受 config.json 的 api_key，或桌面进程内令牌。两者都经
+// httpauth 常量时间比较；api_key 为空时浏览器面板放行。令牌只在本鉴权层生效，
+// server 的 /v1/* 不读取它。
 func (p *Panel) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !httpauth.VerifyBearer(r, p.apiKey()) {
+		apiKey := p.apiKey()
+		panelToken := p.panelToken()
+		apiOK := httpauth.VerifyBearer(r, apiKey)
+		tokenOK := panelToken != "" && httpauth.VerifyBearer(r, panelToken)
+		if !apiOK && !tokenOK {
 			writeErr(w, http.StatusUnauthorized, "invalid_api_key")
 			return
 		}
 		next(w, r)
 	}
+}
+
+// panelToken 返回桌面进程内的面板令牌。与 apiKey 一样从 Live 快照读取，
+// 保证面板保存 api_key 时现有桌面会话不中断。
+func (p *Panel) panelToken() string {
+	if p.cfg.Live != nil {
+		return p.cfg.Live.Load().PanelKey
+	}
+	return p.cfg.PanelToken
 }
 
 // apiKey 当前生效密钥（Live 优先，回落静态字段）。
@@ -278,8 +295,8 @@ func (p *Panel) overview(w http.ResponseWriter, r *http.Request) {
 		"model_locks": p.cfg.Pool.ModelLockView(),
 		// 到期提醒快照的节奏与年龄：界面轮询是 5 秒级，但卡片数据只随余额后台刷新
 		// 更新（默认每 5 分钟）——把这两个数透出，前端才能如实标注「x 分钟前更新」。
-		"balance_refresh_sec":    p.balanceRefreshSec(),
-		"balance_refreshed_at":   p.balanceRefreshedAt(),
+		"balance_refresh_sec":  p.balanceRefreshSec(),
+		"balance_refreshed_at": p.balanceRefreshedAt(),
 	})
 }
 

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/prompt"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/redisstore"
@@ -1201,6 +1202,26 @@ func TestAPIKeyAuth(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != 200 {
 		t.Errorf("right key: code=%d", rec.Code)
+	}
+}
+
+func TestDesktopPanelTokenCannotAuthenticateV1(t *testing.T) {
+	live := livecfg.New(livecfg.Snapshot{
+		APIKey:   "real-api-key",
+		PanelKey: "desktop-panel-token",
+	})
+	h := NewHandler(Config{
+		Pool:     testPoolWith(&auth.Auth{UID: "u1", AccessToken: "at", ExpiresAt: 9999999999}),
+		Upstream: upstream.New(),
+		APIKey:   "stale-api-key",
+		Live:     live,
+	})
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	req.Header.Set("Authorization", "Bearer desktop-panel-token")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("desktop panel token authenticated /v1/*: status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
