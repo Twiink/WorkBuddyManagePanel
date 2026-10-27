@@ -95,9 +95,9 @@ jobs:
           go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Build .deb and AppImage
-        env:
-          PATH: ${{ runner.temp }}/go/bin:${{ env.PATH }}
-        run: wails3 task linux:package
+        run: |
+          export PATH="${HOME}/go/bin:${PATH}"
+          wails3 task linux:package
       - name: Name release files
         run: |
           V="${{ needs.read-version.outputs.version }}"
