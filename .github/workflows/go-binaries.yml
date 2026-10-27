@@ -85,7 +85,9 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Wails v3
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Install native desktop dependencies
         run: |
           sudo apt-get update
@@ -225,8 +227,9 @@ jobs:
           BIN="wb2api"
           [[ "$GOOS" == windows ]] && BIN+=".exe"
           go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$BIN" ./cmd/server
-          grep -aq "${VERSION%-panel}" "$BIN"
-          NAME="wb2api-panel-${VERSION%-panel}-${GOOS}-${GOARCH}.${matrix.ext}"
+          VERSION="${VERSION%-panel}"
+          grep -aq "$VERSION" "$BIN"
+          NAME="wb2api-panel-${VERSION}-${GOOS}-${GOARCH}.${{ matrix.ext }}"
           if [[ "$GOOS" == windows ]]; then
             zip -q "$NAME" "$BIN" config.example.json README.md
           else
