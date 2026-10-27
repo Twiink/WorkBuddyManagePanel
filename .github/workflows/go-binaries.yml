@@ -54,8 +54,36 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Install Linux WebView headers
-        timeout-minutes: 8
+        timeout-minutes: 10
         run: |
+          sudo rm -f /etc/apt/sources.list.d/*.sources
+          sudo tee /etc/apt/sources.list.d/ubuntu.sources >/dev/null <<'EOF'
+          Types: deb
+          URIs: http://archive.ubuntu.com/ubuntu/
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://security.ubuntu.com/ubuntu/
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+          for attempt in 1 2 3; do
+            if sudo timeout 120 apt-get \
+              -o Acquire::Retries=3 \
+              -o Acquire::http::Timeout=15 \
+              -o Acquire::https::Timeout=15 \
+              -o Acquire::ForceIPv4=true \
+              update; then
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]]; then
+              exit 1
+            fi
+            sleep 5
+          done
           sudo apt-get \
             -o Acquire::Retries=3 \
             -o Acquire::http::Timeout=15 \
@@ -107,8 +135,36 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install native desktop dependencies
-        timeout-minutes: 8
+        timeout-minutes: 10
         run: |
+          sudo rm -f /etc/apt/sources.list.d/*.sources
+          sudo tee /etc/apt/sources.list.d/ubuntu.sources >/dev/null <<'EOF'
+          Types: deb
+          URIs: http://archive.ubuntu.com/ubuntu/
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://security.ubuntu.com/ubuntu/
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+          for attempt in 1 2 3; do
+            if sudo timeout 120 apt-get \
+              -o Acquire::Retries=3 \
+              -o Acquire::http::Timeout=15 \
+              -o Acquire::https::Timeout=15 \
+              -o Acquire::ForceIPv4=true \
+              update; then
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]]; then
+              exit 1
+            fi
+            sleep 5
+          done
           sudo apt-get \
             -o Acquire::Retries=3 \
             -o Acquire::http::Timeout=15 \
