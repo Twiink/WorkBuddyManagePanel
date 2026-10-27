@@ -1,0 +1,60 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: Build the GTK4/WebKitGTK desktop application
+    deps:
+      - task: common:tidy
+      - task: common:generate:icons
+      - task: common:generate:dotdesktop
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - CGO_ENABLED=1 GOOS=linux go build -tags production -trimpath -buildvcs=false -ldflags="-s -w" -o "{{.BIN_DIR}}/{{.APP_NAME}}" ./cmd/desktop
+
+  run:
+    summary: Run the desktop application
+    deps: [build]
+    cmds:
+      - '"{{.BIN_DIR}}/{{.APP_NAME}}"'
+
+  package:
+    summary: Build Linux .deb and AppImage packages
+    cmds:
+      - task: create:deb
+      - task: create:appimage
+
+  create:deb:
+    summary: Create a Debian package
+    deps: [build]
+    cmds:
+      - mkdir -p build/linux/package-icons
+      - python3 -c 'from PIL import Image; Image.open("build/appicon.png").convert("RGBA").resize((128,128), Image.Resampling.LANCZOS).save("build/linux/package-icons/workbuddy-manage-panel.png", optimize=True)'
+      - wails3 tool package -name "{{.APP_NAME}}" -format deb -config build/linux/nfpm/nfpm.yaml -out "{{.ROOT_DIR}}/{{.BIN_DIR}}"
+
+  create:appimage:
+    summary: Create an AppImage
+    deps:
+      - build
+      - task: common:generate:dotdesktop
+    cmds:
+      - mkdir -p build/linux/appimage/stage
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" build/linux/appimage/stage/{{.APP_NAME}}
+      - cp build/appicon.png build/linux/appimage/stage/{{.APP_NAME}}.png
+      # Wails downloads linuxdeploy into the build directory. GitHub occasionally
+      # returns a transient EOF; retrying makes the release job deterministic.
+      - |
+        set -euo pipefail
+        for attempt in 1 2 3; do
+          rm -f bin/*.AppImage
+          if wails3 generate appimage -binary "$PWD/build/linux/appimage/stage/{{.APP_NAME}}" -icon "$PWD/build/linux/appimage/stage/{{.APP_NAME}}.png" -desktopfile "$PWD/build/linux/{{.APP_NAME}}.desktop" -outputdir "$PWD/{{.BIN_DIR}}" -builddir "$PWD/build/linux/appimage/build"; then
+            exit 0
+          fi
+          if [[ "$attempt" == "3" ]]; then
+            exit 1
+          fi
+          echo "AppImage packaging failed; retrying in 5 seconds ($attempt/3)" >&2
+          sleep 5
+        done

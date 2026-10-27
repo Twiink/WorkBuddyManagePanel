@@ -1,0 +1,49 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: Build the Windows desktop executable
+    deps:
+      - task: common:tidy
+      - task: common:generate:icons
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - task: generate:syso
+      - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags production -trimpath -buildvcs=false -ldflags="-s -w -H windowsgui" -o "{{.BIN_DIR}}/{{.APP_NAME}}.exe" ./cmd/desktop
+      - cmd: rm -f wails_windows_amd64.syso
+        platforms: [linux, darwin]
+      - cmd: powershell -NoProfile -Command "Remove-Item -Force wails_windows_amd64.syso"
+        platforms: [windows]
+
+  generate:syso:
+    summary: Embed the Windows icon, manifest, and version metadata
+    dir: build
+    cmds:
+      - wails3 generate syso -arch amd64 -icon windows/icon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../wails_windows_amd64.syso
+
+  run:
+    summary: Run the Windows desktop executable
+    deps: [build]
+    cmds:
+      - '"{{.BIN_DIR}}/{{.APP_NAME}}.exe"'
+
+  package:
+    summary: Build the Windows NSIS installer
+    cmds:
+      - task: create:nsis:installer
+
+  create:nsis:installer:
+    summary: Create a per-user NSIS installer
+    deps: [build]
+    dir: build/windows/nsis
+    cmds:
+      - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
+      - >-
+        makensis
+        -DWAILS_INSTALL_SCOPE=user
+        -DREQUEST_EXECUTION_LEVEL=user
+        -DARG_WAILS_AMD64_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe"
+        project.nsi

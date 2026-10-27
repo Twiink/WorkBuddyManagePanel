@@ -1,6 +1,6 @@
 // cross_domain_fallback_config_test.go pool.cross_domain_fallback 配置测试：
 // 默认 false（零回归）/ 文件覆盖为 true。
-package main
+package gateway
 
 import (
 	"os"

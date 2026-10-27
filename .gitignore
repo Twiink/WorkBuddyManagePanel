@@ -19,6 +19,13 @@ config.json
 # Build artifacts
 *.tmp
 __pycache__/
+.task/
+/bin/
+/build/linux/appimage/stage/
+/build/linux/appimage/build/
+/build/linux/package-icons/
+/build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+/wails_windows_*.syso
 
 # Backups (contains auth tokens)
 backups/

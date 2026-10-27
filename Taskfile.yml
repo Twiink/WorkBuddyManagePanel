@@ -1,0 +1,39 @@
+version: '3'
+
+vars:
+  APP_NAME: workbuddy-manage-panel
+  BIN_DIR: bin
+  DESKTOP_PACKAGE: ./cmd/desktop
+  GOOS: '{{.GOOS | default OS}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+
+tasks:
+  build:
+    summary: Build the desktop app for the current OS
+    cmds:
+      - task: "{{.GOOS}}:build"
+
+  package:
+    summary: Build installers for the current OS
+    cmds:
+      - task: "{{.GOOS}}:package"
+
+  run:
+    summary: Run the desktop app for the current OS
+    cmds:
+      - task: "{{.GOOS}}:run"
+
+  generate:icons:
+    summary: Generate all platform icon files
+    cmds:
+      - task: common:generate:icons
+
+  build:server:
+    summary: Build the headless server binary
+    cmds:
+      - task: common:build:server

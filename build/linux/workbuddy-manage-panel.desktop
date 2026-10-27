@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=WorkBuddy Manage Panel
+Comment=WorkBuddy account pool and OpenAI-compatible gateway
+# The Exec line includes %u to pass the URL to the application
+Exec=workbuddy-manage-panel %u
+Terminal=false
+Type=Application
+Icon=workbuddy-manage-panel
+Categories=Utility;
+StartupWMClass=workbuddy-manage-panel

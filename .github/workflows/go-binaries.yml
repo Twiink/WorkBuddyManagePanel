@@ -1,10 +1,8 @@
 name: go-binaries
 
-# 可运行二进制构建/发布：
-#   - PR / push main → 测试 + 五平台编译验证（产物仅存 artifact，不发布）
-#   - push v* tag    → 同上 + 打包上传到 GitHub Release（zip/tar.gz + checksums）
-# 固化的发布纪律（曾两次人祸，见仓库 HANDOFF）：-s -w 剥离、二进制版本串 == 源码
-# appVersion、tag 版本 == 源码版本（-ci 后缀的测试 tag 豁免，用于演练发布线）。
+# 测试、桌面安装包与无界面服务端产物均使用原生 runner 构建：
+#   - PR / push main → 测试 + Linux/Windows/macOS 桌面安装包 + 服务端二进制
+#   - push v* tag    → 同一套构建 + 汇总 checksums + 创建 GitHub Release
 on:
   push:
     branches: [main]
@@ -15,7 +13,10 @@ on:
       - "go.sum"
       - "cmd/**"
       - "internal/**"
+      - "build/**"
+      - "Taskfile.yml"
       - "config.example.json"
+      - "README.md"
       - ".github/workflows/go-binaries.yml"
   workflow_dispatch:
 
@@ -26,6 +27,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  WAILS_VERSION: v3.0.0
+  APP_NAME: workbuddy-manage-panel
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -34,73 +39,209 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      # ubuntu runner 自带 node → panel 包的 JS 运行时冒烟测试（TestAppJSTopLevelSmoke）会真实执行
-      - run: go test ./...
+          cache: true
+      - name: Verify formatting
+        run: test -z "$(gofmt -l cmd/desktop cmd/server internal/gateway internal/buildinfo)"
+      - name: Test and vet
+        run: |
+          go test ./...
+          go vet ./...
 
-  build:
+  read-version:
     needs: test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { goos: windows, goarch: amd64, ext: .zip }
-          - { goos: linux, goarch: amd64, ext: .tar.gz }
-          - { goos: linux, goarch: arm64, ext: .tar.gz }
-          - { goos: darwin, goarch: amd64, ext: .tar.gz }
-          - { goos: darwin, goarch: arm64, ext: .tar.gz }
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read build version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(sed -nE 's/^[[:space:]]*Version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' internal/buildinfo/version.go)"
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::cannot read Version from internal/buildinfo/version.go"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Build version: $VERSION"
+
+  desktop-linux:
+    needs: read-version
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Wails v3
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+      - name: Install native desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev \
+            libfuse2 python3-pil
+      - name: Build .deb and AppImage
+        env:
+          PATH: ${{ runner.temp }}/go/bin:${{ env.PATH }}
+        run: wails3 task linux:package
+      - name: Name release files
+        run: |
+          V="${{ needs.read-version.outputs.version }}"
+          V="${V%-panel}"
+          mkdir -p release
+          cp bin/workbuddy-manage-panel.deb "release/workbuddy-manage-panel_${V}_amd64.deb"
+          for f in bin/*.AppImage; do
+            cp "$f" "release/workbuddy-manage-panel-${V}-linux-amd64.AppImage"
+          done
+          test -s "release/workbuddy-manage-panel_${V}_amd64.deb"
+          test -s "release/workbuddy-manage-panel-${V}-linux-amd64.AppImage"
+          file release/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux
+          path: release/*
+          retention-days: 7
 
-      - name: 取源码版本号
-        id: ver
-        run: echo "v=$(grep -oP 'appVersion = "\K[^"]+' cmd/server/main.go)" >> "$GITHUB_OUTPUT"
+  desktop-windows:
+    needs: read-version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Wails v3 and NSIS
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@$env:WAILS_VERSION
+          choco install nsis --yes --no-progress
+          "$env:USERPROFILE\go\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build NSIS installer
+        shell: pwsh
+        run: wails3 task windows:package
+      - name: Name release file
+        shell: pwsh
+        run: |
+          $version = "${{ needs.read-version.outputs.version }}".Replace("-panel", "")
+          New-Item -ItemType Directory release -Force | Out-Null
+          $installer = Get-ChildItem -Path bin -Filter "*-installer.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer not found" }
+          $output = "release\workbuddy-manage-panel-${version}-windows-amd64-setup.exe"
+          Copy-Item $installer.FullName $output
+          if ((Get-Item $output).Length -le 0) { throw "Empty installer: $output" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: release/*
+          retention-days: 7
 
-      - name: 构建（剥离符号，对齐本地发布口径）
+  desktop-macos:
+    needs: read-version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Wails v3
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Build universal .app and DMG
+        run: wails3 task darwin:package
+      - name: Name release files
+        run: |
+          V="${{ needs.read-version.outputs.version }}"
+          V="${V%-panel}"
+          mkdir -p release
+          DMG="$(find bin -maxdepth 1 -type f -name '*.dmg' | head -1)"
+          if [[ -z "$DMG" ]]; then
+            echo "::error::DMG not found"
+            exit 1
+          fi
+          cp "$DMG" "release/workbuddy-manage-panel-${V}-macos-universal.dmg"
+          ditto -c -k --sequesterRsrc --keepParent \
+            bin/workbuddy-manage-panel.app \
+            "release/workbuddy-manage-panel-${V}-macos-universal.zip"
+          lipo -archs bin/workbuddy-manage-panel.app/Contents/MacOS/workbuddy-manage-panel
+          codesign --verify --deep --strict bin/workbuddy-manage-panel.app
+          test -s "release/workbuddy-manage-panel-${V}-macos-universal.dmg"
+          test -s "release/workbuddy-manage-panel-${V}-macos-universal.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos
+          path: release/*
+          retention-days: 7
+
+  server-binaries:
+    needs: read-version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: windows, goarch: amd64, ext: zip }
+          - { goos: linux, goarch: amd64, ext: tar.gz }
+          - { goos: linux, goarch: arm64, ext: tar.gz }
+          - { goos: darwin, goarch: amd64, ext: tar.gz }
+          - { goos: darwin, goarch: arm64, ext: tar.gz }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build and package server
+        shell: bash
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
-        run: go build -ldflags "-s -w" -o "wb2api${{ matrix.goos == 'windows' && '.exe' || '' }}" ./cmd/server
-
-      # 版本串断言：二进制必须含源码 appVersion（防交叉编译矩阵里编错树/漏 ldflags）
-      - name: 断言二进制版本串
+          CGO_ENABLED: "0"
+          VERSION: ${{ needs.read-version.outputs.version }}
         run: |
-          BIN="wb2api${{ matrix.goos == 'windows' && '.exe' || '' }}"
-          if ! grep -qa "${{ steps.ver.outputs.v }}" "$BIN"; then
-            echo "::error::binary missing version string ${{ steps.ver.outputs.v }}"
-            exit 1
+          BIN="wb2api"
+          [[ "$GOOS" == windows ]] && BIN+=".exe"
+          go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$BIN" ./cmd/server
+          grep -aq "${VERSION%-panel}" "$BIN"
+          NAME="wb2api-panel-${VERSION%-panel}-${GOOS}-${GOARCH}.${matrix.ext}"
+          if [[ "$GOOS" == windows ]]; then
+            zip -q "$NAME" "$BIN" config.example.json README.md
+          else
+            tar czf "$NAME" "$BIN" config.example.json README.md
           fi
-          echo "version assert OK: ${{ steps.ver.outputs.v }}"
-
-      - name: 打包（windows=zip 三件套，其余=tar.gz）
-        run: |
-          V="${{ steps.ver.outputs.v }}"
-          V="${V%-panel}"   # 文件名不带 -panel 后缀（wb2api-panel-v1.2.3-... 既有惯例）
-          case "${{ matrix.goos }}" in
-            windows)
-              NAME="wb2api-panel-v${V}-windows-amd64.zip"
-              zip -q "$NAME" wb2api.exe config.example.json README.md
-              ;;
-            *)
-              NAME="wb2api-panel-v${V}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
-              tar czf "$NAME" wb2api config.example.json README.md
-              ;;
-          esac
-          echo "name=$NAME" >> "$GITHUB_ENV"
-
+          mkdir -p release
+          mv "$NAME" release/
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.name }}
-          path: ${{ env.name }}
+          name: server-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: release/*
           retention-days: 7
 
-  # 仅 tag 触发：校验 tag == 源码版本（-ci 演练 tag 豁免）→ 汇总资产 → 建 Release
   publish:
-    needs: build
+    needs:
+      - read-version
+      - desktop-linux
+      - desktop-windows
+      - desktop-macos
+      - server-binaries
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -108,37 +249,76 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # 取历史 tag 算 compare 链接
-      - name: tag 与源码版本一致性断言
+          fetch-depth: 0
+      - name: Verify tag matches source version
+        shell: bash
         run: |
-          SRC=$(grep -oP 'appVersion = "\K[^"]+' cmd/server/main.go)
-          SRC="${SRC%-panel}"   # appVersion 带 -panel 后缀，比对前剥掉
+          SRC="${{ needs.read-version.outputs.version }}"
+          SRC="${SRC%-panel}"
           TAG="${GITHUB_REF_NAME#v}"
           if [[ "$GITHUB_REF_NAME" != *-ci ]]; then
             if [[ "$TAG" != "$SRC" ]]; then
-              echo "::error::tag $GITHUB_REF_NAME 与源码 appVersion=$SRC 不一致（先提交版本号再打 tag）"
+              echo "::error::tag $GITHUB_REF_NAME does not match source version $SRC"
               exit 1
             fi
           else
-            echo "演练 tag（-ci 后缀）跳过一致性断言：tag=$TAG src=$SRC"
+            echo "CI-only tag $GITHUB_REF_NAME skips the release-version assertion"
           fi
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-      - name: checksums
-        run: cd dist && sha256sum *.zip *.tar.gz > checksums.txt && ls -la
-      - name: 上一版 tag（compare 链接用）
+      - name: Verify expected assets
+        shell: bash
+        run: |
+          count_deb="$(find dist -maxdepth 1 -type f -name '*.deb' | wc -l)"
+          count_appimage="$(find dist -maxdepth 1 -type f -name '*.AppImage' | wc -l)"
+          count_windows="$(find dist -maxdepth 1 -type f -name '*-windows-amd64-setup.exe' | wc -l)"
+          count_dmg="$(find dist -maxdepth 1 -type f -name '*-macos-universal.dmg' | wc -l)"
+          count_macos_zip="$(find dist -maxdepth 1 -type f -name '*-macos-universal.zip' | wc -l)"
+          if (( count_deb != 1 || count_appimage != 1 || count_windows != 1 || count_dmg != 1 || count_macos_zip != 1 )); then
+            find dist -maxdepth 1 -type f -printf '%f\n' | sort
+            echo "::error::desktop release assets are incomplete"
+            exit 1
+          fi
+      - name: Create checksums
+        run: |
+          cd dist
+          find . -maxdepth 1 -type f ! -name checksums.txt -printf '%f\n' |
+            sort | xargs sha256sum > checksums.txt
+          sha256sum -c checksums.txt
+          cat checksums.txt
+      - name: Find previous release tag
         id: prev
         run: |
           PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
           echo "prev=${PREV}" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}-panel
+          name: WorkBuddy Manage Panel ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
-            CI 自动构建发布（五平台二进制 + checksums）。
+            ## WorkBuddy Manage Panel ${{ github.ref_name }}
+
+            ### 桌面应用
+
+            - Linux：`.deb`（双击安装）或 `.AppImage`（赋可执行权限后双击）
+            - Windows：`*-windows-amd64-setup.exe`，单用户安装，不需要管理员权限
+            - macOS：通用 `.dmg` 或 `.zip`，同时支持 Intel 与 Apple Silicon
+
+            首次运行会在下列位置创建 `config.json`、`auths/` 和 `data/`：
+
+            - Linux：`~/.config/WorkBuddyManagePanel`
+            - Windows：`%AppData%\WorkBuddyManagePanel`
+            - macOS：`~/Library/Application Support/WorkBuddyManagePanel`
+
+            关闭窗口后应用会在托盘继续运行；从托盘菜单选择“退出”才会结束网关。
+
+            ### 未签名说明
+
+            Windows 安装包和 macOS 应用目前未使用商业代码签名证书。Windows SmartScreen
+            可能提示“未知发布者”；macOS Gatekeeper 可能阻止首次打开。所有产物均附带
+            `checksums.txt`，可用 SHA-256 校验下载文件。
 
             完整变更：https://github.com/${{ github.repository }}/compare/${{ steps.prev.outputs.prev }}...${{ github.ref_name }}
           files: dist/*

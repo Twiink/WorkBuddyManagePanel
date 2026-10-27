@@ -1,0 +1,42 @@
+version: '3'
+
+vars:
+  APP_NAME: workbuddy-manage-panel
+  BIN_DIR: bin
+  DESKTOP_PACKAGE: ./cmd/desktop
+
+tasks:
+  tidy:
+    summary: Verify and normalize Go module metadata
+    internal: true
+    run: once
+    cmds:
+      - go mod tidy
+
+  generate:icons:
+    summary: Generate macOS and Windows icons from build/appicon.png
+    run: once
+    sources:
+      - build/appicon.png
+    generates:
+      - build/darwin/icons.icns
+      - build/windows/icon.ico
+    cmds:
+      - wails3 generate icons -input build/appicon.png -macfilename build/darwin/icons.icns -windowsfilename build/windows/icon.ico
+
+  generate:dotdesktop:
+    summary: Generate the Linux desktop entry
+    run: once
+    sources:
+      - build/linux/desktop
+    generates:
+      - build/linux/workbuddy-manage-panel.desktop
+    cmds:
+      - cp build/linux/desktop build/linux/workbuddy-manage-panel.desktop
+
+  build:server:
+    summary: Build the headless server binary
+    deps: [tidy]
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o "{{.BIN_DIR}}/wb2api{{if eq OS \"windows\"}}.exe{{end}}" ./cmd/server

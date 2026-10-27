@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "1.14.0"
+	},
+	"info": {
+		"0409": {
+			"ProductVersion": "1.14.0",
+			"CompanyName": "Twiink",
+			"FileDescription": "WorkBuddy account pool and OpenAI-compatible gateway",
+			"LegalCopyright": "Copyright 2026 Twiink",
+			"ProductName": "WorkBuddy Manage Panel",
+			"Comments": "WorkBuddy Manage Panel desktop application"
+		}
+	}
+}

@@ -10,9 +10,10 @@
 </p>
 
 <p align="center">
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.22.5-00ADD8?logo=go&logoColor=white&style=flat-square">
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white&style=flat-square">
+  <img alt="Desktop" src="https://img.shields.io/badge/Desktop-Windows%20%7C%20macOS%20%7C%20Linux-4B5563?style=flat-square">
   <img alt="API" src="https://img.shields.io/badge/API-OpenAI_Compatible-412991?style=flat-square">
-  <img alt="Deploy" src="https://img.shields.io/badge/Deploy-Single_Binary%20%7C%20Docker-2496ED?style=flat-square">
+  <img alt="Deploy" src="https://img.shields.io/badge/Deploy-Desktop%20%7C%20Single_Binary%20%7C%20Docker-2496ED?style=flat-square">
   <img alt="Transport" src="https://img.shields.io/badge/Transport-SSE%20%2F%20Streaming-0DBD8B?style=flat-square">
 </p>
 
@@ -229,10 +230,80 @@ flowchart LR
 
 ### 环境要求
 
+- **Windows 10/11、macOS 12+ 或 Linux 桌面版**——可使用双击安装的桌面应用（推荐）
 - **Docker + Docker Compose**（服务端部署方式，镜像内已含低权限用户与全部工具脚本）——或
 - **Windows / macOS / Linux 直接跑单文件二进制**（无需 Docker，见下方「Windows 单文件运行」）
 - 一个或多个已注册的 CodeBuddy 账号，用于 OAuth 登录
-- 宿主机 Go ≥ 1.22（仅从源码构建时需要）
+- 宿主机 Go ≥ 1.26（仅从源码构建时需要）
+
+### 桌面应用（推荐）
+
+从 [GitHub Releases](https://github.com/Twiink/WorkBuddyManagePanel/releases/latest)
+下载与当前系统对应的安装包。安装后双击图标即可打开管理窗口，本地网关会自动启动，
+无需另开终端或浏览器。
+
+| 系统 | 安装文件 | 使用方式 |
+|---|---|---|
+| Windows | `workbuddy-manage-panel-*-windows-amd64-setup.exe` | 双击安装；首次启动如缺少 WebView2，安装程序会引导安装 |
+| macOS | `workbuddy-manage-panel-*-macos-universal.dmg` | 打开后把应用拖入“应用程序”；同时支持 Intel 与 Apple Silicon |
+| Linux Debian / Ubuntu | `workbuddy-manage-panel_*_amd64.deb` | 双击由软件中心安装，或执行 `sudo apt install ./文件名.deb` |
+| Linux 其他发行版 | `workbuddy-manage-panel-*-linux-amd64.AppImage` | 右键属性允许执行，或执行 `chmod +x 文件名.AppImage` 后双击 |
+
+关闭窗口后应用会留在托盘继续执行定时任务。要彻底停止本地网关，请右键托盘图标并选择
+“退出”。重复双击只会唤起已有窗口，不会再次占用端口。
+
+首次运行会自动生成随机 API key。数据保存在当前用户目录：
+
+| 系统 | 数据目录 |
+|---|---|
+| Linux | `~/.config/WorkBuddyManagePanel` |
+| macOS | `~/Library/Application Support/WorkBuddyManagePanel` |
+| Windows | `%AppData%\WorkBuddyManagePanel` |
+
+目录里包含 `config.json`、`auths/`、`data/`，其中凭证与配置文件为当前用户私有权限。
+备份或迁移时请把整个目录一起复制，且不要上传到公开仓库。
+
+当前 GitHub Release 的 Windows 和 macOS 构建没有商业代码签名证书。Windows SmartScreen
+可能显示“未知发布者”，macOS Gatekeeper 也可能阻止首次打开。请只从本仓库 Releases
+下载，并用同页的 `checksums.txt` 校验 SHA-256。
+
+### 从源码开发
+
+桌面端使用 [Wails v3](https://v3.wails.io/) 的 GTK4 + WebKitGTK 原生窗口，三平台必须
+在对应系统上构建。基础环境是 Go 1.26+、GCC/CGO、pkg-config、Git 和 Task：
+
+```bash
+# 安装 Go 工具
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
+go install golang.org/x/tools/gopls@latest
+go install github.com/go-delve/delve/cmd/dlv@latest
+
+# 确保 $(go env GOPATH)/bin 在 PATH 中
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+Ubuntu / Debian 还需要：
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev \
+  libfuse2 python3-pil
+```
+
+Windows 需要 Go、WebView2 Runtime（Windows 11 通常自带）和 NSIS；macOS 需要 Xcode
+Command Line Tools。安装依赖和常用命令：
+
+```bash
+wails3 task linux:build      # 当前 Linux 桌面二进制
+wails3 task linux:package    # .deb + AppImage
+wails3 task windows:build    # Windows 桌面二进制
+wails3 task windows:package  # NSIS 安装包
+wails3 task darwin:build     # macOS universal 二进制
+wails3 task darwin:package   # .app + .dmg
+```
+
+Linux 首次打 AppImage 会扫描并打包 GTK/WebKit 库，通常需要数分钟。Wails 会从 GitHub
+下载 `linuxdeploy`；构建任务已加入三次重试来处理偶发下载中断。
 
 ### 方式〇：GHCR 镜像（免克隆免构建）
 
@@ -247,7 +318,7 @@ mkdir -p auths data && cp config.example.json config.json
 docker run -d --name workbuddy2api \
   -p 7863:7863 -e TZ=Asia/Shanghai \
   -v ./auths:/app/auths -v ./data:/app/data -v ./config.json:/app/config.json \
-  ghcr.io/linguo2625469/workbuddy2api-panel:latest
+  ghcr.io/twiink/workbuddy-manage-panel:latest
 
 # 3. 健康检查（无可用账号时返回 503）
 curl -s http://localhost:7863/healthz
@@ -263,8 +334,8 @@ curl -s http://localhost:7863/healthz
 
 ```bash
 # 1. 克隆
-git clone https://github.com/linguo2625469/workbuddy2api-panel.git
-cd workbuddy2api-panel
+git clone https://github.com/Twiink/WorkBuddyManagePanel.git
+cd WorkBuddyManagePanel
 
 # 2. 准备配置（compose 挂载此文件，缺失会导致容器启动失败）
 cp config.example.json config.json
