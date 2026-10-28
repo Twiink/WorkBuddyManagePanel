@@ -4,6 +4,8 @@ const LS_KEY = 'wb2api.key', LS_THEME = 'wb2api.theme';
 /* 账号备注与「积分到期提醒」折叠的本机键（同上：模块级声明放顶部，避开 TDZ）。 */
 const LS_REMARKS = 'wb2api.remarks.v1', LS_EXP_FOLD = 'wb2api.expfold.v1';
 let remarksCache = null;
+/* 积分构成「积分组成」当前展示的账号 uid（空 = 默认余额最高者）。放顶部避开 TDZ。 */
+let pkDetailUid = '';
 let theme = localStorage.getItem(LS_THEME) || 'auto';   // auto | light | dark
 let view = 'accounts';
 let overviewData = null, cfgLoaded = null;
@@ -362,8 +364,8 @@ function go(v) {
   if (v === 'models' && !$('mdBody').children.length) loadModels();
   if (v === 'config') loadConfig();
   if (v === 'logs') loadLogs();
-  if (v === 'usage') loadUsage();
-  if (v === 'packages') loadPackages();
+  if (v === 'usage') { loadUsage(); loadRequests(); }
+  if (v === 'packages') { loadPackages(); loadCreditHistory(); }
   // 到期提醒卡片：默认可见，进页面即用 overview 快照渲染（零上游请求，随首页统计
   // 每轮刷新）。不再「打开账号池就打上游」——逐账号实时查在账号多时会卡死面板。
   // 完整逐包明细由卡片上的「检查」按钮显式触发（loadPackages/loadExpiry）。
@@ -860,20 +862,61 @@ $('logChips').addEventListener('click', ev => {
   document.querySelectorAll('#logChips .chip').forEach(c => c.classList.toggle('on', c === b));
   loadLogs();
 });
+/* 运行日志：整页视图，只拉 /logs。每行拆成 [时间][频道][级别][正文] 四列网格，
+   级别从正文推断（与旧版同一组关键词），方括号前缀（[upstream] 等）高亮为来源。 */
+const LOG_CH_LABEL = { task: '任务', chat: '对话', sys: '系统' };
+function logLineHtml(e) {
+  const text = String(e.text || '');
+  const lvl = /error|失败|错误/.test(text) ? 'e' : /warn|冷却|熔断/.test(text) ? 'w' : '';
+  const d = e.ts ? new Date(e.ts) : null;
+  const t = d && !isNaN(d.getTime()) ? d.toLocaleTimeString('zh-CN', { hour12: false }) : '';
+  const day = d && !isNaN(d.getTime()) ? d.toLocaleDateString('zh-CN') : '';
+  const m = /^\s*(\[[^\]]{1,40}\]|[a-z][\w.-]{1,30}:)\s*/i.exec(text);
+  const src = m ? m[1] : '';
+  const body = m ? text.slice(m[0].length) : text;
+  return '<div class="ln' + (lvl ? ' ' + lvl : '') + '">' +
+    '<time title="' + esc(day + ' ' + t) + '">' + esc(t) + '</time>' +
+    '<i class="lch c-' + esc(e.ch) + '">' + esc(LOG_CH_LABEL[e.ch] || e.ch || '—') + '</i>' +
+    '<span class="lv">' + (lvl === 'e' ? '错误' : lvl === 'w' ? '警告' : '') + '</span>' +
+    '<span class="tx">' + (src ? '<b class="src">' + esc(src) + '</b> ' : '') + esc(body) + '</span></div>';
+}
 async function loadLogs() {
   const box = $('logBox');
   const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 24;
+  try {
+    const d = await api('logs');
+    const all = d.entries || [];
+    const entries = all.filter(e => logCh === 'all' || e.ch === logCh);
+    box.innerHTML = entries.length
+      ? entries.map(logLineHtml).join('')
+      : '<div class="log-empty">' + (all.length ? '该频道暂无日志' : '暂无日志') + '</div>';
+    if (logPin && atEnd) box.scrollTop = box.scrollHeight;
+    const counts = {}; let errs = 0, warns = 0;
+    for (const e of all) {
+      counts[e.ch] = (counts[e.ch] || 0) + 1;
+      if (/error|失败|错误/.test(e.text || '')) errs++;
+      else if (/warn|冷却|熔断/.test(e.text || '')) warns++;
+    }
+    document.querySelectorAll('#logChips .chip').forEach(c => {
+      const ch = c.dataset.ch;
+      const n = ch === 'all' ? all.length : (counts[ch] || 0);
+      c.textContent = (ch === 'all' ? '全部' : LOG_CH_LABEL[ch]) + ' ' + n;
+    });
+    $('logNote').textContent = all.length + ' 行' + (errs ? ' · 错误 ' + errs : '') + (warns ? ' · 警告 ' + warns : '');
+  } catch (e) { /* 概览已提示 */ }
+}
+
+/* 请求记录：已移到「用量」页（用量总览与用量明细之间），只在用量页加载。 */
+async function loadRequests() {
   const limit = ($('reqLimit') && $('reqLimit').value) || 100;
   // 时间范围由归档侧过滤（不是前端筛已拉取的条目）：区间落在更早的时间段时，
   // 「最近 N 条」里根本不会有那些记录，必须让服务端按时间取。
   const rq = trangeQuery('reqRange', false);
   rq.set('limit', limit);
   try {
-    const [d, metrics, requestRows, credit] = await Promise.all([
-      api('logs'),
+    const [metrics, requestRows] = await Promise.all([
       api('request_metrics').catch(() => ({})),
       api('request_logs?' + rq.toString()).catch(() => ({ entries: [] })),
-      api('credit_history?limit=' + creditLimitValue()).catch(() => null),
     ]);
     // 归档开启时以归档为准——「区间内没有记录」是一个真实结果，不能回落成内存里
     // 的最近 100 条（那会把筛选条件之外、时间范围之外的请求显示出来）。
@@ -881,22 +924,6 @@ async function loadLogs() {
     const archiveOn = !!(metrics && metrics.archive && metrics.archive.enabled);
     const recent = archiveOn ? (requestRows.entries || []) : (metrics.recent || []);
     renderRequestMetrics(metrics, recent);
-    const entries = (d.entries || []).filter(e => logCh === 'all' || e.ch === logCh);
-    box.innerHTML = entries.length
-      ? entries.map(e => {
-        const lvl = /error|失败|错误/.test(e.text) ? ' e' : /warn|冷却|熔断/.test(e.text) ? ' w' : '';
-        const t = e.ts ? new Date(e.ts).toLocaleTimeString('zh-CN', { hour12: false }) : '';
-        const ch = logCh === 'all' ? '<i class="lch c-' + esc(e.ch) + '">' + ({ task: '任务', chat: '对话', sys: '系统' }[e.ch] || e.ch) + '</i>' : '';
-        return '<span class="ln' + lvl + '">' + ch + esc(t + ' ' + e.text) + '</span>';
-      }).join('')
-      : '<span style="color:var(--ink-3)">暂无日志</span>';
-    if (logPin && atEnd) box.scrollTop = box.scrollHeight;
-    const counts = {};
-    for (const e of (d.entries || [])) counts[e.ch] = (counts[e.ch] || 0) + 1;
-    $('logNote').textContent = logCh === 'all'
-      ? '任务 ' + (counts.task || 0) + ' · 对话 ' + (counts.chat || 0) + ' · 系统 ' + (counts.sys || 0)
-      : (logCh === 'task' ? '任务' : logCh === 'chat' ? '对话' : '系统') + ' ' + entries.length + ' 行';
-    renderCreditHistory(credit);
   } catch (e) { /* 概览已提示 */ }
 }
 
@@ -1074,11 +1101,11 @@ if ($('reqOutcome')) $('reqOutcome').onchange = () => {
   reqFilter.outcome = $('reqOutcome').value;
   renderRequestTable();
 };
-if ($('reqLimit')) $('reqLimit').onchange = loadLogs;
-if ($('btnReqReload')) $('btnReqReload').onclick = loadLogs;
+if ($('reqLimit')) $('reqLimit').onchange = loadRequests;
+if ($('btnReqReload')) $('btnReqReload').onclick = loadRequests;
 // 时间范围：默认「全部历史」——请求记录页的历史行为就是"取最近 N 条"，
 // 加一个默认收窄的区间会让打开页面时看到的条数凭空变少。
-if ($('reqRange')) trangeBind('reqRange', loadLogs, '0');
+if ($('reqRange')) trangeBind('reqRange', loadRequests, '0');
 if ($('creditLimit')) $('creditLimit').onchange = loadCreditHistory;
 if ($('btnCreditReload')) $('btnCreditReload').onclick = loadCreditHistory;
 
@@ -1407,6 +1434,7 @@ $('btnRefresh').onclick = async () => {
   } catch (e) { toast('刷新失败：' + e.message, 'err'); await loadOverview(true); }
   finally { b.disabled = false; b.textContent = '刷新'; }
   if (view === 'logs') loadLogs();
+  if (view === 'usage') loadRequests();
 };
 
 /* ── 官方补偿（issue #189）─────────────────────────────────────────
@@ -1586,6 +1614,7 @@ if ($('btnCompClaimAll')) $('btnCompClaimAll').onclick = async () => {
 function refreshVisible() {
   if (view === 'accounts') { loadOverview(true); renderCachedCompensation(); }
   else if (view === 'logs') loadLogs();
+  else if (view === 'usage') loadRequests();
   else if (view === 'taskscenter') reattachQueueView();
 }
 function start() {
@@ -2234,16 +2263,24 @@ function usPct(part, total) {
    withPerf 控制延迟/速率两列；列开关显式传入，避免调用方改动后与表头错列。 */
 /* nameHtml 非空时替代 esc(name)（已转义的富文本，见 remarkName）：账号维度的第一列
    需要把备注渲染成主标识、uid8 作为浅色虚体跟随，其余维度仍走纯文本转义。 */
-function usRow(name, sub, a, mid, withPerf, nameHtml) {
+function usShareBar(share) {
+  if (share == null || !Number.isFinite(share)) return '';
+  const pct = Math.max(0, Math.min(1, share)) * 100;
+  return '<span class="us-share" title="占全部 ' + pct.toFixed(1) + '%"><i style="width:' + pct.toFixed(2) + '%"></i></span>' +
+    '<span class="us-share-v">' + (pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)) + '%</span>';
+}
+
+function usRow(name, sub, a, mid, withPerf, nameHtml, share) {
   return '<tr>' +
     '<td class="mark" aria-hidden="true"></td>' +
-    '<td>' + (nameHtml || esc(name)) + (sub ? '<div class="note">' + esc(sub) + '</div>' : '') + '</td>' +
+    '<td class="us-name"><div class="us-nm">' + (nameHtml || esc(name)) + '</div>' + (sub ? '<div class="note">' + esc(sub) + '</div>' : '') +
+      (share == null ? '' : '<div class="us-sharerow">' + usShareBar(share) + '</div>') + '</td>' +
     (mid || '') +
     '<td class="num">' + fmtTok(a.requests) + '</td>' +
-    '<td class="num">' + (a.errors ? '<span style="color:var(--warn)">' + fmtTok(a.errors) + '</span>' : '—') + '</td>' +
+    '<td class="num">' + (a.errors ? '<span class="us-err">' + fmtTok(a.errors) + '</span>' : '<span class="muted">—</span>') + '</td>' +
     '<td class="num">' + fmtTok(a.prompt_tokens) + '</td>' +
     '<td class="num">' + fmtTok(a.completion_tokens) + '</td>' +
-    '<td class="num">' + fmtTok(a.total_tokens) +
+    '<td class="num us-total">' + fmtTok(a.total_tokens) +
       usMixBar(a.prompt_tokens, a.completion_tokens, a.total_tokens) + '</td>' +
     (withPerf
       ? '<td class="num">' + fmtMs(a.avg_latency_ms) + '</td>' +
@@ -2299,6 +2336,7 @@ function renderUsageDim() {
   const d = usageData || {};
   const m = US_DIMS[usDim] || US_DIMS.account;
   const rows = usSortRows(d[m.key] || [], usSort);
+  const tokSum = rows.reduce((t, x) => t + (Number(x.total_tokens) || 0), 0);
   $('usDimTabs').innerHTML = usTabsHtml(US_DIM_TABS, usDim, {
     account: (d.by_account || []).length,
     model: (d.by_model || []).length,
@@ -2313,7 +2351,8 @@ function renderUsageDim() {
       x,
       isAcct ? '<td class="num">' + esc(x.realm || '') + '</td>' : '',
       m.withPerf,
-      isAcct ? remarkName(x.key, esc(key)) : '');
+      isAcct ? remarkName(x.key, esc(key)) : '',
+      tokSum ? (Number(x.total_tokens) || 0) / tokSum : null);
   }).join('') || '<tr><td colspan="' + m.span + '" class="empty">暂无数据</td></tr>';
   $('usDimNote').textContent = rows.length + ' 行 · 请求数含失败尝试';
 }
@@ -2346,13 +2385,15 @@ function renderCreditDim() {
   const empty = '暂无积分扣除记录；升级前仅含 Token 的历史不会伪造积分。';
   if (usCreditDim === 'model') {
     const models = d.credit_by_model || [];
+    const cSum = models.reduce((t, r) => t + (Number(r.credits) || 0), 0);
     $('usCreditBody').innerHTML = models.map(row =>
       '<tr>' +
         '<td class="mark" aria-hidden="true"></td>' +
-        '<td>' + esc(row.key || '—') + '</td>' +
+        '<td class="us-name"><div class="us-nm">' + esc(row.key || '—') + '</div>' +
+          (cSum ? '<div class="us-sharerow">' + usShareBar((Number(row.credits) || 0) / cSum) + '</div>' : '') + '</td>' +
         '<td>' + esc(fmtModelRate(row.rate)) + '</td>' +
         '<td class="num">' + fmtTok(row.requests) + '</td>' +
-        '<td class="num">' + fmtCredit(row.credits) + '</td>' +
+        '<td class="num us-total">' + fmtCredit(row.credits) + '</td>' +
         '<td class="num">' + fmtTok(row.credit_tokens) + '</td>' +
         '<td class="num">' + fmtCreditRatio(row.credits_per_1m_tokens, row.credit_samples, row.credit_tokens) + '</td>' +
         '<td class="num">' + cacheRateCell(row.cache_hit_tokens, row.cache_miss_tokens) + '</td>' +
@@ -2360,14 +2401,16 @@ function renderCreditDim() {
     ).join('') || '<tr><td colspan="8" class="empty">' + empty + '</td></tr>';
   } else {
     const accounts = d.credit_by_account || [];
+    const cSum = accounts.reduce((t, r) => t + (Number(r.credits) || 0), 0);
     $('usCreditBody').innerHTML = accounts.map(row => {
       const uid = String(row.key || '');
       const account = row.nickname || uid.slice(0, 8) || '—';
       return '<tr>' +
         '<td class="mark" aria-hidden="true"></td>' +
-        '<td>' + remarkName(uid, esc(account)) + '<div class="note">' + esc(row.realm || '') + ' · ' + esc(uid.slice(0, 8)) + '</div></td>' +
+        '<td class="us-name"><div class="us-nm">' + remarkName(uid, esc(account)) + '</div><div class="note">' + esc(row.realm || '') + ' · ' + esc(uid.slice(0, 8)) + '</div>' +
+          (cSum ? '<div class="us-sharerow">' + usShareBar((Number(row.credits) || 0) / cSum) + '</div>' : '') + '</td>' +
         '<td class="num">' + fmtTok(row.requests) + '</td>' +
-        '<td class="num">' + fmtCredit(row.credits) + '</td>' +
+        '<td class="num us-total">' + fmtCredit(row.credits) + '</td>' +
         '<td class="num">' + fmtTok(row.credit_tokens) + '</td>' +
         '<td class="num">' + fmtCreditRatio(row.credits_per_1m_tokens, row.credit_samples, row.credit_tokens) + '</td>' +
         '<td class="num">' + cacheRateCell(row.cache_hit_tokens, row.cache_miss_tokens) + '</td>' +
@@ -2898,36 +2941,108 @@ function summarizeCreditDays(list, now) {
   return { rows, accountCount: (list || []).length, unavailable };
 }
 
+// 到期分布：按「自然日」画成日历柱状图——横轴是从今天起的每一天，柱高 = 当天到期
+// 的积分，柱内按账号着色。与首页「积分到期提醒」同口径（本地自然日，见 expDaysLeft），
+// 两处说「明天到期」指的是同一批。数据仍出自 summarizeCreditDays（余额约束后的逐包金额），
+// 这里只是按日历日重新归桶，不改变金额。
+const PKX_MAX_DAYS = 60;
+
+function pkxDayIndex(expiresAt, today) {
+  const d = new Date(expiresAt); d.setHours(0, 0, 0, 0);
+  return Math.round((d - today) / PK_DAY_MS);
+}
+
 function renderExpiryDistribution(list, now) {
   const summary = summarizeCreditDays(list, now);
   const colors = pkAccountColorMap(list);
-  const rows = summary.rows.map(row => {
-    const total = row.credits || 1;
-    const nodes = row.segments.map(segment => {
-      const color = colors.get(segment.uid) || 'var(--accent)';
-      const title = segment.source + '\n' + fmtTok(segment.amount) + ' 积分\n到期时间 ' +
-        pkExpiryDateTime(segment.expiresAt) + '（' + pkExpiryText(segment.expiresAt) + '）\n' +
-        segment.accountName;
-      return '<span class="pk-expiry-seg" style="--seg-color:' + color +
-        ';opacity:' + pkCreditOpacity(segment.days).toFixed(5) +
-        ';flex:' + Math.max(0.008, segment.amount / total).toFixed(4) +
-        ' 1 0" title="' + esc(title) + '" aria-label="' + esc(title) + '"></span>';
-    }).join('');
-    return '<div class="pk-expiry-row"><span>' + esc(row.days === 0 ? '已到期' : row.days + ' 天') +
-      '</span><div class="pk-expiry-track">' + nodes + '</div><b>' + esc(fmtTok(row.credits)) +
-      '</b></div>';
-  }).join('');
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  // 按自然日归桶；已过期但仍有余额的批次单列「已到期」，超出 60 天的并入末柱。
+  const days = new Map();
+  let expired = null;
+  const acct = new Map(); // uid → { name, color, d3, d7, d30, all }
+  for (const row of summary.rows) {
+    for (const s of row.segments) {
+      const idx = s.expiresAt <= now ? -1 : Math.min(PKX_MAX_DAYS, Math.max(0, pkxDayIndex(s.expiresAt, today)));
+      let col;
+      if (idx < 0) col = expired || (expired = { idx: -1, credits: 0, segs: [] });
+      else {
+        col = days.get(idx) || { idx, credits: 0, segs: [] };
+        days.set(idx, col);
+      }
+      col.credits += s.amount;
+      col.segs.push(s);
+      const a = acct.get(s.uid) || { name: s.accountName, color: colors.get(s.uid) || 'var(--accent)', d3: 0, d7: 0, d30: 0, all: 0 };
+      const di = Math.max(0, idx);
+      if (di <= 3) a.d3 += s.amount;
+      if (di <= 7) a.d7 += s.amount;
+      if (di <= 30) a.d30 += s.amount;
+      a.all += s.amount;
+      acct.set(s.uid, a);
+    }
+  }
   const foot = summary.accountCount + ' 个账号' +
-    (summary.unavailable ? ' · ' + summary.unavailable + ' 个未获取余额' : '');
-  const legend = (list || []).filter(a =>
-    a && !a.error && a.uid && pkAccountSegments(a, now).some(s => s.days != null)
-  ).map(a => '<span><i style="background:' + (colors.get(String(a.uid)) || 'var(--accent)') +
-    '"></i>' + esc(a.nickname || String(a.uid).slice(0, 8)) + '</span>').join('');
-  const hdr = '<div class="pk-expiry-hdr"><span>剩余天数</span><span style="text-align:center">各账号该批剩余</span><b>剩余积分</b></div>';
-  $('pkExpiry').innerHTML = (rows
-    ? hdr + '<div class="pk-expiry-chart">' + rows + '</div>'
-    : '<div class="pk-expiry-empty">暂无可汇总积分</div>') +
-    (legend ? '<div class="pk-expiry-legend">' + legend + '</div>' : '') +
+    (summary.unavailable ? ' · ' + summary.unavailable + ' 个未获取余额' : '') +
+    ' · 上游按到期先后优先扣减（FEFO），最先到期的批次最先被用掉';
+  if (!days.size && !expired) {
+    $('pkExpiry').innerHTML = '<div class="pk-expiry-empty">暂无带到期时间的积分</div>' +
+      '<div class="pk-expiry-foot">' + esc(foot) + '</div>';
+    return;
+  }
+  const sum = f => [...acct.values()].reduce((t, a) => t + a[f], 0);
+  const kpi = (label, v, lvl, sub) => '<div class="pkx-kpi ' + lvl + '"><span class="k">' + label +
+    '</span><b class="v">' + fmtTok(v) + '</b><span class="s">' + sub + '</span></div>';
+  const head = '<div class="pkx-kpis">' +
+    kpi('3 天内到期', sum('d3'), 'bad', '含今天') +
+    kpi('7 天内到期', sum('d7'), 'warn', '一周内会作废') +
+    kpi('30 天内到期', sum('d30'), 'mute', '本月滚动窗口') +
+    kpi('全部带到期积分', sum('all'), 'mute', '不含长期包') + '</div>';
+
+  // 只画「有积分到期的日子」：线性日历轴在批次跨度两个月时列宽只剩 20px，数值互相
+  // 压住、远期批次还会被挤出可视区。每列标注日期 + 剩余天数，临期列染警戒色。
+  const cols0 = [...days.values()].sort((x, y) => x.idx - y.idx);
+  if (expired) cols0.unshift(expired);
+  const peak = Math.max(1, ...cols0.map(c => c.credits));
+  const WEEK = '日一二三四五六';
+  const colHtml = col => {
+    const idx = col.idx;
+    const dt = new Date(today.getTime() + Math.max(0, idx) * PK_DAY_MS);
+    const lvl = idx <= 3 ? 'bad' : idx <= 7 ? 'warn' : '';
+    const far = idx >= PKX_MAX_DAYS;
+    const top = idx < 0 ? '已过期' : far ? PKX_MAX_DAYS + ' 天+' : (dt.getMonth() + 1) + '/' + dt.getDate();
+    const sub = idx < 0 ? '仍有余额' : idx === 0 ? '今天' : idx === 1 ? '明天' : far ? '更远' : idx + ' 天';
+    const dateText = idx < 0 ? '已过期' : far ? PKX_MAX_DAYS + ' 天以后' :
+      (dt.getMonth() + 1) + '月' + dt.getDate() + '日 周' + WEEK[dt.getDay()] +
+      (idx === 0 ? '（今天）' : idx === 1 ? '（明天）' : '（' + idx + ' 天后）');
+    // 柱内按账号合并（同账号多包合成一段）。
+    const byUid = new Map();
+    for (const s of col.segs) {
+      const e = byUid.get(s.uid) || { uid: s.uid, name: s.accountName, amount: 0 };
+      e.amount += s.amount;
+      byUid.set(s.uid, e);
+    }
+    const parts = [...byUid.values()].sort((x, y) => y.amount - x.amount);
+    const title = dateText + ' 到期 ' + fmtTok(col.credits) + ' 积分\n' +
+      parts.map(e => '· ' + e.name + '：' + fmtTok(e.amount)).join('\n');
+    const segs = parts.map(e => '<i style="flex:' + e.amount + ' 1 0;background:' +
+      (colors.get(e.uid) || 'var(--accent)') + '"></i>').join('');
+    return '<div class="pkx-col ' + lvl + '" tabindex="0" title="' + esc(title) +
+      '" aria-label="' + esc(title) + '"><span class="pkx-v">' + esc(fmtTok(col.credits)) + '</span>' +
+      '<div class="pkx-bar"><div class="pkx-fill" style="height:' + Math.max(4, Math.sqrt(col.credits / peak) * 100).toFixed(1) + '%">' +
+      segs + '</div></div><span class="pkx-d"><b>' + esc(top) + '</b><em>' + esc(sub) + '</em></span></div>';
+  };
+  const chart = '<div class="pkx-chart"><div class="pkx-cols" style="--n:' + cols0.length + '">' +
+    cols0.map(colHtml).join('') + '</div></div>';
+
+  const legend = [...acct.entries()].sort((x, y) => y[1].all - x[1].all).map(([, a]) =>
+    '<div class="pkx-acc"><i style="background:' + a.color + '"></i><span class="nm">' + esc(a.name) + '</span>' +
+    '<span class="kv"><em>3 天内</em><b' + (a.d3 ? ' class="bad"' : '') + '>' + fmtTok(a.d3) + '</b></span>' +
+    '<span class="kv"><em>7 天内</em><b' + (a.d7 ? ' class="warn"' : '') + '>' + fmtTok(a.d7) + '</b></span>' +
+    '<span class="kv"><em>30 天内</em><b>' + fmtTok(a.d30) + '</b></span>' +
+    '<span class="kv"><em>合计</em><b>' + fmtTok(a.all) + '</b></span></div>').join('');
+
+  $('pkExpiry').innerHTML = head +
+    '<div class="pkx-cap">只列出有积分到期的日子 · 柱高 = 当天到期积分（平方根刻度，数值见柱顶）· 颜色区分账号 · 红 = 3 天内，琥珀 = 7 天内 · 悬停看明细</div>' + chart +
+    '<div class="pkx-accs">' + legend + '</div>' +
     '<div class="pk-expiry-foot">' + esc(foot) + '</div>';
 }
 
@@ -2959,53 +3074,68 @@ function renderPackages(d, detailLimit) {
   for (const a of list) for (const s of pkBySource(a.packages || [])) labelOf[s.key] = s;
 
   const maxRemain = Math.max(1, ...list.map(a => Number(a.remain || 0)));
+  const nameOf = a => a.nickname || String(a.uid || '').slice(0, 8) || '未命名账号';
 
-  $('pkSummary').innerHTML = list.map(a => {
+  // ── 账号对比：一账号一行的对比表 ──────────────────────────────────────
+  // 余额（含与池内最高的相对条）/ 总额与已用 / 可用包 / 7 天内到期 / 最近到期 / 来源构成条。
+  // 余额降序，查询失败的账号排末尾；点行即在下方切换到该账号的逐包明细。
+  const ranked = list.slice().sort((x, y) =>
+    (x.error ? 1 : 0) - (y.error ? 1 : 0) || Number(y.remain || 0) - Number(x.remain || 0));
+  const head = '<thead><tr><th class="mark" aria-hidden="true"></th><th>账号</th>' +
+    '<th class="num">余额</th><th class="num">总额 / 已用</th><th class="num">可用包</th>' +
+    '<th class="num">7 天内到期</th><th>最近到期</th><th>来源构成（按面额）</th></tr></thead>';
+  // 逐包明细只渲染一个账号：当前选择失效（账号被删/查询失败）时回落余额最高者。
+  const ok = ranked.filter(a => !a.error);
+  if (ok.length && !ok.some(a => String(a.uid) === pkDetailUid)) pkDetailUid = String(ok[0].uid);
+  const rowsHtml = ranked.map(a => {
+    const uid = String(a.uid || '');
     if (a.error) {
-      return '<div class="pk-card"><div class="who"><span class="nm">' +
-        esc((a.nickname || a.uid.slice(0, 8))) + '</span>' +
-        '<span class="realm">' + esc(a.realm || '') + '</span></div>' +
-        '<div class="err">查询失败：' + esc(a.error) + '</div></div>';
+      return '<tr class="off pkc-row"><td class="mark" aria-hidden="true"><i></i></td>' +
+        '<td class="who"><div class="nm">' + esc(nameOf(a)) + '</div><div class="id">' + esc(a.realm || '') + '</div></td>' +
+        '<td colspan="6" class="pkc-err">查询失败：' + esc(a.error) + '</td></tr>';
     }
     const srcs = pkBySource(a.packages || []);
-    const total = Math.max(1, Number(a.size || 0));
-    const bar = srcs.map(s =>
-      '<i style="width:' + (s.size / total * 100).toFixed(2) + '%;background:' +
-      colorOf(s.key) + '" title="' + esc(s.name) + ' ' + fmtTok(s.size) + '"></i>'
-    ).join('');
-    const legend = srcs.map(s =>
-      '<span><i style="background:' + colorOf(s.key) + '"></i>' +
-      esc(s.name.replace(/^CodeBuddy/, '')) + ' x' + s.n + ' · ' + fmtTok(s.size) +
-      (s.minCreated ? ' · 首发 ' + esc(s.minCreated.slice(5)) : '') + '</span>'
-    ).join('');
-    const expiry = pkAccountSegments(a, now);
-    const expiryTotal = Math.max(1, expiry.reduce((sum, s) => sum + s.amount, 0));
-    const expiryColor = expiryColors.get(String(a.uid)) || 'var(--accent)';
-    const expiryBar = expiry.length ? '<div class="expirybar" role="img" aria-label="积分到期分布">' +
-      expiry.map(s => {
-        const title = s.source + '\n' + fmtTok(s.amount) + ' 积分\n到期时间 ' +
-          pkExpiryDateTime(s.expiresAt) + '（' + pkExpiryText(s.expiresAt) + '）';
-        return '<i style="background:' + expiryColor +
-          ';opacity:' + pkCreditOpacity(s.days).toFixed(5) +
-          ';flex:' + Math.max(0.008, s.amount / expiryTotal).toFixed(4) +
-          ' 1 0" title="' + esc(title) + '"></i>';
-      }).join('') + '</div>' : '';
-    return '<div class="pk-card">' +
-      '<div class="who"><span class="nm">' + esc(a.nickname || a.uid.slice(0, 8)) + '</span>' +
-      '<span class="realm">' + esc(a.realm || '') + '</span></div>' +
-      '<div class="big">' + fmtTok(a.remain) + '</div>' +
-      '<div class="sub">共 ' + fmtTok(a.size) + ' · ' + (a.packages || []).length +
-      ' 个包 · 占最高 ' + (Number(a.remain || 0) / maxRemain * 100).toFixed(0) + '%</div>' +
-      '<div class="mixbar">' + bar + '</div>' +
-      expiryBar +
-      '<div class="pk-legend">' + legend + '</div>' +
-      '</div>';
+    const size = Number(a.size || 0);
+    const total = Math.max(1, size);
+    const used = Math.max(0, size - Number(a.remain || 0));
+    const live = (a.packages || []).filter(p => Number(p.remain || 0) > 0).length;
+    const segs = pkAccountSegments(a, now).filter(x => x.expiresAt != null);
+    const soon = segs.filter(x => x.expiresAt - now <= 7 * PK_DAY_MS).reduce((t, x) => t + x.amount, 0);
+    const first = segs[0];
+    const firstDays = first ? Math.max(0, Math.ceil((first.expiresAt - now) / PK_DAY_MS)) : null;
+    const lvl = firstDays == null ? '' : firstDays <= 3 ? 'bad' : firstDays <= 7 ? 'warn' : '';
+    const bar = srcs.map(x =>
+      '<i style="width:' + (x.size / total * 100).toFixed(2) + '%;background:' + colorOf(x.key) +
+      '" title="' + esc(x.name + ' ×' + x.n + ' · 面额 ' + fmtTok(x.size) + ' · 剩余 ' + fmtTok(x.remain)) + '"></i>').join('');
+    const top = srcs.slice(0, 2).map(x => esc(x.name.replace(/^CodeBuddy/, '')) + ' ' + fmtTok(x.size)).join(' · ') +
+      (srcs.length > 2 ? ' 等 ' + srcs.length + ' 类' : '');
+    return '<tr class="pkc-row' + (uid === pkDetailUid ? ' on' : '') + '" data-pk-uid="' + esc(uid) +
+      '" tabindex="0" title="查看 ' + esc(nameOf(a)) + ' 的逐包明细">' +
+      '<td class="mark" aria-hidden="true"><i style="background:' + (expiryColors.get(uid) || 'var(--line)') + '"></i></td>' +
+      '<td class="who"><div class="nm">' + esc(nameOf(a)) + '</div><div class="id">' + esc((a.realm || '') + ' · ' + uid.slice(0, 8)) + '</div></td>' +
+      '<td class="num pkc-bal"><b>' + fmtTok(a.remain) + '</b>' +
+        '<span class="pkc-rel"><i style="width:' + (Number(a.remain || 0) / maxRemain * 100).toFixed(1) + '%"></i></span></td>' +
+      '<td class="num">' + fmtTok(size) + '<div class="note">已用 ' + fmtTok(used) + ' · ' +
+        (size ? (used / size * 100).toFixed(0) : 0) + '%</div></td>' +
+      '<td class="num">' + live + '<span class="muted"> / ' + (a.packages || []).length + '</span></td>' +
+      '<td class="num">' + (soon ? '<b class="pkc-soon">' + fmtTok(soon) + '</b>' : '<span class="muted">—</span>') + '</td>' +
+      '<td>' + (first ? '<span class="tag ' + (lvl || 'mute') + '">' + (firstDays === 0 ? '今天' : firstDays + ' 天后') + '</span>' +
+        '<div class="note">' + esc(pkExpiryDateTime(first.expiresAt).slice(0, 10)) + ' · ' + fmtTok(first.amount) + '</div>'
+        : '<span class="muted">无到期批次</span>') + '</td>' +
+      '<td class="pkc-mix"><div class="mixbar">' + bar + '</div><div class="note">' + top + '</div></td></tr>';
   }).join('');
+  const legend = names.map(k => labelOf[k]).filter(Boolean).map(x =>
+    '<span><i style="background:' + colorOf(x.key) + '"></i>' + esc(x.name.replace(/^CodeBuddy/, '')) + '</span>').join('');
 
-  $('pkNote').textContent = list.length + ' 个账号 · 实时查询上游';
-
-  // 逐包明细：每个账号一个表，排序规则由视图顶部的选择器决定（默认到期近的在前）
-  $('pkDetail').innerHTML = list.map(a => {
+  $('pkSummary').innerHTML = '<div class="tbl-wrap"><table class="acc pkc">' + head + '<tbody>' +
+    rowsHtml +
+    '</tbody></table></div>' + (legend ? '<div class="pk-legend pkc-legend">' + legend + '</div>' : '');
+  $('pkNote').textContent = list.length + ' 个账号 · 实时查询上游 · 点行查看逐包明细';
+  if (!ok.length) { $('pkDetail').innerHTML = ''; return; }
+  const picker = '<select id="pkPick" class="xs" aria-label="选择账号">' + ok.map(x =>
+    '<option value="' + esc(String(x.uid)) + '"' + (String(x.uid) === pkDetailUid ? ' selected' : '') + '>' +
+    esc(nameOf(x) + ' · ' + (x.realm || '') + ' · 余额 ' + fmtTok(x.remain)) + '</option>').join('') + '</select>';
+  $('pkDetail').innerHTML = ok.filter(x => String(x.uid) === pkDetailUid).map(a => {
     if (a.error) return '';
     const groups = pkDetailGroups(a.packages || [], detailLimit);
     const rowOf = (p, rowGroup) => {
@@ -3041,9 +3171,8 @@ function renderPackages(d, detailLimit) {
           fmtTok(groups.usedSize) + '）', groups.used.length, groups.usedSize, 0) +
         groups.used.map(p => rowOf(p, 'used')).join('')
       : '';
-    return '<div class="box"><header><h3>' +
-      esc(a.nickname || a.uid.slice(0, 8)) + ' · ' + esc(a.realm || '') +
-      '</h3><span class="grow"></span><span class="note">余额 ' + fmtTok(a.remain) +
+    return '<div class="box pk-detail-box"><header><h3>积分组成</h3>' + picker +
+      '<span class="grow"></span><span class="note">余额 ' + fmtTok(a.remain) +
       ' / 总额 ' + fmtTok(a.size) + ' · 可用 ' + (groups.visible.length + groups.rest.length) + ' 个包' +
       (groups.used.length ? ' / 已用完 ' + groups.used.length + ' 个' : '') +
       ' · 默认展示最早到期 ' + pkDetailLimitValue(detailLimit) + ' 条（' +
@@ -3056,6 +3185,26 @@ function renderPackages(d, detailLimit) {
   }).join('');
 }
 
+// 点对比表的行或用选择器切换逐包明细的账号：只重渲染、不重新拉取。
+function pkSelect(uid) {
+  if (!uid || uid === pkDetailUid || !lastPackages) return;
+  pkDetailUid = uid;
+  renderPackages(lastPackages, lastDetailLimit);
+}
+if ($('pkDetail')) $('pkDetail').addEventListener('change', ev => {
+  if (ev.target && ev.target.id === 'pkPick') pkSelect(ev.target.value);
+});
+if ($('pkSummary')) {
+  $('pkSummary').addEventListener('click', ev => {
+    const tr = ev.target.closest('tr[data-pk-uid]');
+    if (tr) pkSelect(tr.dataset.pkUid);
+  });
+  $('pkSummary').addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const tr = ev.target.closest('tr[data-pk-uid]');
+    if (tr) { ev.preventDefault(); pkSelect(tr.dataset.pkUid); }
+  });
+}
 if ($('pkDetail')) $('pkDetail').addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-pk-group]');
   if (!btn) return;
@@ -3199,16 +3348,20 @@ function expiryRowsHtml(list) {
     const ay = String(y.a.nickname || y.a.uid || '');
     return ax < ay ? -1 : ax > ay ? 1 : 0;
   });
+  // 每行：[状态色条][账号][最近一批：倒计时大字 + 日期][该批积分][到期前日均需耗][7 天内合计][后续批次条]。
+  // 列固定宽，跨账号纵向对齐；数字全部等宽。
+  const lvlOf = days => days <= 3 ? 'bad' : days <= 7 ? 'warn' : 'ok';
+  const cell = (k, v, cls) => '<span class="exp-kv' + (cls ? ' ' + cls : '') + '"><em>' + k + '</em><b>' + v + '</b></span>';
   return keyed.map(({ a }) => {
     const name = a.nickname || String(a.uid || '').slice(0, 8);
     if (a.error) {
-      return '<div class="exp-row"><span class="exp-dot" style="background:var(--ink-3)"></span>' +
+      return '<div class="exp-row mute"><span class="exp-dot" style="background:var(--ink-3)"></span>' +
         '<span class="exp-nm">' + esc(name) + '</span>' +
         '<span class="exp-main err">查询失败：' + esc(a.error) + '</span></div>';
     }
     const bs = expBatches(a.packages).filter(b => expDaysLeft(b.date, today) >= 0);
     if (!bs.length) {
-      return '<div class="exp-row"><span class="exp-dot" style="background:var(--ok)"></span>' +
+      return '<div class="exp-row ok quiet"><span class="exp-dot" style="background:var(--ok)"></span>' +
         '<span class="exp-nm">' + esc(name) + '</span>' +
         '<span class="exp-main">7 天内无到期积分</span></div>';
     }
@@ -3220,18 +3373,27 @@ function expiryRowsHtml(list) {
     // 危险度：≤3 天红（不抓紧就真没了）、≤7 天琥珀、更远绿。
     // 上游扣包是 FEFO（按失效时刻升序，实测两号口径一致）：这些快过期批次正是
     // 被消耗得最快的，日均需耗给的是「哪怕单靠这个账号的自然流量也能对齐」的参照。
-    const cls = days <= 3 ? 'var(--bad)' : days <= 7 ? 'var(--warn)' : 'var(--ok)';
+    const lvl = lvlOf(days);
+    const cls = 'var(--' + lvl + ')';
     const dayWord = days === 0 ? '今天到期' : days === 1 ? '明天到期' : days + ' 天后到期';
-    const more = bs.length > 4 ? '　等 ' + bs.length + ' 批' : '';
-    const rest = bs.slice(1, 4).map(b =>
-      '随后 ' + esc(b.date.slice(5)) + ' · ' + fmtTok(b.remain)).join('　') + more;
-    return '<div class="exp-row"><span class="exp-dot" style="background:' + cls + '"></span>' +
+    const big = days === 0 ? '今天' : days === 1 ? '明天' : days + ' 天';
+    // 后续批次：最多 6 批的小方块时间线，每块 = 一批（日期 · 积分），颜色随危险度。
+    const nextBs = bs.slice(1, 7);
+    const more = bs.length > 7 ? '<span class="exp-more">等 ' + bs.length + ' 批</span>' : '';
+    const rest = nextBs.map(b => {
+      const d2 = expDaysLeft(b.date, today);
+      return '<span class="exp-chip ' + lvlOf(d2) + '" title="' + esc(b.date) + ' 到期 ' + fmtTok(b.remain) + ' 积分（' + d2 + ' 天后）">' +
+        esc(b.date.slice(5)) + ' · <b>' + fmtTok(b.remain) + '</b></span>';
+    }).join('') + more;
+    return '<div class="exp-row ' + lvl + '"><span class="exp-dot" style="background:' + cls + '"></span>' +
       '<span class="exp-nm">' + esc(name) + '</span>' +
-      '<span class="exp-main">最近到期 <b>' + esc(first.date) + '</b>（' + dayWord +
-      '）· 该批 <b>' + fmtTok(first.remain) + '</b> 积分 · 到期前日均需耗 ≥<b>' +
-      fmtTok(daily) + '</b>' +
-      (week > first.remain ? ' · 7 天内合计 ' + fmtTok(week) : '') +
-      (rest ? '<div class="note">' + rest + '</div>' : '') +
+      '<span class="exp-main">' +
+        '<span class="exp-when"><b class="exp-big">' + big + '</b><span class="exp-date">' + esc(first.date) +
+          ' · ' + dayWord + '</span></span>' +
+        cell('最近一批', fmtTok(first.remain)) +
+        cell('到期前日均需耗', '≥' + fmtTok(daily), lvl) +
+        (week > first.remain ? cell('7 天内合计', fmtTok(week)) : cell('7 天内合计', fmtTok(week), 'dim')) +
+        (rest ? '<span class="note exp-rest"><em>随后</em>' + rest + '</span>' : '') +
       '</span></div>';
   }).join('');
 }
@@ -3308,7 +3470,7 @@ function renderExpirySnapshot(d) {
   const rows = keyed.map(({ a, ms }) => {
     const nm = esc(a.nickname || String(a.uid || '').slice(0, 8));
     if (!ms || !a.credits_earliest_remaining) {
-      return '<div class="exp-row"><span class="exp-dot" style="background:var(--ok)"></span>' +
+      return '<div class="exp-row ok quiet"><span class="exp-dot" style="background:var(--ok)"></span>' +
         '<span class="exp-nm">' + nm + '</span>' +
         '<span class="exp-main">无近期到期批次</span></div>';
     }
@@ -3320,14 +3482,17 @@ function renderExpirySnapshot(d) {
     const days = Math.max(0, Math.round((new Date(when + 'T00:00:00') - today) / 86400000));
     const remain = Number(a.credits_earliest_remaining || 0);
     const daily = Math.ceil(remain / Math.max(1, days));
-    const cls = days <= 3 ? 'var(--bad)' : days <= 7 ? 'var(--warn)' : 'var(--ok)';
+    const lvl = days <= 3 ? 'bad' : days <= 7 ? 'warn' : 'ok';
     const dayWord = days === 0 ? '今天到期' : days === 1 ? '明天到期' : days + ' 天后到期';
-    return '<div class="exp-row"><span class="exp-dot" style="background:' + cls + '"></span>' +
+    const big = days === 0 ? '今天' : days === 1 ? '明天' : days + ' 天';
+    return '<div class="exp-row ' + lvl + '"><span class="exp-dot" style="background:var(--' + lvl + ')"></span>' +
       '<span class="exp-nm">' + nm + '</span>' +
-      '<span class="exp-main">最近到期 <b>' + esc(when) + '</b>（' + dayWord +
-      '）· 该批 <b>' + fmtTok(remain) + '</b> 积分 · 到期前日均需耗 ≥<b>' +
-      fmtTok(daily) + '</b>' +
-      '<div class="note">仅最早一批，点「检查」看全部到期批次</div>' +
+      '<span class="exp-main">' +
+        '<span class="exp-when"><b class="exp-big">' + big + '</b><span class="exp-date">' + esc(when) +
+          ' · ' + dayWord + '</span></span>' +
+        '<span class="exp-kv"><em>最近一批</em><b>' + fmtTok(remain) + '</b></span>' +
+        '<span class="exp-kv ' + lvl + '"><em>到期前日均需耗</em><b>≥' + fmtTok(daily) + '</b></span>' +
+        '<span class="note exp-rest">仅最早一批，点「检查」看全部到期批次</span>' +
       '</span></div>';
   }).join('');
   $('expList').innerHTML = rows || '<div class="empty">没有账号</div>';

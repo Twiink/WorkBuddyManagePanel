@@ -209,6 +209,21 @@
   #taskBody tr > td:nth-child(3), #taskBody tr > td:nth-child(4) { grid-column: span 6; }
 
   /* 积分包明细卡：包名+到期 / 面额·剩余·已用·发放 */
+  /* 账号对比卡：账号+余额 / 总额·可用包·7天内 / 最近到期 / 构成条 */
+  #pkSummary { margin: -11px; }
+  .acc.pkc { min-width: 0; }
+  .acc.pkc tr > td.who { grid-column: 1 / 8; }
+  .acc.pkc tr > td.pkc-bal { grid-column: 8 / 13; flex-direction: column; align-items: flex-end; }
+  .acc.pkc tr > td.pkc-bal::before { content: none; }
+  .acc.pkc tr > td:nth-child(4), .acc.pkc tr > td:nth-child(5), .acc.pkc tr > td:nth-child(6) { grid-column: span 4; }
+  .acc.pkc tr { row-gap: 8px; }
+  .acc.pkc tr > td:nth-child(7) { grid-column: 1 / 13; gap: 6px; }
+  .acc.pkc .note { margin-top: 0; }
+  .acc.pkc tr > td.pkc-mix { grid-column: 1 / 13; display: block; min-width: 0; }
+  .acc.pkc tr > td.pkc-mix::before { content: none; }
+  .acc.pkc tr > td.pkc-err { grid-column: 1 / 13; }
+  .acc tbody tr.pkc-row.on { border-color: var(--accent); }
+  .pk-detail-box > header #pkPick { max-width: 100%; flex: 1 1 100%; }
   #pkDetail tr > td:nth-child(2) { grid-column: 1 / 9; order: -2; }
   #pkDetail tr > td:nth-child(7) { grid-column: 9 / 13; justify-content: flex-end; order: -1; }
   #pkDetail tr > td:nth-child(3), #pkDetail tr > td:nth-child(4),
@@ -253,11 +268,11 @@
 
   /* ── 5. 其余栅格与列表：全部收紧间距，统一 12px 圆角卡片感 ──────── */
   .view { padding: 10px 10px 40px; }
-  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); border-radius: 12px; margin-bottom: 10px; }
+  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); border-radius: 0; margin-bottom: 10px; }
   .stat { padding: 7px 9px; min-width: 0; }
   .stat .v { font-size: 15px; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; }
-  .stat .k { font-size: 9.5px; margin-top: 1px; }
-  .box { border-radius: 12px; margin-bottom: 12px; }
+  .stat .k { font-size: 11px; margin-top: 2px; }
+  .box { border-radius: 0 0 8px 8px; margin-bottom: 12px; }
   .box > header { flex-wrap: wrap; gap: 6px 8px; padding: 9px 11px; }
   .box > header h3 { font-size: 12.5px; white-space: normal; }
   /* 上游 .box > header .note 也是 nowrap（L200）：v1.12.0 起 packages 页每个账号盒头部的
@@ -281,7 +296,14 @@
   .qrow .prog { flex: none; text-align: left; font-size: 11.5px; }
   .qrow .st { flex: none; font-size: 11.5px; }
   .qrow .msg { flex: 1 1 100%; font-size: 10.5px; white-space: normal; overflow-wrap: anywhere; }
-  #logBox { padding: 10px; max-height: 60vh; font-size: 11px; }
+  #view-logs > .box { height: calc(100vh - 110px); min-height: 360px; }
+  #logBox { padding: 4px 0 8px; font-size: 11.5px; }
+  #logBox .ln { grid-template-columns: 58px 40px minmax(0, 1fr); column-gap: 6px; row-gap: 1px; padding: 5px 10px 5px 8px; }
+  #logBox .ln::before { display: none; }
+  #logBox .ln .lv { display: none; }
+  #logBox .ln .tx { grid-column: 1 / -1; }
+  .acc.zebra .us-name { min-width: 0; }
+  .us-sharerow { max-width: none; flex: 1 1 100%; }
   .pk-card { padding: 9px 11px; border-radius: 12px; }
   .pk-card .big { font-size: 19px; }
   .pk-card .sub { font-size: 10.5px; }
@@ -292,9 +314,25 @@
   /* ── 上游 v1.12.0 新增：首页「积分到期提醒」卡片（.exp-row）──────────
      桌面端是 [色点][账号名 min-width:9em][正文] 的单行布局；窄屏上 9em 硬下限会把
      正文挤成一条，故让名字可收缩、正文整行换行。 */
-  .exp-row { flex-wrap: wrap; gap: 4px 8px; padding: 7px 0; }
-  .exp-nm { min-width: 0; flex: 0 1 auto; overflow-wrap: anywhere; }
-  .exp-main { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+  .exp-row { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px 11px 10px 14px; }
+  .exp-nm { white-space: normal; overflow-wrap: anywhere; }
+  .exp-main { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
+  .exp-when { grid-column: 1 / -1; }
+  .exp-big { font-size: 17px; }
+  .exp-kv b { font-size: 13px; }
+  .exp-kv em { font-size: 10.5px; white-space: normal; }
+  .exp-rest { grid-column: 1 / -1; }
+  /* 积分到期分布：KPI 两列、账号行折成两行；柱状图保留横向滚动 */
+  .pkx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: -11px -11px 12px; }
+  .pkx-kpi { padding: 9px 11px 12px; border-bottom: 1px solid var(--line-soft); }
+  .pkx-kpi .v { font-size: 18px; }
+  .pkx-cols { height: 190px; grid-template-columns: repeat(var(--n), 52px); }
+  .pkx-bar { padding: 0 8px; }
+  .pkx-acc { grid-template-columns: 12px minmax(0, 1fr) minmax(0, 1fr); gap: 4px 10px; }
+  .pkx-acc .nm { grid-column: 2 / -1; }
+  .pkx-acc .kv { grid-column: span 1; }
+  .pkx-acc .kv:nth-of-type(even) { grid-column: 2; }
+  .pkx-acc .kv:nth-of-type(odd) { grid-column: 3; }
 
   /* ── 6. 长不可断字符串兜底 ────────────────────────────────────────
      长昵称 / 长模型名 / 长券码这类"没有一个断点"的串会撑破 flex 行：flex 子项默认
