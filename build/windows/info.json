@@ -1,10 +1,10 @@
 {
 	"fixed": {
-		"file_version": "1.14.1"
+		"file_version": "1.14.3"
 	},
 	"info": {
 		"0409": {
-			"ProductVersion": "1.14.1",
+			"ProductVersion": "1.14.3",
 			"CompanyName": "Twiink",
 			"FileDescription": "WorkBuddy account pool and OpenAI-compatible gateway",
 			"LegalCopyright": "Copyright 2026 Twiink",

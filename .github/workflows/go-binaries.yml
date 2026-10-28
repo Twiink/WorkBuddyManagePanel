@@ -116,8 +116,65 @@ jobs:
             echo "::error::cannot read Version from internal/buildinfo/version.go"
             exit 1
           fi
+          PACKAGE_VERSION="${VERSION%-panel}"
+          PACKAGE_VERSION="$PACKAGE_VERSION" python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          expected = os.environ["PACKAGE_VERSION"]
+
+          def check(path, actual, field):
+              if actual != expected:
+                  print(f"::error file={path}::{field} {actual} does not match {expected}")
+                  raise RuntimeError("packaging version mismatch")
+
+          def match(path, pattern):
+              text = Path(path).read_text()
+              found = re.search(pattern, text, re.MULTILINE)
+              if not found:
+                  print(f"::error file={path}::packaging version metadata not found")
+                  raise RuntimeError("packaging version metadata not found")
+              return found.group(1)
+
+          mismatch = False
+          try:
+              check("build/config.yml", match("build/config.yml", r'^  version: "([0-9.]+)"$'), "info.version")
+              check("build/linux/nfpm/nfpm.yaml", match("build/linux/nfpm/nfpm.yaml", r'^version: "([0-9.]+)"$'), "version")
+
+              info = json.loads(Path("build/windows/info.json").read_text())
+              check("build/windows/info.json", info["fixed"]["file_version"], "fixed.file_version")
+              check("build/windows/info.json", info["info"]["0409"]["ProductVersion"], "info.0409.ProductVersion")
+              check(
+                  "build/windows/wails.exe.manifest",
+                  match("build/windows/wails.exe.manifest", r'name="io\.github\.twiink\.workbuddy-manage-panel" version="([0-9.]+)"'),
+                  "assemblyIdentity.version",
+              )
+              check(
+                  "build/windows/nsis/wails_tools.nsh",
+                  match("build/windows/nsis/wails_tools.nsh", r'^!define INFO_PRODUCTVERSION "([0-9.]+)"$'),
+                  "INFO_PRODUCTVERSION",
+              )
+
+              for path in ("build/darwin/Info.plist", "build/darwin/Info.dev.plist"):
+                  for field in ("CFBundleVersion", "CFBundleShortVersionString"):
+                      check(
+                          path,
+                          match(path, rf'<key>{field}</key>\s*<string>([0-9.]+)</string>'),
+                          field,
+                      )
+          except (KeyError, RuntimeError):
+              mismatch = True
+          if mismatch:
+              raise SystemExit(1)
+          PY
+          VERSION_SCRIPT_STATUS=$?
+          if [[ "$VERSION_SCRIPT_STATUS" -ne 0 ]]; then
+            exit "$VERSION_SCRIPT_STATUS"
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Build version: $VERSION"
+          echo "Build version: $VERSION (packaging metadata: $PACKAGE_VERSION)"
 
   desktop-linux:
     needs: read-version
@@ -378,6 +435,15 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Verify desktop package metadata
+        shell: bash
+        run: |
+          V="${{ needs.read-version.outputs.version }}"
+          V="${V%-panel}"
+          test "$(dpkg-deb -f dist/workbuddy-manage-panel_${V}_amd64.deb Version)" = "${V}-1"
+          unzip -p dist/workbuddy-manage-panel-${V}-macos-universal.zip \
+            workbuddy-manage-panel.app/Contents/Info.plist > /tmp/Info.plist
+          test "$(sed -n '/<key>CFBundleShortVersionString<\/key>/{n;s/.*<string>\(.*\)<\/string>.*/\1/p;}' /tmp/Info.plist)" = "$V"
       - name: Verify expected assets
         shell: bash
         run: |
@@ -416,13 +482,14 @@ jobs:
           body: |
             ## WorkBuddy Manage Panel ${{ inputs.release_tag || github.ref_name }}
 
-            ### v1.14.2
+            ### v1.14.3
 
             - 桌面窗口双击后直接进入管理面板，不再生成或使用临时随机登录令牌。
             - 「配置 → API 密钥」支持输入用户自己的真实密钥、生成安全随机密钥和复制。
             - `/v1/*` 始终只接受配置中非空的真实 API 密钥；桌面直达入口不能调用外部接口。
             - 独立 server 保持原有 `config.json` 鉴权语义，不启用桌面直达入口。
             - 桌面版监听端口可在「配置」中修改，仅允许本机回环地址，重启应用生效。
+            - 修正三平台安装包内版本元数据，并增加发布前一致性检查。
 
             ### 桌面应用
 
