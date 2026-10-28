@@ -10,11 +10,11 @@
         <key>CFBundleIdentifier</key>
             <string>io.github.twiink.workbuddy-manage-panel</string>
         <key>CFBundleVersion</key>
-            <string>1.14.4</string>
+            <string>1.15.0</string>
         <key>CFBundleGetInfoString</key>
             <string>WorkBuddy Manage Panel desktop application</string>
         <key>CFBundleShortVersionString</key>
-            <string>1.14.4</string>
+            <string>1.15.0</string>
         <key>CFBundleIconFile</key>
             <string>icons</string>
         <key>CFBundleIconName</key>
