@@ -51,9 +51,9 @@ func (p *Pool) pick(tried map[string]bool, reqModel, realm string) *auth.Auth {
 	if reqModel != "" {
 		healthyOf = func(e *entry) bool { return realmOK(e) && e.healthyForModel(now, reqModel) }
 	}
-	// floorBlocked 积分保底拦截判定（实现在 floorBlockedForRealmModel，与粘性路径共用）：
+	// floorBlocked 积分保底 + 每日护栏拦截判定（guardBlockedLocked，与粘性/兜底路径共用）：
 	// 触底 + 收费（本地实测台账 或 上游目录倍率）即拦；免费/未知倍率不受限。
-	floorBlocked := func(e *entry) bool { return p.floorBlockedForRealmModel(e, reqModel, realm, now) }
+	floorBlocked := func(e *entry) bool { return p.guardBlockedLocked(e, reqModel, realm, now) }
 	var cands []*entry
 	for uid, e := range p.byUID {
 		if tried != nil && tried[uid] {
@@ -298,6 +298,15 @@ func (p *Pool) floorBlockedForRealmModel(e *entry, model, realm string, now time
 	if p.creditFloor <= 0 || model == "" || e.credits >= p.creditFloor {
 		return false
 	}
+	return p.modelPaidLocked(e, model, realm, now)
+}
+
+// modelPaidLocked 判定 model 对账号 e 是否收费（积分保底与每日积分护栏共用）：
+// 本地实测台账优先；无观测时用上游目录倍率兜底；倍率未知按免费处理。
+func (p *Pool) modelPaidLocked(e *entry, model, realm string, now time.Time) bool {
+	if model == "" {
+		return false
+	}
 	// 1) 本地实测台账：最权威（真实扣费证据）。
 	if mc, ok := e.modelCostOf(model, now); ok {
 		return mc.CostPer1k > 0
@@ -315,6 +324,15 @@ func (p *Pool) floorBlockedForRealmModel(e *entry, model, realm string, now time
 		return false // 倍率非数值（异常形态）：不据此惩罚账号
 	}
 	return v > 0
+}
+
+// guardBlockedLocked 选号护栏总闸：积分保底或任一每日护栏命中即拦。
+// 所有选号路径（普通轮换 / 有序策略游标 / 全冷却兜底 / 粘性 / 可服务计数）共用。
+func (p *Pool) guardBlockedLocked(e *entry, model, realm string, now time.Time) bool {
+	if p.floorBlockedForRealmModel(e, model, realm, now) {
+		return true
+	}
+	return p.dailyBlockReasonLocked(e, model, realm, now) != ""
 }
 
 // pickEarliestExpiryLocked 全冷却兜底：在非禁用的软冷却/熔断账号中选截止最早的一个。
@@ -341,8 +359,8 @@ func (p *Pool) pickEarliestExpiryLocked(tried map[string]bool, now time.Time, re
 		if e.coolKind == CoolHard && !e.until.IsZero() && now.Before(e.until) {
 			continue // 余额耗尽号（处于有效 hard 冷却期）不参与兜底：等签到恢复，调了必 402
 		}
-		if p.floorBlockedForRealmModel(e, model, realm, now) {
-			continue // 积分保底：触底号不接收费模型（兜底路径同判据）
+		if p.guardBlockedLocked(e, model, realm, now) {
+			continue // 积分保底 / 每日护栏：兜底路径同判据
 		}
 		if p.inFlightFull(e) {
 			continue

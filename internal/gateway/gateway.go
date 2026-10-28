@@ -292,6 +292,7 @@ func finishStart(
 	p.SetSoftRateMax(cfg.SoftRateMaxDur)                 // 软冷却指数退避封顶（soft_rate_max，默认 2h）
 	p.SetCostExploreInterval(cfg.CostExploreIntervalDur) // costTier 探索窗口（issue #136，默认 30m；0 关停）
 	p.SetCreditFloor(cfg.Pool.CreditFloor)               // 积分保底（默认 0 = 关闭）
+	p.SetDailyLimits(dailyLimitsOf(cfg))                 // 账号级每日护栏（默认全关）
 	p.SetWeights(cfg.Pool.IdleWeightPerHour, cfg.Pool.IdleWeightMax)
 	p.SetPreferExpiring(cfg.Pool.PreferExpiring)
 	p.SetCrossDomainFallback(cfg.Pool.CrossDomainFallback) // 裸名跨域回退（issue #135，默认关闭）
@@ -460,6 +461,12 @@ func finishStart(
 	rec := usage.New(usagePath)
 	i.usage = rec
 	rec.Start()
+	// 每日护栏计数来源：用量记录器的当日索引（选号热路径 O(1) 查询）。
+	p.SetDailyUsage(func(now time.Time, uid, model string) pool.DailyCount {
+		d := rec.Daily(now, uid, model)
+		return pool.DailyCount{Tokens: d.Tokens, Credits: d.Credits, ModelTokens: d.ModelTokens}
+	})
+	p.SetDailyModels(rec.DailyModels)
 	log.Printf("[usage] 逐请求用量记录已启用: %s (%s)", usagePath, rec.Describe())
 
 	// 请求指标始终启用；JSONL 归档只写脱敏元数据，写盘失败不影响聊天请求。
@@ -784,6 +791,7 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	p.SetSoftRateMax(newCfg.SoftRateMaxDur)
 	p.SetCostExploreInterval(newCfg.CostExploreIntervalDur) // costTier 探索窗口热生效（0 关停）
 	p.SetCreditFloor(newCfg.Pool.CreditFloor)               // 积分保底热生效（0 = 关闭）
+	p.SetDailyLimits(dailyLimitsOf(newCfg))                 // 每日护栏热生效
 	p.SetWeights(newCfg.Pool.IdleWeightPerHour, newCfg.Pool.IdleWeightMax)
 	p.SetPreferExpiring(newCfg.Pool.PreferExpiring)
 	p.SetCrossDomainFallback(newCfg.Pool.CrossDomainFallback) // 裸名跨域回退热生效（issue #135）
@@ -864,4 +872,13 @@ func mergedJSON(m map[string]any) []byte {
 		return []byte("{}")
 	}
 	return b
+}
+
+// dailyLimitsOf 从配置取每日护栏阈值。
+func dailyLimitsOf(c *Config) pool.DailyLimits {
+	return pool.DailyLimits{
+		Tokens:      c.Pool.DailyTokenLimit,
+		Credits:     c.Pool.DailyCreditLimit,
+		ModelTokens: c.Pool.ModelDailyTokenLimit,
+	}
 }

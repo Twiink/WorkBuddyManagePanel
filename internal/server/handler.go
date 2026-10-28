@@ -275,6 +275,8 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		// model_costs 对照即可判定「某号为何对某模型不出票」。零值也显式写出
 		// （运维口径：缺失会让人误以为没记录）。
 		"credit_floor": h.cfg.Pool.CreditFloor(),
+		// daily_limits 生效的账号级每日护栏阈值（0 = 关闭）；各账号当日计数见 accounts[].daily。
+		"daily_limits": h.cfg.Pool.DailyLimitsValue(),
 		// cost_explore 事件与 per-model 时间戳（时间值由 encoding/json 写 RFC3339）。
 		"cost_explore": map[string]any{
 			"events_total": exploreEvents,
@@ -749,6 +751,8 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	// modelBlock 记录本次是否因「模型级冷却」而选不到号（下方 acct==nil 分支填充）。
 	// 默认零值 Blocked=false = 按既有的"没有可用账号"口径报错。
 	var modelBlock pool.ModelBlockStatus
+	// dailyBlocked 选不到号时因账号级每日护栏被挡的账号数（>0 时报错写明原因）。
+	var dailyBlocked int
 
 	// 会话粘性：从请求体提取会话键并解析绑定号（找不到/无效则 stickyUID 为空，走普通轮换）。
 	// ExtractKey 与粘性开关解耦（issue #35 侧）：关闭粘性时会话头族的聚合主键仍按
@@ -976,6 +980,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 			// 两者此前都报 no_healthy_account，导致「模型不可用」被读成「号全挂了」。
 			// 在这里取一次快照，供下方错误构造区分（issue #102 附带发现 1）。
 			modelBlock = h.cfg.Pool.ModelBlockedForRealm(bareModel, realm)
+			dailyBlocked = h.cfg.Pool.DailyBlockedCount(bareModel, realm)
 			break
 		}
 		st.uid = acct.UID
@@ -1428,6 +1433,14 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 			hint += "; upstream: " + s
 		}
 		status = http.StatusBadRequest
+	}
+	// 每日护栏：本地配额策略挡住了号，不是号挂了也不是上游限流。429 让客户端
+	// 知道是额度问题；上游原文 / 模型级阻塞的判定优先，不覆盖。
+	if dailyBlocked > 0 && !upstreamMsgPassed && !modelBlock.Blocked {
+		status = http.StatusTooManyRequests
+		code = "daily_quota_exceeded"
+		msg = "daily quota guard reached on available accounts, resets at local midnight"
+		hint = fmt.Sprintf("daily_guard: %d account(s) held out by daily token/credit limits", dailyBlocked)
 	}
 	writeOpenAIErrorHint(w, status, code, msg, hint)
 	st.status = status

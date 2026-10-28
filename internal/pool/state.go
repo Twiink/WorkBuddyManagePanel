@@ -442,6 +442,11 @@ func (p *Pool) PickByUIDForModel(uid, model string) *auth.Auth {
 			logfmt.Label(e.a.UID, e.a.Nickname), model, e.credits, p.creditFloor)
 		return nil
 	}
+	if reason := p.dailyBlockReasonLocked(e, model, e.a.Realm(), now); reason != "" {
+		log.Printf("[pool] daily guard: sticky acct=%s model=%s reason=%s, unbind",
+			logfmt.Label(e.a.UID, e.a.Nickname), model, reason)
+		return nil
+	}
 	if p.inFlightFull(e) {
 		return nil
 	}
@@ -617,6 +622,7 @@ func (p *Pool) statusOf(uid string, e *entry) Status {
 		ModelCosts:               p.modelCostsStatusLocked(e, now),
 		ConsecutiveFails:         e.consecutiveFails,
 		DegradeUntil:             e.degradeUntil,
+		Daily:                    p.dailyStatusLocked(e, now),
 		InFlight:                 int(e.inFlight.Load()),
 		BreakerFails:             e.fails,
 		BreakerUntil:             e.breakerUntil,

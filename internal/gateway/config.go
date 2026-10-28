@@ -242,6 +242,14 @@ type Config struct {
 		// tier 0（免费）/ tier 1（无观测）不受限；签到回血越过 floor 自动恢复。
 		// 默认 0 = 关闭；负值钳 0。
 		CreditFloor int64 `json:"credit_floor"`
+		// DailyTokenLimit / DailyCreditLimit / ModelDailyTokenLimit 账号级每日护栏
+		// （本地日历日计数，次日零点自动解除；0 = 关闭，负值钳 0）：
+		//   - 每日 Token：账号当日 token 达到上限后整号退出选号；
+		//   - 每日积分：当日实扣积分达到上限后只拦收费模型，免费模型照常；
+		//   - 单模型 Token：只拦用满额度的那个模型，同号其他模型照常。
+		DailyTokenLimit      int64 `json:"daily_token_limit"`
+		DailyCreditLimit     int64 `json:"daily_credit_limit"`
+		ModelDailyTokenLimit int64 `json:"model_daily_token_limit"`
 		// CrossDomainFallback 裸模型名跨域回退开关（issue #135），默认 false（零回归）。
 		// 开启后：请求模型名不带 realm 前缀时，首选域（cn）选不到可用账号（账号级冷却/
 		// 熔断/在途占满，或该域账号对这个模型 11102 后进入模型级负缓存）会自动改用
@@ -624,6 +632,10 @@ func (c *Config) normalize() error {
 	if c.Pool.CreditFloor < 0 {
 		c.Pool.CreditFloor = 0
 	}
+	// 每日护栏：负值钳 0（= 关闭）。
+	c.Pool.DailyTokenLimit = max(0, c.Pool.DailyTokenLimit)
+	c.Pool.DailyCreditLimit = max(0, c.Pool.DailyCreditLimit)
+	c.Pool.ModelDailyTokenLimit = max(0, c.Pool.ModelDailyTokenLimit)
 	if c.Pool.BreakerThreshold <= 0 {
 		c.Pool.BreakerThreshold = 3
 	}

@@ -296,6 +296,27 @@ function rateLimitRowsHtml(rows, now) {
   }).join('') + '</div>';
 }
 
+/* 每日护栏（账号行）：护栏开启时显示当日用量 / 上限；触发时标红并写明被拦范围。 */
+function dailyGuardHtml(d) {
+  if (!d || !d.limits) return '';
+  const l = d.limits, parts = [];
+  if (l.daily_token_limit > 0) {
+    parts.push('<span class="' + (d.token_blocked ? 'hit' : '') + '">今日 ' + formatTokenCount(d.tokens) +
+      ' / ' + formatTokenCount(l.daily_token_limit) + ' tok</span>');
+  }
+  if (l.daily_credit_limit > 0) {
+    parts.push('<span class="' + (d.credit_blocked ? 'hit' : '') + '">积分 ' + (Math.round((d.credits || 0) * 10) / 10) +
+      ' / ' + l.daily_credit_limit + '</span>');
+  }
+  const blocked = d.blocked_models || [];
+  if (blocked.length) parts.push('<span class="hit">模型满额：' + blocked.map(esc).join('、') + '</span>');
+  if (!parts.length) return '';
+  const tip = [d.token_blocked ? '已达每日 Token 上限：整号停到次日零点' : '',
+    d.credit_blocked ? '已达每日积分上限：只停收费模型，免费模型照常' : '',
+    blocked.length ? '这些模型已达单模型每日 Token 上限，其他模型照常' : ''].filter(Boolean).join('\n') || '账号级每日护栏（本地日历日计数，次日零点重置）';
+  return '<div class="daily-guard" title="' + esc(tip) + '">' + parts.join('') + '</div>';
+}
+
 function formatTokenCount(tokens) {
   if (tokens == null || tokens === '') return '—';
   const n = Number(tokens);
@@ -404,9 +425,10 @@ function renderAccounts(list) {
       const kind = bl > Math.max(s.cool_remaining_sec || 0, dg > 0 ? dg : 0) ? '熔断'
         : (dg > (s.cool_remaining_sec || 0) ? '连败降权' : (s.cool_kind === 'hard_credit' ? '积分冷却' : '限流冷却'));
       tag = '<span class="tag warn">' + kind + ' · ' + dur(cool) + '</span>';
-    } else tag = '<span class="tag ok">可用</span>' + (s.in_flight ? '' : '');
+    } else if (s.daily && s.daily.token_blocked) { cls = 'cool'; tag = '<span class="tag warn">今日额度已满</span>'; }
+    else tag = '<span class="tag ok">可用</span>' + (s.in_flight ? '' : '');
     const note = s.reason ? '<div class="hint" style="font-size:11.5px;color:var(--ink-3);margin-top:3px">' + esc(s.reason) + '</div>' : '';
-    const rateLimits = rateLimitRowsHtml(s.rate_limited_models, Date.now());
+    const rateLimits = rateLimitRowsHtml(s.rate_limited_models, Date.now()) + dailyGuardHtml(s.daily);
     const short = s.uid.length > 16 ? s.uid.slice(0, 16) + '…' : s.uid;
     // 企业版不限量：上游 limitNum == -1，网关以 credits_total=-1 透出（见 upstream
     // enterpriseUnlimitedTotal）。此时剩余额度不参与展示，直接标「不限」。
@@ -1178,6 +1200,8 @@ const CFG_MAP = {
   degrade_cooldown_max: ['pool', 'degrade_cooldown_max'],
   cost_explore_interval: ['pool', 'cost_explore_interval'],
   credit_floor: ['pool', 'credit_floor'],
+  daily_token_limit: ['pool', 'daily_token_limit'], daily_credit_limit: ['pool', 'daily_credit_limit'],
+  model_daily_token_limit: ['pool', 'model_daily_token_limit'],
   prefer_expiring: ['pool', 'prefer_expiring'], expiring_soon: ['pool', 'expiring_soon'],
   bare_model_names: ['models', 'bare_names'], preferred_realm: ['models', 'preferred_realm'],
   soft_rate: ['cooldown', 'soft_rate'], soft_rate_max: ['cooldown', 'soft_rate_max'],

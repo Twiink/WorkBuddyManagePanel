@@ -84,6 +84,11 @@ type Recorder struct {
 	buckets map[string]*bucket // key: scope|realm|uid|model|rate
 	dirty   bool
 	started time.Time
+	// today / todayAcct 当日（本地日历日）逐账号累计的增量索引，供账号级每日护栏
+	// 在选号热路径上 O(1) 查询，而不必每次遍历全部桶。load 时从当日小时桶重建，
+	// 跨日在 Add / Daily 中惰性清零。
+	today     string
+	todayAcct map[string]*dayAcc
 
 	stopOnce sync.Once
 	stop     chan struct{}
@@ -93,11 +98,12 @@ type Recorder struct {
 // New 创建记录器。path 为空时禁用落盘（纯内存，测试用）。
 func New(path string) *Recorder {
 	r := &Recorder{
-		path:    path,
-		buckets: make(map[string]*bucket),
-		started: time.Now(),
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
+		path:      path,
+		buckets:   make(map[string]*bucket),
+		todayAcct: make(map[string]*dayAcc),
+		started:   time.Now(),
+		stop:      make(chan struct{}),
+		done:      make(chan struct{}),
 	}
 	if path != "" {
 		if err := r.load(); err != nil {
@@ -222,7 +228,116 @@ func (r *Recorder) Add(now time.Time, realm, uid, model string, d Delta, ok bool
 		b.TPS += d.TokensPerSecond
 		b.TPSN++
 	}
+	r.noteTodayLocked(now.Format(dayLayout), uid, model, d)
 	r.dirty = true
+}
+
+// ---------------------------------------------------------------- 当日索引 ----
+
+// dayAcc 一个账号当日的累计量。
+type dayAcc struct {
+	tokens  int64
+	credits float64
+	models  map[string]int64
+}
+
+// DailyUsage 账号当日累计（本地日历日）。ModelTokens 仅在按模型查询时填充。
+type DailyUsage struct {
+	Tokens      int64   `json:"tokens"`
+	Credits     float64 `json:"credits"`
+	ModelTokens int64   `json:"model_tokens,omitempty"`
+}
+
+// rollTodayLocked 日期变了就清空当日索引。调用方持有 r.mu。
+func (r *Recorder) rollTodayLocked(day string) {
+	if r.today != day {
+		r.today = day
+		r.todayAcct = make(map[string]*dayAcc)
+	}
+}
+
+// noteTodayLocked 把一次尝试计入当日索引；token 口径与桶的 TT 一致（缺 total 用 pt+ct）。
+func (r *Recorder) noteTodayLocked(day, uid, model string, d Delta) {
+	r.rollTodayLocked(day)
+	var tokens int64
+	if d.HasTotal {
+		tokens = d.TotalTokens
+	} else if d.HasPromptTokens || d.HasCompletion {
+		tokens = d.PromptTokens + d.CompletionTokens
+	}
+	if tokens == 0 && !d.HasCredit {
+		return
+	}
+	acc := r.todayAcct[uid]
+	if acc == nil {
+		acc = &dayAcc{models: map[string]int64{}}
+		r.todayAcct[uid] = acc
+	}
+	acc.tokens += tokens
+	acc.models[model] += tokens
+	if d.HasCredit {
+		acc.credits += d.Credit
+	}
+}
+
+// rebuildTodayLocked 从当日小时桶重建索引（load 之后调用，保证重启不清零护栏计数）。
+func (r *Recorder) rebuildTodayLocked(now time.Time) {
+	day := now.Format(dayLayout)
+	r.today = day
+	r.todayAcct = make(map[string]*dayAcc)
+	prefix := "h:" + day + "T"
+	for _, b := range r.buckets {
+		if !strings.HasPrefix(b.Scope, prefix) || (b.TT == 0 && b.CRN == 0) {
+			continue
+		}
+		acc := r.todayAcct[b.UID]
+		if acc == nil {
+			acc = &dayAcc{models: map[string]int64{}}
+			r.todayAcct[b.UID] = acc
+		}
+		acc.tokens += b.TT
+		acc.models[b.Model] += b.TT
+		acc.credits += b.CR
+	}
+}
+
+// Daily 返回账号 uid 当日累计；model 非空时同时给出该模型的当日 token。
+// 选号热路径调用：只读当日索引，O(1)。
+func (r *Recorder) Daily(now time.Time, uid, model string) DailyUsage {
+	if r == nil {
+		return DailyUsage{}
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rollTodayLocked(now.Format(dayLayout))
+	acc := r.todayAcct[uid]
+	if acc == nil {
+		return DailyUsage{}
+	}
+	out := DailyUsage{Tokens: acc.tokens, Credits: acc.credits}
+	if model != "" {
+		out.ModelTokens = acc.models[model]
+	}
+	return out
+}
+
+// DailyModels 返回账号 uid 当日各模型 token（面板展示用，返回副本）。
+func (r *Recorder) DailyModels(now time.Time, uid string) map[string]int64 {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rollTodayLocked(now.Format(dayLayout))
+	acc := r.todayAcct[uid]
+	if acc == nil || len(acc.models) == 0 {
+		return nil
+	}
+	out := make(map[string]int64, len(acc.models))
+	for m, t := range acc.models {
+		out[m] = t
+	}
+	return out
 }
 
 // Rollup 把超出 hourlyKeep 的小时桶折叠为日桶（按本地日历日）。
@@ -302,6 +417,7 @@ func (r *Recorder) load() error {
 		b := f.Buckets[i]
 		r.buckets[b.Scope+"|"+b.Realm+"|"+b.UID+"|"+b.Model+"|"+b.Rate] = &b
 	}
+	r.rebuildTodayLocked(time.Now())
 	log.Printf("[usage] 已恢复 %d 个用量桶（%s）", len(r.buckets), r.path)
 	return nil
 }

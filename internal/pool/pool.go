@@ -54,6 +54,10 @@ type Pool struct {
 	// 循环依赖与分层破坏），nil 时倍率兜底不生效（退化为仅本地台账判定）。
 	// 仅在持 p.mu 时由 floorBlockedForModel 调用；回调不得反向调用 Pool 方法。
 	modelRateOf func(realm, model string) string
+	// dailyLimits / dailyOf / dailyModelsOf 账号级每日护栏（见 daily.go）。
+	dailyLimits   DailyLimits
+	dailyOf       DailyFunc
+	dailyModelsOf func(now time.Time, uid string) map[string]int64
 	// 加权路由的闲置补偿调优（SetWeights 注入；默认值见 defaultIdle*）。
 	idleWeightPerHour float64
 	idleWeightMax     float64

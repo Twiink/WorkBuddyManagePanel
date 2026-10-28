@@ -55,7 +55,7 @@ func (p *Pool) ServableForModelRealm(model, realm string) int {
 		if p.inFlightFull(e) {
 			continue
 		}
-		if p.floorBlockedForRealmModel(e, model, realm, now) {
+		if p.guardBlockedLocked(e, model, realm, now) {
 			continue
 		}
 		n++

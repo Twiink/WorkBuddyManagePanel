@@ -372,6 +372,8 @@ label.fld > .hint { display: block; font-size: 11.5px; color: var(--ink-3); marg
 .rate-limit.model-unavailable { border-color: var(--line); background: var(--surface-2); color: var(--ink-3); }
 .rate-limit b { color: var(--ink); font-family: var(--mono); font-weight: 600; }
 .rate-limit span { color: var(--ink-2); }
+.daily-guard { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; font-size: 11.5px; color: var(--ink-3); font-family: var(--mono); }
+.daily-guard .hit { color: var(--warn); font-weight: 600; }
 .acts { display: flex; gap: 4px; justify-content: flex-end; white-space: nowrap; }
 /* 表格里的操作列必须保持 table-cell：flex 的 td 会脱离行高，底线与同行其他单元格错位 */
 td.acts { display: table-cell; text-align: right; }
@@ -1504,6 +1506,15 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
               <label class="fld"><span class="lb">积分保底</span>
                 <input name="credit_floor" type="number" min="0" placeholder="100">
                 <span class="hint">余额低于此值不再接实测收费模型（保住免费模型可用）；0 关闭</span></label>
+              <label class="fld"><span class="lb">每日 Token 上限</span>
+                <input name="daily_token_limit" type="number" min="0" placeholder="0">
+                <span class="hint">单账号当日 token 达到后整号停用，次日零点恢复；0 关闭</span></label>
+              <label class="fld"><span class="lb">每日积分上限</span>
+                <input name="daily_credit_limit" type="number" min="0" placeholder="0">
+                <span class="hint">单账号当日实扣积分达到后只停收费模型，免费模型照常；0 关闭</span></label>
+              <label class="fld"><span class="lb">单模型每日 Token 上限</span>
+                <input name="model_daily_token_limit" type="number" min="0" placeholder="0">
+                <span class="hint">单账号单模型当日 token 达到后只停这个模型；0 关闭</span></label>
               <label class="fld"><span class="lb">快过期路由窗口</span>
                 <input name="expiring_soon" placeholder="168h">
                 <span class="hint">窗口内有快过期批次的账号优先接单，都不可用才用其他账号；0 关闭</span></label>
