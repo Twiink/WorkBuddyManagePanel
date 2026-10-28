@@ -378,6 +378,31 @@ func TestExtractKeyMultimodalContent(t *testing.T) {
 	}
 }
 
+func TestResolvePrefersPreferredForNewSessions(t *testing.T) {
+	available := []string{"a", "b", "c"}
+	preferred := []string{"c"}
+	r := New(Config{
+		TTL:               time.Minute,
+		AvailableForModel: func(string) []string { return available },
+		PreferredForModel: func(string) []string { return preferred },
+	})
+	for _, key := range []string{"k1", "k2", "k3"} {
+		if uid, ok := r.ResolveForModel(key, "m"); !ok || uid != "c" {
+			t.Fatalf("%s resolved %s %v, want c", key, uid, ok)
+		}
+	}
+	// 已有有效绑定照常复用，不因优先集合变化而迁移。
+	r.Bind("old", "a")
+	if uid, ok := r.ResolveForModel("old", "m"); !ok || uid != "a" {
+		t.Fatalf("existing binding resolved %s %v, want a", uid, ok)
+	}
+	// 优先集合为空时按全部可用账号分配。
+	preferred = nil
+	if uid, ok := r.ResolveForModel("k4", "m"); !ok || uid == "" {
+		t.Fatalf("fallback resolved %q %v", uid, ok)
+	}
+}
+
 func TestLookupForModelOnlyReusesValidBinding(t *testing.T) {
 	available := []string{"a", "b"}
 	store := newCountingStore()

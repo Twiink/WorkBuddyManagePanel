@@ -1,4 +1,4 @@
-// 选号：Pick 簇（healthy 成本分层 + 快过期虚拟实例权重 + 全冷却兜底 + 在途占满过滤）。
+// 选号：Pick 簇（healthy 成本分层 + 快过期硬优先 + 全冷却兜底 + 在途占满过滤）。
 package pool
 
 import (
@@ -172,6 +172,20 @@ func (p *Pool) pick(tried map[string]bool, reqModel, realm string) *auth.Auth {
 			log.Printf("[pool] cost explore model=%s realm=%q acct=%s window=%s", reqModel, realm, logfmt.Label(e.a.UID, e.a.Nickname), p.costExploreInterval)
 		}
 		return e.a
+	}
+	// 快过期硬优先：成本最优层内只要有可接单的快过期账号，就只在它们之间选；
+	// 都不可用（冷却/占满/触底/不在最优层）时 ws 不变，选号与原来完全一致。
+	// 放在成本分层之后：已实测免费的号不花积分，比花掉快过期积分更省。
+	if p.preferExpiring {
+		expiring := ws[:0:0]
+		for _, w := range ws {
+			if expiringNow(w.e, now) {
+				expiring = append(expiring, w)
+			}
+		}
+		if len(expiring) > 0 {
+			ws = expiring
+		}
 	}
 	// 等权重洗牌：仅当存在权重相等且候选数超过 top5 时，才对 ws 做 Fisher-Yates
 	// 洗牌（且**不消耗 p.randInt64N 注入源**，避免改变 pickWeighted 的确定性语义，

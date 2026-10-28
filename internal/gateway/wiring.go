@@ -22,3 +22,12 @@ func realmAwareAvailableForModel(p *pool.Pool) func(model string) []string {
 		return p.WeightedAvailableUIDsForModelRealm(bare, realm)
 	}
 }
+
+// realmAwareExpiringForModel 新会话分配的快过期优先集合，realm 解析同
+// realmAwareAvailableForModel。
+func realmAwareExpiringForModel(p *pool.Pool) func(model string) []string {
+	return func(model string) []string {
+		realm, bare := server.ResolveModel(model)
+		return p.ExpiringAvailableUIDsForModelRealm(bare, realm)
+	}
+}

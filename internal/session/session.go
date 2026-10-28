@@ -41,6 +41,10 @@ type Config struct {
 	// 模型级限额后对**其他模型**仍可用（issue #31 豁免），此时若只按账号级可用性
 	// 校验，会话会被钉在这个号上反复失败——正是"限额后换不动号"的观感来源。
 	AvailableForModel func(model string) []string
+	// PreferredForModel 新会话分配时优先选用的账号（AvailableForModel 的子集，如有
+	// 快过期积分的号）；返回空或 nil 时按 AvailableForModel 全集分配。只影响新分配，
+	// 已有有效绑定照常复用。
+	PreferredForModel func(model string) []string
 }
 
 // Router 会话粘性路由器。
@@ -192,6 +196,12 @@ func (r *Router) ResolveForModel(key, model string) (string, bool) {
 	uids := r.availableSlice(model)
 	if len(uids) == 0 {
 		return "", false
+	}
+	// 新会话优先在 PreferredForModel（快过期账号）里分配；为空时用全部可用账号。
+	if r.cfg.PreferredForModel != nil {
+		if preferred := r.cfg.PreferredForModel(model); len(preferred) > 0 {
+			uids = preferred
+		}
 	}
 
 	// 双段策略：优先"空闲账号"（未被任何会话绑定的可用号），其次全池。

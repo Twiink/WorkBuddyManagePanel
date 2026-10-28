@@ -222,14 +222,14 @@ type Config struct {
 		DegradeCooldownMax string  `json:"degrade_cooldown_max"` // 降权时长的上限钳制，默认 "2h"（仅当 cooldown 超该值才钳制）
 		IdleWeightPerHour  float64 `json:"idle_weight_per_hour"` // 闲置补偿：每小时未用 +0.5 权重
 		IdleWeightMax      float64 `json:"idle_weight_max"`      // 闲置补偿封顶，默认 5.0
-		// PreferExpiring 快过期积分加权开关，默认 true。开启且 expiring_soon 窗口内
-		// 存在有效批次时，该账号选号权重 ×3（虚拟实例，见 pool 路由加权）；
-		// 不按到期时间排序、与批次金额无关（issue #101 对齐实现口径）。
+		// PreferExpiring 快过期积分优先开关，默认 true。开启后成本最优层内只要有
+		// 可接单的 expiring_soon 窗口内账号，就只在它们之间选（新会话粘性分配同口径）；
+		// 都不可用时按原规则用其余账号。不按到期时间排序、与批次金额无关。
 		// 关闭后完全不使用到期信息选号。
 		PreferExpiring bool `json:"prefer_expiring"`
 		// ExpiringSoon 快过期积分窗口（如 "168h"=7天）：签到/余额刷新时，到期时间在
-		// 此窗口内的批次令账号命中上述 ×3 加权；窗口开大 → 命中账号变多、
-		// 偏好被稀释。空/0 = 禁用该加权门槛。
+		// 此窗口内的批次令账号算作快过期；窗口开大 → 命中账号变多、
+		// 优先范围变宽。空/0 = 禁用该门槛。
 		ExpiringSoon string `json:"expiring_soon"`
 		// CostExploreInterval costTier 条件探索窗口（issue #136 方案 a′）：tier 0
 		// 垄断层存在且 tier 1 有成员时，距上次探索 ≥ 窗口则本次 pick 生效层切

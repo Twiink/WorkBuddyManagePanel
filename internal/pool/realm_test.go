@@ -73,6 +73,30 @@ func TestAvailableUIDsForModelRealm(t *testing.T) {
 	}
 }
 
+func TestExpiringAvailableUIDsForModelRealm(t *testing.T) {
+	p := realmPool(t)
+	now := time.Now()
+	p.SetCreditsDetailed("cn2", 100, 100, 100, now.Add(time.Hour), 100)
+	p.SetCreditsDetailed("g1", 100, 100, 100, now.Add(time.Hour), 100)
+
+	if got := p.ExpiringAvailableUIDsForModelRealm("glm-5.2", "cn"); !reflect.DeepEqual(got, []string{"cn2"}) {
+		t.Fatalf("cn expiring=%v want [cn2]", got)
+	}
+	p.SetMaxInFlight(1)
+	if !p.Acquire("cn2") {
+		t.Fatal("failed to acquire cn2")
+	}
+	got := p.ExpiringAvailableUIDsForModelRealm("glm-5.2", "cn")
+	p.Release("cn2")
+	if len(got) != 0 {
+		t.Fatalf("in-flight-full expiring=%v want none", got)
+	}
+	p.SetPreferExpiring(false)
+	if got := p.ExpiringAvailableUIDsForModelRealm("glm-5.2", "cn"); got != nil {
+		t.Fatalf("disabled expiring=%v want nil", got)
+	}
+}
+
 func TestWeightedAvailableUIDsForModelRealm(t *testing.T) {
 	p := realmPool(t)
 	now := time.Now()

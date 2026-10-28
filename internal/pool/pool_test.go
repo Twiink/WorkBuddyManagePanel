@@ -1762,7 +1762,7 @@ func TestTokenUsagePersistsAcrossReload(t *testing.T) {
 	}
 }
 
-func TestPickPrefersExpiringByVirtualWeight(t *testing.T) {
+func TestPickPrefersExpiringHard(t *testing.T) {
 	withNoPickGap(t)
 	p := New("")
 	p.Add(&auth.Auth{UID: "later"})
@@ -1772,10 +1772,10 @@ func TestPickPrefersExpiringByVirtualWeight(t *testing.T) {
 	now := time.Now()
 	p.SetCreditsDetailed("later", 100, 100, 100, now.Add(48*time.Hour), 100)
 	p.SetCreditsDetailed("soon", 100, 100, 100, now.Add(2*time.Hour), 100)
-	p.SetCreditsDetailed("none", 100, 100, 0, time.Time{}, 0)
+	p.SetCreditsDetailed("none", 1000, 1000, 0, time.Time{}, 0)
 
-	// 3:1 虚拟实例是软偏好而非硬优先。用确定性随机源统计长期分布：两个快过期
-	// 账号的合计份额应显著高于普通账号，同时普通账号仍保留少量流量。
+	// 硬优先：只要有可用的快过期账号，普通账号（即使积分更多）一次都不选；
+	// 快过期账号之间仍按原权重随机分摊。
 	rng := rand.New(rand.NewPCG(1, 2))
 	p.SetRandomSource(func(n int64) int64 { return rng.Int64N(n) })
 	counts := map[string]int{}
@@ -1786,9 +1786,51 @@ func TestPickPrefersExpiringByVirtualWeight(t *testing.T) {
 		}
 		counts[got.UID]++
 	}
-	expiring := counts["soon"] + counts["later"]
-	if expiring < 1500 || counts["none"] == 0 {
-		t.Fatalf("virtual weight distribution=%v, want expiring majority and regular non-zero", counts)
+	if counts["none"] != 0 || counts["soon"] == 0 || counts["later"] == 0 {
+		t.Fatalf("distribution=%v, want only expiring accounts, both used", counts)
+	}
+}
+
+// TestPickExpiringUnavailableFallsBack 快过期账号都不可用时，按原规则在其余账号中选。
+func TestPickExpiringUnavailableFallsBack(t *testing.T) {
+	withNoPickGap(t)
+	p := New("")
+	p.Add(&auth.Auth{UID: "soon"})
+	p.Add(&auth.Auth{UID: "none"})
+	p.SetCreditsDetailed("soon", 100, 100, 100, time.Now().Add(time.Hour), 100)
+	p.SetCreditsDetailed("none", 100, 100, 0, time.Time{}, 0)
+
+	if got := p.PickExcluding(map[string]bool{"soon": true}); got == nil || got.UID != "none" {
+		t.Fatalf("tried soon: pick=%v want none", got)
+	}
+	p.SetMaxInFlight(1)
+	if !p.Acquire("soon") {
+		t.Fatal("acquire soon")
+	}
+	defer p.Release("soon")
+	if got := p.Pick(); got == nil || got.UID != "none" {
+		t.Fatalf("soon in-flight full: pick=%v want none", got)
+	}
+}
+
+// TestPickExpiringDisabledUsesAll prefer_expiring=false 时普通账号照常参与。
+func TestPickExpiringDisabledUsesAll(t *testing.T) {
+	withNoPickGap(t)
+	p := New("")
+	p.Add(&auth.Auth{UID: "soon"})
+	p.Add(&auth.Auth{UID: "none"})
+	p.SetCreditsDetailed("soon", 100, 100, 100, time.Now().Add(time.Hour), 100)
+	p.SetCreditsDetailed("none", 100, 100, 0, time.Time{}, 0)
+	p.SetPreferExpiring(false)
+
+	rng := rand.New(rand.NewPCG(3, 4))
+	p.SetRandomSource(func(n int64) int64 { return rng.Int64N(n) })
+	counts := map[string]int{}
+	for i := 0; i < 400; i++ {
+		counts[p.Pick().UID]++
+	}
+	if counts["none"] == 0 || counts["soon"] == 0 {
+		t.Fatalf("disabled distribution=%v, want both used", counts)
 	}
 }
 
