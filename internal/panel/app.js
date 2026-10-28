@@ -2221,6 +2221,23 @@ function fmtCreditRatio(v, samples, tokens) {
   if (!Number.isFinite(n)) return '—';
   return trimFixed(n.toFixed(4)) + ' / 1M';
 }
+/* fmtMoney 估算价值：美元在前、人民币在后。小额保留 4 位，免得 0.003 显示成 0。 */
+function fmtMoneyOne(v, sym) {
+  const n = Number(v || 0);
+  if (!Number.isFinite(n) || !n) return sym + '0';
+  if (Math.abs(n) < 0.0001) return '<' + sym + '0.0001';
+  const d = Math.abs(n) >= 100 ? 0 : (Math.abs(n) >= 1 ? 2 : (Math.abs(n) >= 0.01 ? 3 : 4));
+  return sym + n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function fmtMoney(usd, cny) {
+  return fmtMoneyOne(usd, '$') + ' / ' + fmtMoneyOne(cny, '¥');
+}
+/* usCostCell 表格里的估算价值：美元一行、人民币一行。 */
+function usCostCell(a) {
+  if (!Number(a.cost_usd || 0)) return '<span class="muted">—</span>';
+  return '<span class="us-cost">' + esc(fmtMoneyOne(a.cost_usd, '$')) + '</span>' +
+    '<span class="us-cost-cny">' + esc(fmtMoneyOne(a.cost_cny, '¥')) + '</span>';
+}
 function fmtModelRate(rate) {
   const s = String(rate || '').trim();
   return s ? 'x' + s : '—';
@@ -2242,14 +2259,14 @@ function usKpi(v, k, cls, sub, bar) {
     '</div>';
 }
 
-/* usMixBar prompt/completion 占比条。宽度按百分比而不是固定像素：表列宽随窗口变化，
+/* usMixBar 输入/输出占比条。宽度按百分比而不是固定像素：表列宽随窗口变化，
    像素宽度在窄屏会溢出、宽屏又显得没信息。 */
 function usMixBar(prompt, completion, total) {
   const t = Number(total || 0);
   if (!t) return '';
   const pp = Math.max(0, Math.min(100, Number(prompt || 0) / t * 100));
   const pc = Math.max(0, Math.min(100, Number(completion || 0) / t * 100));
-  return '<span class="us-mix" title="prompt ' + pp.toFixed(1) + '% · completion ' + pc.toFixed(1) + '%">' +
+  return '<span class="us-mix" title="输入 ' + pp.toFixed(1) + '% · 输出 ' + pc.toFixed(1) + '%">' +
     '<i class="p" style="width:' + pp.toFixed(2) + '%"></i>' +
     '<i class="c" style="width:' + pc.toFixed(2) + '%"></i>' +
     '</span>';
@@ -2285,6 +2302,8 @@ function usRow(name, sub, a, mid, withPerf, nameHtml, share) {
     '<td class="num">' + fmtTok(a.completion_tokens) + '</td>' +
     '<td class="num us-total">' + fmtTok(a.total_tokens) +
       usMixBar(a.prompt_tokens, a.completion_tokens, a.total_tokens) + '</td>' +
+    '<td class="num">' + cacheRateCell(a.cache_hit_tokens, a.cache_miss_tokens) + '</td>' +
+    '<td class="num">' + usCostCell(a) + '</td>' +
     (withPerf
       ? '<td class="num">' + fmtMs(a.avg_latency_ms) + '</td>' +
         '<td class="num">' + fmtRate(a.avg_tokens_per_second) + '</td>'
@@ -2296,9 +2315,9 @@ function usRow(name, sub, a, mid, withPerf, nameHtml, share) {
    账号 / 模型 / 域三张表此前各自占一个 box，页面纵向拉得很长且表头结构几乎一样。
    现在合成一个 box：表头由维度定义生成，行渲染复用 usRow，切换零请求。 */
 const US_DIMS = {
-  account: { key: 'by_account', title: '账号', withRealm: true, withPerf: true, span: 10 },
-  model: { key: 'by_model', title: '模型', withRealm: false, withPerf: false, span: 7 },
-  realm: { key: 'by_realm', title: 'realm', withRealm: false, withPerf: false, span: 7 },
+  account: { key: 'by_account', title: '账号', withRealm: true, withPerf: true, span: 12 },
+  model: { key: 'by_model', title: '模型', withRealm: false, withPerf: false, span: 9 },
+  realm: { key: 'by_realm', title: '域', withRealm: false, withPerf: false, span: 9 },
 };
 
 // usSortRows 按当前排序字段降序（默认合计 Token，最大者最相关）。
@@ -2308,6 +2327,9 @@ function usSortRows(rows, sort) {
   const val = a => sort === 'requests' ? num(a.requests)
     : sort === 'errors' ? num(a.errors)
     : sort === 'latency' ? num(a.avg_latency_ms)
+    : sort === 'cost' ? num(a.cost_usd)
+    : sort === 'cache' ? (num(a.cache_hit_tokens) + num(a.cache_miss_tokens)
+        ? num(a.cache_hit_tokens) / (num(a.cache_hit_tokens) + num(a.cache_miss_tokens)) : -1)
     : num(a.total_tokens);
   out.sort((a, b) => val(b) - val(a));
   return out;
@@ -2318,7 +2340,8 @@ function usDimHead(dim) {
   return '<tr><th class="mark" aria-hidden="true"></th><th>' + esc(m.title) + '</th>' +
     (m.withRealm ? '<th>域</th>' : '') +
     '<th class="num">请求</th><th class="num">失败</th>' +
-    '<th class="num">Prompt</th><th class="num">Completion</th><th class="num">合计</th>' +
+    '<th class="num">输入</th><th class="num">输出</th><th class="num">合计</th>' +
+    '<th class="num">缓存命中</th><th class="num">估算价值</th>' +
     (m.withPerf ? '<th class="num">均延迟</th><th class="num">均速率</th>' : '') +
     '</tr>';
 }
@@ -2426,6 +2449,21 @@ function renderCreditDim() {
   });
 }
 
+/* usKpiCost 估算价值卡：数值是美元，副行是人民币；悬停给出计价口径。 */
+function usKpiCost(t, pr, unpriced) {
+  const tip = '按模型官方公布单价（输入 / 输出 / 缓存命中，' + (pr.source || '价格表') +
+    (pr.generated_at ? '，快照 ' + String(pr.generated_at).slice(0, 10) : '') +
+    '）估算，汇率 1 USD = ' + (pr.usd_cny || '—') + ' CNY；不等于实际结算（实际结算看积分）。' +
+    '按输入长度分档的模型只按基础档计。' +
+    (unpriced.length ? '\n未计价模型：' + unpriced.join('、') : '');
+  return '<div class="kpi c-warn" title="' + esc(tip) + '">' +
+    '<div class="k">估算价值</div>' +
+    '<div class="v">' + esc(fmtMoneyOne(t.cost_usd, '$')) + '</div>' +
+    '<div class="s">' + esc(fmtMoneyOne(t.cost_cny, '¥')) +
+      (unpriced.length ? ' · ' + unpriced.length + ' 个模型未计价' : '') + '</div>' +
+    '</div>';
+}
+
 function renderUsage(d) {
   usageData = d || {};
   const t = usageData.totals || {};
@@ -2435,19 +2473,21 @@ function renderUsage(d) {
   const reqs = Number(t.requests || 0);
   const errs = Number(t.errors || 0);
   const okRate = reqs ? (reqs - errs) / reqs * 100 : null;
-  // 构成条要的是合法 CSS 宽度，usPct 在无样本时返回 "—"，不能直接拼进 style。
-  const pctW = (part) => total ? Math.max(0, Math.min(100, Number(part || 0) / total * 100)).toFixed(2) + '%' : '0%';
-  // 六张卡：主指标用强调色，completion 用成功色（与图表里的绿柱呼应），
+  // 八张卡（两行）：主指标用强调色，输出用成功色（与图表里的绿柱呼应），
   // 失败/延迟只在有值时上语义色——全绿全黄的仪表盘等于没有重点。
+  const pr = usageData.pricing || {};
+  const unpriced = usageData.unpriced_models || [];
+  const ch = Number(t.cache_hit_tokens || 0), cm = Number(t.cache_miss_tokens || 0);
   $('usStats').innerHTML =
     usKpi(fmtTok(reqs), '请求数', 'c-accent',
       errs ? '其中失败 ' + errs + ' 次' : '全部成功') +
-    usKpi(fmtTok(total), '总 token', 'c-accent',
-      'prompt ' + usPct(pt, total) + ' · completion ' + usPct(ct, total),
-      '<div class="kbar"><i style="width:' + pctW(pt) + ';background:var(--accent)"></i>' +
-      '<i style="width:' + pctW(ct) + ';background:var(--ok)"></i></div>') +
-    usKpi(fmtTok(pt), 'prompt', 'c-soft', '占比 ' + usPct(pt, total)) +
-    usKpi(fmtTok(ct), 'completion', 'c-ok', '占比 ' + usPct(ct, total)) +
+    usKpi(fmtTok(total), '总 Token', 'c-accent',
+      '输入 ' + usPct(pt, total) + ' · 输出 ' + usPct(ct, total)) +
+    usKpi(fmtTok(pt), '输入 Token', 'c-soft', '占比 ' + usPct(pt, total)) +
+    usKpi(fmtTok(ct), '输出 Token', 'c-ok', '占比 ' + usPct(ct, total)) +
+    usKpi(cacheRateText(ch, cm), '缓存命中率', ch + cm ? 'c-ok' : 'c-mute',
+      ch + cm ? '命中 ' + fmtTok(ch) + ' / 共 ' + fmtTok(ch + cm) : '上游未回报缓存数据') +
+    usKpiCost(t, pr, unpriced) +
     usKpi(String(errs), '失败尝试', errs ? 'c-warn' : 'c-mute',
       okRate == null ? '—' : (errs ? '成功率 ' + okRate.toFixed(1) + '%' : '成功率 100%')) +
     usKpi(fmtMs(t.avg_latency_ms), '平均延迟', 'c-soft',
@@ -2471,7 +2511,7 @@ function renderUsage(d) {
 
   // 积分扣除的四张卡片与说明。
   $('usCreditStats').innerHTML =
-    usKpi(fmtCredit(t.credits), '扣除积分', 'c-accent', '按上游 usage.credit 累计') +
+    usKpi(fmtCredit(t.credits), '扣除积分', 'c-accent', '估算价值 ' + fmtMoney(t.cost_usd, t.cost_cny)) +
     usKpi(fmtTok(t.credit_tokens), '匹配 Token', 'c-mute', '与积分同时观测到的 Token') +
     usKpi(fmtCreditRatio(t.credits_per_1m_tokens, t.credit_samples, t.credit_tokens),
       '平均积分 / 1M Token', 'c-ok', '越低越划算') +
@@ -2631,9 +2671,9 @@ function renderUsageChart(series) {
     // <rect> 的兄弟节点（rect 自闭合，无法包含子节点），于是全部平铺在 <svg>
     // 根下 —— 整张图只有一个 tooltip（浏览器取第一个），悬停任何柱子都显示同一
     // 份数据（issue #128）。包进 <g> 后 tooltip 跟随该柱，且堆叠的两段
-    //（prompt + completion）共用同一个提示。
-    out += '<g><title>' + esc(p.raw) + '  ' + fmtTok(p.pt) + ' prompt / ' +
-           fmtTok(p.ct) + ' completion / ' + p.req + ' 次</title>';
+    //（输入 + 输出）共用同一个提示。
+    out += '<g><title>' + esc(p.raw) + '  输入 ' + fmtTok(p.pt) + ' / 输出 ' +
+           fmtTok(p.ct) + ' / ' + p.req + ' 次</title>';
     // 圆角只给堆叠顶端（贴轴的底边保持方角，柱子才像"立"在基线上）。
     // 类名用 usbar 而不是 bar：账号池的积分条是 .bar{height:3px}，而 SVG2 里
     // height 是 rect 的 CSS 几何属性，同名类会把每根柱子压成 3px 高（踩过）。

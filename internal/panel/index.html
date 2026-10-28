@@ -522,8 +522,12 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
     gap: 0; padding: 0; border-bottom: 1px solid var(--line); }
   /* 积分扣除 KPI 数量由 JS 决定（目前 5 张）：按列自动排布，始终一行 */
   .kpis.k4 { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-  @media (max-width: 1180px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  @media (max-width: 700px) { .kpis, .kpis.k4 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row; } }
+  /* 用量总览 8 张卡：4 列两行，第二行与第一行对齐 */
+  .kpis.k8 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .kpis.k8 .kpi:nth-child(-n+4) { border-bottom: 1px solid var(--line-soft); }
+  .kpis.k8 .kpi:nth-child(4n) { border-right: none; }
+  @media (max-width: 1180px) { .kpis:not(.k8) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 700px) { .kpis, .kpis.k4, .kpis.k8 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row; } }
   .kpis:empty { display: none; }
   .kpi {
     position: relative; min-width: 0; overflow: hidden;
@@ -546,12 +550,8 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
   .kpi.c-warn { --kpi-c: var(--warn); } .kpi.c-warn .v { color: var(--warn); }
   .kpi.c-bad { --kpi-c: var(--bad); } .kpi.c-bad .v { color: var(--bad); }
   .kpi.c-mute { --kpi-c: var(--line); }
-  /* 中性但带一点主色：用于 prompt / 平均延迟这类"要看但不抢眼"的指标 */
+  /* 中性但带一点主色：用于输入 Token / 平均延迟这类"要看但不抢眼"的指标 */
   .kpi.c-soft { --kpi-c: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-  /* KPI 内的构成条（总 token 卡的 prompt/completion 占比） */
-  .kpi .kbar { display: flex; height: 4px; border-radius: 1px; overflow: hidden;
-    background: var(--line-soft); margin-top: 8px; }
-  .kpi .kbar i { display: block; height: 100%; min-width: 2px; }
 
   .uschart { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
     background: var(--surface); }
@@ -577,7 +577,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
   .uschart-body rect.usbar:hover { opacity: .72; }
   .uschart-body .us-empty { padding: 34px 0; text-align: center; color: var(--ink-3); font-size: 12.5px; }
 
-  /* 用量表内的 prompt/completion 占比条。用 .us-mix 而不是复用账号池的 .bar：
+  /* 用量表内的输入/输出占比条。用 .us-mix 而不是复用账号池的 .bar：
      全局 .bar 是块级容器（积分条），同优先级下会互相覆盖（v1.9.0 回归）。 */
   .us-mix { display: flex; height: 3px; border-radius: 1px; overflow: hidden;
     background: var(--line-soft); margin-top: 5px; min-width: 60px; }
@@ -597,6 +597,8 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
   .acc.zebra .us-total .us-mix { margin-left: auto; width: 100%; max-width: 120px; }
   .acc.zebra th.num, .acc.zebra td.num { text-align: right; }
   .us-err { color: var(--warn); font-weight: 600; }
+  .us-cost { display: block; font-weight: 600; white-space: nowrap; }
+  .us-cost-cny { display: block; font: 11px var(--mono); color: var(--ink-3); white-space: nowrap; margin-top: 1px; }
   .acc .muted { color: var(--ink-3); }
   /* 表内 zebra：三张表行数多，靠极淡的交替底色帮眼睛横向对齐。 */
   .acc.zebra tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
@@ -1171,7 +1173,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
           <span class="trange" id="usRange"></span>
           <button class="xs" id="btnUsage">刷新</button>
         </header>
-        <div class="kpis" id="usStats"></div>
+        <div class="kpis k8" id="usStats"></div>
         <div class="pad">
           <div class="uschart">
             <div class="uschart-hd">
@@ -1179,7 +1181,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
               <span class="note" id="usChartNote">—</span>
               <span class="grow"></span>
               <span class="legend">
-                <i class="sw sw-p"></i>prompt<i class="sw sw-c"></i>completion
+                <i class="sw sw-p"></i>输入<i class="sw sw-c"></i>输出
                 <span class="sep"></span><i class="sw sw-t"></i>均值
               </span>
             </div>
@@ -1241,6 +1243,8 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
               <option value="total">合计 Token</option>
               <option value="requests">请求数</option>
               <option value="errors">失败数</option>
+              <option value="cache">缓存命中率</option>
+              <option value="cost">估算价值</option>
               <option value="latency">平均延迟</option>
             </select>
           </label>

@@ -149,13 +149,13 @@ type Delta struct {
 	HasCredit        bool
 	ModelRate        string
 	// CacheHitTokens / CacheMissTokens 前缀缓存命中/未命中观测（issue #92）。
-	HasCacheTokens   bool
-	CacheHitTokens   int64
-	CacheMissTokens  int64
-	LatencyMs        int64
-	HasLatency       bool
-	TokensPerSecond  float64
-	HasTPS           bool
+	HasCacheTokens  bool
+	CacheHitTokens  int64
+	CacheMissTokens int64
+	LatencyMs       int64
+	HasLatency      bool
+	TokensPerSecond float64
+	HasTPS          bool
 }
 
 // Add 记录一次请求尝试。
@@ -360,8 +360,13 @@ type Agg struct {
 	CacheHitTokens     int64   `json:"cache_hit_tokens,omitempty"`
 	CacheMissTokens    int64   `json:"cache_miss_tokens,omitempty"`
 	CacheHitRate       float64 `json:"cache_hit_rate,omitempty"`
-	AvgLatencyMs       float64 `json:"avg_latency_ms"`
-	AvgTPS             float64 `json:"avg_tokens_per_second"`
+	// CostUSD / CostCNY 按模型公布单价估算的价值（见 pricing.go）；不在价格表内的
+	// 模型不计入，其 token 计在 UnpricedTokens。
+	CostUSD        float64 `json:"cost_usd"`
+	CostCNY        float64 `json:"cost_cny"`
+	UnpricedTokens int64   `json:"unpriced_tokens,omitempty"`
+	AvgLatencyMs   float64 `json:"avg_latency_ms"`
+	AvgTPS         float64 `json:"avg_tokens_per_second"`
 }
 
 // aggAcc 是聚合过程中的累加器：Agg 只放已算好的结果，均值需要样本数才能
@@ -385,6 +390,11 @@ func (g *aggAcc) add(b *bucket) {
 	g.CreditTokens += b.CRT
 	g.CacheHitTokens += b.CH
 	g.CacheMissTokens += b.CM
+	if usd, ok := bucketCostUSD(b); ok {
+		g.CostUSD += usd
+	} else {
+		g.UnpricedTokens += b.TT
+	}
 	g.latSum += b.LatMs
 	g.latSamples += b.LatN
 	g.tpsSum += b.TPS
@@ -405,6 +415,7 @@ func (g *aggAcc) finish() Agg {
 	if total := g.CacheHitTokens + g.CacheMissTokens; total > 0 {
 		a.CacheHitRate = float64(g.CacheHitTokens) / float64(total) * 100
 	}
+	a.CostCNY = a.CostUSD * prices.UsdCny
 	return a
 }
 
@@ -438,6 +449,8 @@ type CreditAgg struct {
 	CacheHitTokens     int64   `json:"cache_hit_tokens,omitempty"`
 	CacheMissTokens    int64   `json:"cache_miss_tokens,omitempty"`
 	CacheHitRate       float64 `json:"cache_hit_rate,omitempty"`
+	CostUSD            float64 `json:"cost_usd"`
+	CostCNY            float64 `json:"cost_cny"`
 }
 
 type creditAcc struct {
@@ -451,6 +464,9 @@ func (a *creditAcc) add(b *bucket) {
 	a.CreditTokens += b.CRT
 	a.CacheHitTokens += b.CH
 	a.CacheMissTokens += b.CM
+	if usd, ok := bucketCostUSD(b); ok {
+		a.CostUSD += usd
+	}
 }
 
 func (a *creditAcc) finish() CreditAgg {
@@ -461,6 +477,7 @@ func (a *creditAcc) finish() CreditAgg {
 	if total := a.CacheHitTokens + a.CacheMissTokens; total > 0 {
 		out.CacheHitRate = float64(a.CacheHitTokens) / float64(total) * 100
 	}
+	out.CostCNY = out.CostUSD * prices.UsdCny
 	return out
 }
 
@@ -473,9 +490,13 @@ type Snapshot struct {
 	Series          []Point     `json:"series"`
 	CreditByAccount []CreditAgg `json:"credit_by_account"`
 	CreditByModel   []CreditAgg `json:"credit_by_model"`
-	Buckets         int         `json:"buckets"`
-	FileBytes       int64       `json:"file_bytes"`
-	Since           string      `json:"since,omitempty"`
+	// Pricing 估算价值的单价来源与汇率；UnpricedModels 窗口内有用量但不在价格表
+	// 内的模型（价值未计入）。
+	Pricing        PriceInfo `json:"pricing"`
+	UnpricedModels []string  `json:"unpriced_models,omitempty"`
+	Buckets        int       `json:"buckets"`
+	FileBytes      int64     `json:"file_bytes"`
+	Since          string    `json:"since,omitempty"`
 	// WindowFrom/WindowTo 本次实际生效的统计区间（本地时间，RFC3339），供面板
 	// 回显口径——「自定义」区间下用户必须能确认服务端到底按哪段算的。
 	// 空串 = 该侧不设界（全部历史 / 到今天为止）。
@@ -678,11 +699,17 @@ func (r *Recorder) SnapshotWindow(w Window, nicks map[string]string, currentRate
 		ByModel:         keyed(modelAgg, func(k string) (string, string) { return k, "" }),
 		CreditByAccount: creditKeyed(creditAcctAgg),
 		CreditByModel:   creditKeyed(creditModelAgg),
+		Pricing:         PriceInfo{Source: prices.Source, GeneratedAt: prices.GeneratedAt, UsdCny: prices.UsdCny},
 		Buckets:         matched,
 		Generated:       time.Now().Format(time.RFC3339),
 	}
 	for i := range snap.ByAccount {
 		snap.ByAccount[i].Realm = acctRealm[snap.ByAccount[i].Key]
+	}
+	for _, m := range snap.ByModel {
+		if m.UnpricedTokens > 0 {
+			snap.UnpricedModels = append(snap.UnpricedModels, m.Key)
+		}
 	}
 
 	// 日点（升序）+ 小时点（升序）拼成一条连续时序。

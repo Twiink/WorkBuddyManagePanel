@@ -182,10 +182,12 @@ function drawMobileUsageChart(series) {
     const hC = Math.max(p.tt && p.ct ? 1 : 0, hTot - hP);
     // 每根柱子包一个 <g>：SVG 里 <title> 描述的是父元素，平铺在根下会全图共用一个
     // tooltip（悬停任何柱子都是同一份数据，issue #128）。
-    out += '<g><title>' + esc(p.raw) + '  ' + fmtTok(p.pt) + ' prompt / ' + fmtTok(p.ct) + ' completion / ' + p.req + ' 次</title>';
-    if (hP > 0) out += '<rect class="usbar usbar-p" x="' + x.toFixed(2) + '" y="' + (yBase - hP).toFixed(2) +
+    out += '<g><title>' + esc(p.raw) + '  输入 ' + fmtTok(p.pt) + ' / 输出 ' + fmtTok(p.ct) + ' / ' + p.req + ' 次</title>';
+    // 颜色写在 style 上而不是只靠 mobile.css：那条规则只在 ≤760px 生效，窄屏画完再把
+    // 窗口拉宽时规则失效，柱子会退回 SVG 默认的黑色填充。
+    if (hP > 0) out += '<rect class="usbar usbar-p" style="fill:var(--accent)" x="' + x.toFixed(2) + '" y="' + (yBase - hP).toFixed(2) +
       '" width="' + bw.toFixed(2) + '" height="' + hP.toFixed(2) + '"' + (hC > 0 ? '' : ' rx="1.5"') + '/>';
-    if (hC > 0) out += '<rect class="usbar usbar-c" x="' + x.toFixed(2) + '" y="' + (yBase - hP - hC).toFixed(2) +
+    if (hC > 0) out += '<rect class="usbar usbar-c" style="fill:var(--ok)" x="' + x.toFixed(2) + '" y="' + (yBase - hP - hC).toFixed(2) +
       '" width="' + bw.toFixed(2) + '" height="' + hC.toFixed(2) + '" rx="1.5"/>';
     out += '</g>';
   }
@@ -227,3 +229,10 @@ function drawMobileUsageChart(series) {
 }
 
 renderUsageChart = mobileUsageChart;
+
+// 跨过 760px 断点时按新宽度重画：否则窄屏画的 440 宽图会留在桌面布局里（反之亦然）。
+function redrawUsageChartOnBreakpoint() {
+  if (typeof usageData !== 'undefined' && usageData && $('usChart')) renderUsageChart(usageData.series || []);
+}
+if (MOBILE_MQ.addEventListener) MOBILE_MQ.addEventListener('change', redrawUsageChartOnBreakpoint);
+else if (MOBILE_MQ.addListener) MOBILE_MQ.addListener(redrawUsageChartOnBreakpoint);
