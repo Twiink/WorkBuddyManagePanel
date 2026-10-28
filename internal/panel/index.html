@@ -612,7 +612,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
   #pkSummary { display: block; margin: -18px; border: 0; border-radius: 0; overflow: visible; }
   #pkSummary > .tbl-wrap { width: 100%; }
   .acc.pkc { min-width: 980px; }
-  .acc.pkc td { padding-top: 12px; padding-bottom: 12px; }
+  .acc.pkc td { padding-top: 8px; padding-bottom: 8px; }
   .pkc-row { cursor: pointer; }
   .pkc-row .mark i { width: 3px; }
   .acc tbody tr.pkc-row.on { background: var(--accent-soft); }
@@ -729,6 +729,13 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
   /* 请求记录最多可读 1000 条，不限高会把下面的「运行日志」推到很远的地方。
      限高 + 表头吸顶：滚动区域内始终能看到列名。 */
   .req-wrap { max-height: 460px; overflow: auto; }
+  /* 账号多时的长表（账号池 / 账号对比）：限高约 10 行、表头吸顶，表格内部滚动，
+     不再把下面的面板推出好几屏。行距同时收紧一档。 */
+  .tbl-scroll { max-height: 600px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .tbl-scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); box-shadow: inset 0 -1px 0 var(--line); }
+  #accBody td { padding: 7px 9px; }
+  #accBody td.mark { padding: 0; }
+  #accBody .mark i { min-height: 30px; }
   .req-wrap thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 1; box-shadow: inset 0 -1px 0 var(--line); }
   .clip { display: block; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .clip.ip { max-width: 150px; font-family: var(--mono); font-size: 12.5px; }
@@ -738,44 +745,61 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 
   /* 用量统计条已改用 .kpis（见「用量视图」段），此处不再保留 .stats.compact 变体。 */
 
-  /* ── 到期提醒（首页）：每账号一行、固定列对齐 ─────────────────────────
-     [色条][账号][倒计时大字 + 日期][最近一批][日均需耗][7 天内合计] / 下一行：后续批次小块。
-     临期行整行淡色底（≤3 天红、≤7 天琥珀），与账号表的「异常行常亮」同一语言。 */
+  /* ── 到期提醒（首页）：每账号单行、固定列对齐 ─────────────────────────
+     [色条][账号][倒计时 + 日期][该批积分][日均需耗][7 天内合计][随后批次]，列名只在
+     顶部 .exp-head 出现一次（行内 <em> 标签桌面端隐藏，窄屏卡片模式再显示）。
+     临期行整行淡色底（≤3 天红、≤7 天琥珀），与账号表的「异常行常亮」同一语言；
+     不紧急的尾部默认折叠（.exp-extra），#expList.all 时展开。 */
   #expPad { padding: 0; }
   #expBox > header { flex-wrap: wrap; row-gap: 4px; }
   #expBox > header > #expNote { order: 9; flex: 1 1 100%; white-space: normal; font-family: var(--mono); font-size: 11.5px; }
-  .exp-row { position: relative; display: grid; grid-template-columns: 168px minmax(0, 1fr);
-    align-items: center; gap: 4px 16px; padding: 12px 18px 12px 21px; font-size: 12.5px; }
+  .exp-head, .exp-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; column-gap: 16px; }
+  .exp-head, .exp-hmain, .exp-main { --exp-cols: 150px 84px 108px 84px minmax(0, 1fr); }
+  .exp-head { padding: 7px 18px 7px 21px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+    font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--ink-3); white-space: nowrap; }
+  .exp-hmain { display: grid; grid-template-columns: var(--exp-cols); column-gap: 14px; }
+  .exp-row { position: relative; padding: 8px 18px 8px 21px; font-size: 12.5px; min-height: 40px; }
   .exp-row + .exp-row { border-top: 1px solid var(--line-soft); }
+  .exp-row:hover { background: var(--surface-2); }
   .exp-row.bad { background: color-mix(in srgb, var(--bad) 6%, transparent); }
   .exp-row.warn { background: color-mix(in srgb, var(--warn) 6%, transparent); }
   .exp-dot { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; height: auto; border-radius: 0; margin: 0; }
   .exp-row.quiet .exp-dot { opacity: .45; }
-  .exp-nm { font-weight: 650; font-size: 13.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .exp-main { display: grid; grid-template-columns: 236px repeat(3, minmax(96px, 150px));
-    align-items: center; gap: 4px 18px; color: var(--ink-2); min-width: 0; }
+  .exp-nm { font-weight: 650; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .exp-main { display: grid; grid-template-columns: var(--exp-cols); align-items: center; column-gap: 14px; color: var(--ink-2); min-width: 0; }
   .exp-row.quiet .exp-main, .exp-row.mute .exp-main { display: block; color: var(--ink-3); }
   .exp-main.err { display: block; color: var(--bad); }
-  .exp-when { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-  .exp-big { font: 700 20px/1.1 var(--mono); letter-spacing: -.03em; color: var(--ink); white-space: nowrap; }
+  .exp-when { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .exp-big { font: 700 15px/1.1 var(--mono); letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
   .exp-row.bad .exp-big { color: var(--bad); }
   .exp-row.warn .exp-big { color: var(--warn); }
-  .exp-date { font: 11.5px var(--mono); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .exp-kv { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .exp-kv em { font-style: normal; font-size: 11px; color: var(--ink-3); white-space: nowrap; }
-  .exp-kv b { font: 600 14px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+  .exp-date { font: 11px var(--mono); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .exp-kv { display: flex; flex-direction: column; min-width: 0; }
+  .exp-kv em { display: none; font-style: normal; font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+  .exp-kv b { font: 600 13px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
   .exp-kv.bad b { color: var(--bad); } .exp-kv.warn b { color: var(--warn); }
   .exp-kv.dim b { color: var(--ink-3); font-weight: 500; }
-  .exp-rest { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; font-size: 11.5px; color: var(--ink-3); }
-  .exp-rest em { font-style: normal; margin-right: 2px; }
-  .exp-chip { display: inline-flex; align-items: baseline; gap: 2px; padding: 1px 6px; border-radius: 3px;
-    font: 11px/1.5 var(--mono); color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line-soft); white-space: nowrap; }
+  /* 随后批次：单行，放不下的从右侧裁掉（悬停整行看日期，悬停小块看金额） */
+  .exp-rest { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; overflow: hidden;
+    font-size: 11.5px; color: var(--ink-3);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); }
+  .exp-rest > em { display: none; font-style: normal; margin-right: 2px; }
+  .exp-chip { display: inline-flex; align-items: baseline; gap: 2px; padding: 0 6px; border-radius: 3px; flex: none;
+    font: 11px/1.6 var(--mono); color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line-soft); white-space: nowrap; }
   .exp-chip b { font-weight: 650; color: var(--ink); }
   .exp-chip.bad { border-color: color-mix(in srgb, var(--bad) 30%, transparent); background: var(--bad-soft); }
   .exp-chip.warn { border-color: color-mix(in srgb, var(--warn) 30%, transparent); background: var(--warn-soft); }
-  .exp-more { font-size: 11px; color: var(--ink-3); margin-left: 2px; }
+  .exp-more { flex: none; font-size: 11px; color: var(--ink-3); margin-left: 2px; white-space: nowrap; }
+  #expList:not(.all) .exp-extra { display: none; }
+  .exp-toggle { display: block; width: 100%; padding: 9px 18px; border: 0; border-top: 1px solid var(--line-soft);
+    border-radius: 0; background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; text-align: center; cursor: pointer; }
+  .exp-toggle:hover:not(:disabled) { border: 0; border-top: 1px solid var(--line-soft); background: var(--accent-soft); color: var(--accent); }
+  .exp-toggle .on-all, #expList.all .exp-toggle .on-fold { display: none; }
+  #expList.all .exp-toggle .on-all { display: inline; }
   @media (max-width: 1240px) {
-    .exp-main { grid-template-columns: 220px repeat(3, minmax(88px, 1fr)); }
+    .exp-head, .exp-hmain, .exp-main { --exp-cols: 128px 72px 100px 76px minmax(0, 1fr); }
+    .exp-head, .exp-row { grid-template-columns: 128px minmax(0, 1fr); }
   }
 
   /* ── 积分到期分布（积分构成页）：日历柱状图 ───────────────────────────
@@ -815,14 +839,24 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
   .pkx-d em { font-style: normal; font-size: 11px; line-height: 1; color: var(--ink-3); }
   .pkx-col.bad .pkx-d em { color: var(--bad); font-weight: 600; }
   .pkx-col.warn .pkx-d em { color: var(--warn); font-weight: 600; }
-  .pkx-accs { margin-top: 14px; border-top: 1px solid var(--line-soft); }
-  .pkx-acc { display: grid; grid-template-columns: 12px minmax(120px, 220px) repeat(4, minmax(80px, 140px));
-    align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
-  .pkx-acc > i { width: 10px; height: 10px; border-radius: 2px; }
-  .pkx-acc .nm { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pkx-acc .kv { display: flex; align-items: baseline; gap: 6px; }
-  .pkx-acc .kv em { font-style: normal; font-size: 11px; color: var(--ink-3); white-space: nowrap; }
-  .pkx-acc .kv b { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; }
+  /* 各账号窗口合计：多列卡片网格（每格一账号），账号多时铺成几行而不是一长列 */
+  .pkx-accs-hd { display: flex; align-items: baseline; gap: 10px; margin-top: 16px; padding-top: 12px;
+    border-top: 1px solid var(--line-soft); font-size: 12.5px; font-weight: 650; color: var(--ink-2); }
+  .pkx-accs-hd span { font-size: 11px; font-weight: 400; color: var(--ink-3); }
+  .pkx-accs { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 6px; margin-top: 8px; }
+  .pkx-acc { display: grid; grid-template-columns: 9px repeat(4, minmax(0, 1fr)); grid-template-rows: auto auto;
+    align-items: center; column-gap: 8px; row-gap: 4px; padding: 7px 10px 8px;
+    border: 1px solid var(--line-soft); border-radius: 3px; background: var(--surface-2); font-size: 12px; min-width: 0; }
+  .pkx-acc:hover { border-color: var(--line); }
+  .pkx-acc > i { width: 9px; height: 9px; border-radius: 2px; }
+  .pkx-acc .nm { grid-column: 2 / -1; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pkx-acc .kv { grid-row: 2; display: flex; flex-direction: column; min-width: 0; }
+  /* 子元素顺序固定：i, .nm, 4 个 .kv（.nm 也是 span，故用 nth-child 而非 nth-of-type） */
+  .pkx-acc .kv:nth-child(3) { grid-column: 2; } .pkx-acc .kv:nth-child(4) { grid-column: 3; }
+  .pkx-acc .kv:nth-child(5) { grid-column: 4; } .pkx-acc .kv:nth-child(6) { grid-column: 5; }
+  .pkx-acc .kv em { font-style: normal; font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
+  .pkx-acc .kv b { font: 600 12px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pkx-acc .kv.zero b { color: var(--ink-3); font-weight: 400; }
   .pkx-acc .kv b.bad { color: var(--bad); } .pkx-acc .kv b.warn { color: var(--warn); }
 
   /* ── 账号备注（本机 localStorage，不写服务器）─────────────────────────
@@ -945,7 +979,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
           <button class="xs" id="btnActivityAll">活跃上报</button>
           <button class="xs" id="btnKeepaliveAll">全部保活</button>
         </header>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap tbl-scroll">
         <table class="acc">
           <thead><tr>
             <th class="mark" aria-hidden="true"></th>

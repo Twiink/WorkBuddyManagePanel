@@ -175,6 +175,8 @@
      内部纵向滚动」：上游 .req-wrap 就是这个语义，overflow 被覆盖后卡片会溢出去压住
      下面的运行日志（实测卡片 bottom 1897 vs box bottom 904）。 */
   .req-wrap { max-height: 70vh; overflow: auto; -webkit-overflow-scrolling: touch; }
+  /* 桌面端长表限高内滚（.tbl-scroll）在卡片模式下取消：卡片随页面自然滚动 */
+  .tbl-scroll { max-height: none; }
 
   /* 上游新增的筛选栏 / 时间范围 / 维度切换 / KPI 卡：同密度口径收紧 */
   .fbar { padding: 8px 10px; gap: 6px; }
@@ -311,28 +313,27 @@
   .pk-expiry-hdr, .pk-expiry-row { grid-template-columns: 52px minmax(60px, 1fr) 62px; gap: 6px; }
   .pk-expiry-chart { padding-right: 4px; }
 
-  /* ── 上游 v1.12.0 新增：首页「积分到期提醒」卡片（.exp-row）──────────
-     桌面端是 [色点][账号名 min-width:9em][正文] 的单行布局；窄屏上 9em 硬下限会把
-     正文挤成一条，故让名字可收缩、正文整行换行。 */
+  /* ── 首页「积分到期提醒」卡片（.exp-row）──────────────────────────────
+     桌面端是单行列对齐 + 顶部列头；窄屏放不下 6 列，改回卡片：列头隐藏、
+     每格显示自己的 <em> 标签，随后批次整行换行显示。 */
+  .exp-head { display: none; }
   .exp-row { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px 11px 10px 14px; }
   .exp-nm { white-space: normal; overflow-wrap: anywhere; }
   .exp-main { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
   .exp-when { grid-column: 1 / -1; }
   .exp-big { font-size: 17px; }
   .exp-kv b { font-size: 13px; }
-  .exp-kv em { font-size: 10.5px; white-space: normal; }
-  .exp-rest { grid-column: 1 / -1; }
-  /* 积分到期分布：KPI 两列、账号行折成两行；柱状图保留横向滚动 */
+  .exp-kv em { display: block; font-size: 10.5px; white-space: normal; }
+  .exp-rest { grid-column: 1 / -1; flex-wrap: wrap; -webkit-mask-image: none; mask-image: none; }
+  .exp-rest > em { display: inline; }
+  /* 积分到期分布：KPI 两列；账号格子网格改成两列；柱状图保留横向滚动 */
   .pkx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: -11px -11px 12px; }
   .pkx-kpi { padding: 9px 11px 12px; border-bottom: 1px solid var(--line-soft); }
   .pkx-kpi .v { font-size: 18px; }
   .pkx-cols { height: 190px; grid-template-columns: repeat(var(--n), 52px); }
   .pkx-bar { padding: 0 8px; }
-  .pkx-acc { grid-template-columns: 12px minmax(0, 1fr) minmax(0, 1fr); gap: 4px 10px; }
-  .pkx-acc .nm { grid-column: 2 / -1; }
-  .pkx-acc .kv { grid-column: span 1; }
-  .pkx-acc .kv:nth-of-type(even) { grid-column: 2; }
-  .pkx-acc .kv:nth-of-type(odd) { grid-column: 3; }
+  .pkx-accs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pkx-accs-hd { flex-wrap: wrap; }
 
   /* ── 6. 长不可断字符串兜底 ────────────────────────────────────────
      长昵称 / 长模型名 / 长券码这类"没有一个断点"的串会撑破 flex 行：flex 子项默认

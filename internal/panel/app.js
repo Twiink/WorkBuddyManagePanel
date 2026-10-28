@@ -3033,15 +3033,18 @@ function renderExpiryDistribution(list, now) {
   const chart = '<div class="pkx-chart"><div class="pkx-cols" style="--n:' + cols0.length + '">' +
     cols0.map(colHtml).join('') + '</div></div>';
 
-  const legend = [...acct.entries()].sort((x, y) => y[1].all - x[1].all).map(([, a]) =>
-    '<div class="pkx-acc"><i style="background:' + a.color + '"></i><span class="nm">' + esc(a.name) + '</span>' +
-    '<span class="kv"><em>3 天内</em><b' + (a.d3 ? ' class="bad"' : '') + '>' + fmtTok(a.d3) + '</b></span>' +
-    '<span class="kv"><em>7 天内</em><b' + (a.d7 ? ' class="warn"' : '') + '>' + fmtTok(a.d7) + '</b></span>' +
-    '<span class="kv"><em>30 天内</em><b>' + fmtTok(a.d30) + '</b></span>' +
-    '<span class="kv"><em>合计</em><b>' + fmtTok(a.all) + '</b></span></div>').join('');
+  // 账号窗口合计：多列紧凑网格（每格一账号），0 值淡显，账号多时不会拉成一长列。
+  const kvOf = (k, v, lvl) => '<span class="kv' + (v ? '' : ' zero') + '"><em>' + k + '</em><b' +
+    (v && lvl ? ' class="' + lvl + '"' : '') + '>' + fmtTok(v) + '</b></span>';
+  const legend = [...acct.entries()].sort((x, y) => y[1].d7 - x[1].d7 || y[1].all - x[1].all).map(([, a]) =>
+    '<div class="pkx-acc" title="' + esc(a.name + '：3 天内 ' + fmtTok(a.d3) + ' · 7 天内 ' + fmtTok(a.d7) +
+      ' · 30 天内 ' + fmtTok(a.d30) + ' · 带到期合计 ' + fmtTok(a.all)) + '">' +
+    '<i style="background:' + a.color + '"></i><span class="nm">' + esc(a.name) + '</span>' +
+    kvOf('3天', a.d3, 'bad') + kvOf('7天', a.d7, 'warn') + kvOf('30天', a.d30) + kvOf('合计', a.all) + '</div>').join('');
 
   $('pkExpiry').innerHTML = head +
     '<div class="pkx-cap">只列出有积分到期的日子 · 柱高 = 当天到期积分（平方根刻度，数值见柱顶）· 颜色区分账号 · 红 = 3 天内，琥珀 = 7 天内 · 悬停看明细</div>' + chart +
+    '<div class="pkx-accs-hd">各账号带到期积分<span>按 7 天内到期降序 · 色块对应柱内颜色</span></div>' +
     '<div class="pkx-accs">' + legend + '</div>' +
     '<div class="pk-expiry-foot">' + esc(foot) + '</div>';
 }
@@ -3127,7 +3130,7 @@ function renderPackages(d, detailLimit) {
   const legend = names.map(k => labelOf[k]).filter(Boolean).map(x =>
     '<span><i style="background:' + colorOf(x.key) + '"></i>' + esc(x.name.replace(/^CodeBuddy/, '')) + '</span>').join('');
 
-  $('pkSummary').innerHTML = '<div class="tbl-wrap"><table class="acc pkc">' + head + '<tbody>' +
+  $('pkSummary').innerHTML = '<div class="tbl-wrap tbl-scroll"><table class="acc pkc">' + head + '<tbody>' +
     rowsHtml +
     '</tbody></table></div>' + (legend ? '<div class="pk-legend pkc-legend">' + legend + '</div>' : '');
   $('pkNote').textContent = list.length + ' 个账号 · 实时查询上游 · 点行查看逐包明细';
@@ -3348,11 +3351,13 @@ function expiryRowsHtml(list) {
     const ay = String(y.a.nickname || y.a.uid || '');
     return ax < ay ? -1 : ax > ay ? 1 : 0;
   });
-  // 每行：[状态色条][账号][最近一批：倒计时大字 + 日期][该批积分][到期前日均需耗][7 天内合计][后续批次条]。
+  // 每账号一行：[状态色条][账号][倒计时 + 日期][最近一批][到期前日均需耗][7 天内合计][随后批次]。
+  // 列名只在顶部表头出现一次（expHeadHtml），行内 <em> 标签仅窄屏卡片模式显示；
   // 列固定宽，跨账号纵向对齐；数字全部等宽。
   const lvlOf = days => days <= 3 ? 'bad' : days <= 7 ? 'warn' : 'ok';
   const cell = (k, v, cls) => '<span class="exp-kv' + (cls ? ' ' + cls : '') + '"><em>' + k + '</em><b>' + v + '</b></span>';
-  return keyed.map(({ a }) => {
+  if (!keyed.length) return '';
+  const rows = keyed.map(({ a }) => {
     const name = a.nickname || String(a.uid || '').slice(0, 8);
     if (a.error) {
       return '<div class="exp-row mute"><span class="exp-dot" style="background:var(--ink-3)"></span>' +
@@ -3377,25 +3382,26 @@ function expiryRowsHtml(list) {
     const cls = 'var(--' + lvl + ')';
     const dayWord = days === 0 ? '今天到期' : days === 1 ? '明天到期' : days + ' 天后到期';
     const big = days === 0 ? '今天' : days === 1 ? '明天' : days + ' 天';
-    // 后续批次：最多 6 批的小方块时间线，每块 = 一批（日期 · 积分），颜色随危险度。
-    const nextBs = bs.slice(1, 7);
-    const more = bs.length > 7 ? '<span class="exp-more">等 ' + bs.length + ' 批</span>' : '';
+    // 后续批次：最多 4 批的小方块时间线（单行放得下），每块 = 一批（日期 · 积分），颜色随危险度。
+    const nextBs = bs.slice(1, 5);
+    const more = bs.length > 5 ? '<span class="exp-more">共 ' + bs.length + ' 批</span>' : '';
     const rest = nextBs.map(b => {
       const d2 = expDaysLeft(b.date, today);
       return '<span class="exp-chip ' + lvlOf(d2) + '" title="' + esc(b.date) + ' 到期 ' + fmtTok(b.remain) + ' 积分（' + d2 + ' 天后）">' +
         esc(b.date.slice(5)) + ' · <b>' + fmtTok(b.remain) + '</b></span>';
     }).join('') + more;
-    return '<div class="exp-row ' + lvl + '"><span class="exp-dot" style="background:' + cls + '"></span>' +
+    return '<div class="exp-row ' + lvl + '" title="' + esc(name + '：' + first.date + ' ' + dayWord) + '">' +
+      '<span class="exp-dot" style="background:' + cls + '"></span>' +
       '<span class="exp-nm">' + esc(name) + '</span>' +
       '<span class="exp-main">' +
-        '<span class="exp-when"><b class="exp-big">' + big + '</b><span class="exp-date">' + esc(first.date) +
-          ' · ' + dayWord + '</span></span>' +
+        '<span class="exp-when"><b class="exp-big">' + big + '</b><span class="exp-date">' + esc(first.date) + '</span></span>' +
         cell('最近一批', fmtTok(first.remain)) +
         cell('到期前日均需耗', '≥' + fmtTok(daily), lvl) +
         (week > first.remain ? cell('7 天内合计', fmtTok(week)) : cell('7 天内合计', fmtTok(week), 'dim')) +
         (rest ? '<span class="note exp-rest"><em>随后</em>' + rest + '</span>' : '') +
       '</span></div>';
-  }).join('');
+  });
+  return expHeadHtml() + expFoldRows(rows);
 }
 
 function renderExpiry(d) {
@@ -3485,17 +3491,18 @@ function renderExpirySnapshot(d) {
     const lvl = days <= 3 ? 'bad' : days <= 7 ? 'warn' : 'ok';
     const dayWord = days === 0 ? '今天到期' : days === 1 ? '明天到期' : days + ' 天后到期';
     const big = days === 0 ? '今天' : days === 1 ? '明天' : days + ' 天';
-    return '<div class="exp-row ' + lvl + '"><span class="exp-dot" style="background:var(--' + lvl + ')"></span>' +
+    return '<div class="exp-row ' + lvl + '" title="' + esc((a.nickname || '') + '：' + when + ' ' + dayWord) + '">' +
+      '<span class="exp-dot" style="background:var(--' + lvl + ')"></span>' +
       '<span class="exp-nm">' + nm + '</span>' +
       '<span class="exp-main">' +
-        '<span class="exp-when"><b class="exp-big">' + big + '</b><span class="exp-date">' + esc(when) +
-          ' · ' + dayWord + '</span></span>' +
+        '<span class="exp-when"><b class="exp-big">' + big + '</b><span class="exp-date">' + esc(when) + '</span></span>' +
         '<span class="exp-kv"><em>最近一批</em><b>' + fmtTok(remain) + '</b></span>' +
         '<span class="exp-kv ' + lvl + '"><em>到期前日均需耗</em><b>≥' + fmtTok(daily) + '</b></span>' +
-        '<span class="note exp-rest">仅最早一批，点「检查」看全部到期批次</span>' +
+        '<span class="exp-kv dim"><em>7 天内合计</em><b>—</b></span>' +
+        '<span class="note exp-rest">仅最早一批，点「检查」看全部</span>' +
       '</span></div>';
-  }).join('');
-  $('expList').innerHTML = rows || '<div class="empty">没有账号</div>';
+  });
+  $('expList').innerHTML = rows.length ? expHeadHtml() + expFoldRows(rows) : '<div class="empty">没有账号</div>';
   $('expNote').textContent = snapshotNoteText(list.length, d);
   $('expBox').hidden = false;
 }
@@ -3517,6 +3524,34 @@ function snapshotNoteText(count, d) {
     tail += '，' + (min < 1 ? '刚刚更新' : min + ' 分钟前更新');
   }
   return count + ' 个账号 · 快照（' + tail + '，点「检查」拉实时明细）';
+}
+
+// expHeadHtml / expFoldRows 放在 renderExpirySnapshot 之后、loadExpiry 之前：前端
+// harness 两种切片（expBatches 起 / renderExpirySnapshot 起，均止于 loadExpiry）都能
+// 求值到它们。
+//
+// expHeadHtml 到期提醒的列头：列名只出现一次，行内的 <em> 标签在桌面端隐藏。
+function expHeadHtml() {
+  return '<div class="exp-head" aria-hidden="true"><span>账号</span><span class="exp-hmain">' +
+    '<span>最近到期</span><span>该批积分</span><span>到期前日均需耗</span><span>7 天内合计</span><span>随后批次</span>' +
+    '</span></div>';
+}
+
+// expFoldRows 把排好序的行拼起来，并把「不紧急的尾部」标成 .exp-extra 折叠：默认只露
+// 前 6 行，7 天内到期（红/琥珀）的行不论多少一律露出。展开态挂在 #expList 的 .all 类上
+// （见文件末尾的点击处理），5 秒轮询重渲染只换 innerHTML，展开态不丢。
+// 行已按最近到期升序，红/琥珀行必然排在前面，所以「可见 = max(6, 紧急行数)」
+// 就能保证紧急行永远可见。展开/收起文案两份都渲染、由 #expList.all 切换显示，
+// 这样重渲染时不需要 JS 再同步按钮文字。
+function expFoldRows(rows) {
+  const urgent = rows.filter(h => /^<div class="exp-row (bad|warn)\b/.test(h)).length;
+  const keep = Math.max(6, urgent);
+  if (rows.length <= keep + 1) return rows.join('');
+  const extra = rows.slice(keep).map(h => h.replace('<div class="exp-row ', '<div class="exp-row exp-extra '));
+  return rows.slice(0, keep).join('') + extra.join('') +
+    '<button type="button" class="exp-toggle" data-exp-toggle>' +
+    '<span class="on-fold">展开其余 ' + extra.length + ' 个账号</span>' +
+    '<span class="on-all">收起</span></button>';
 }
 
 async function loadExpiry(force) {
@@ -3631,3 +3666,7 @@ if ($('btnExpFold')) {
   };
 }
 applyExpFold();
+// 到期提醒「展开其余 N 个账号」：类挂在容器上，列表重渲染后展开态仍保留。
+if ($('expList')) $('expList').addEventListener('click', ev => {
+  if (ev.target.closest('[data-exp-toggle]')) $('expList').classList.toggle('all');
+});
