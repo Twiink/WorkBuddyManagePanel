@@ -62,7 +62,11 @@
   },
   "models": {
     "_comment": "hidden: 不对外暴露的模型黑名单。裸名=两域都藏；\"cn:xxx\"/\"global:xxx\"=只藏该域。/v1/models 列表过滤 + chat 点名拒绝，面板保存后热生效。",
-    "hidden": []
+    "hidden": [],
+    "_comment_bare_names": "bare_names: /v1/models 合并两域并输出裸名（不带 cn:/global:）；仅一域有的模型自动走该域，重名模型按 preferred_realm 先选、选不到号回退另一域。显式前缀仍可用。",
+    "bare_names": false,
+    "_comment_preferred_realm": "preferred_realm: 不带前缀的重名模型首选域，cn（默认）/ global。",
+    "preferred_realm": "cn"
   },
   "prompt": {
     "mode": "passthrough",

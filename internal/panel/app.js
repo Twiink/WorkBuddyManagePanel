@@ -1175,6 +1175,7 @@ const CFG_MAP = {
   cost_explore_interval: ['pool', 'cost_explore_interval'],
   credit_floor: ['pool', 'credit_floor'],
   prefer_expiring: ['pool', 'prefer_expiring'], expiring_soon: ['pool', 'expiring_soon'],
+  bare_model_names: ['models', 'bare_names'], preferred_realm: ['models', 'preferred_realm'],
   soft_rate: ['cooldown', 'soft_rate'], soft_rate_max: ['cooldown', 'soft_rate_max'],
   breaker_cooldown: ['pool', 'breaker_cooldown'], breaker_cooldown_max: ['pool', 'breaker_cooldown_max'],
   idle_weight_per_hour: ['pool', 'idle_weight_per_hour'], idle_weight_max: ['pool', 'idle_weight_max'],
@@ -1217,6 +1218,7 @@ async function loadConfig() {
       if (!el) continue;
       const v = dig(cfgLoaded, path);
       if (el.type === 'checkbox') el.checked = !!v;
+      else if (el.type === undefined) el.value = v || (name === 'preferred_realm' ? 'cn' : '');
       else if (Array.isArray(v)) el.value = v.join(', ');
       else el.value = v == null ? (name.startsWith('strategy_') ? 'weighted_random' : '') : v;
     }
@@ -1231,6 +1233,7 @@ function collectConfig() {
     if (!el) continue;
     let v;
     if (el.type === 'checkbox') v = el.checked;
+    else if (el.type === undefined) v = el.value || undefined;
     else if (el.type === 'number') { v = el.value.trim() === '' ? undefined : Number(el.value); }
     else {
       const raw = el.value.trim();

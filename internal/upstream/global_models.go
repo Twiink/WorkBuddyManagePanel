@@ -104,6 +104,20 @@ func (c *Client) FetchGlobalModelInfosContext(ctx context.Context, a *auth.Auth)
 	return infos
 }
 
+// CachedGlobalModelNames 只读 global 模型名目录缓存（TTL 内快照）；缓存冷/失败 → nil。
+// 不发起任何上游调用（裸名选域在请求热路径上用，不能触发探测）。
+func (c *Client) CachedGlobalModelNames() []string {
+	if c == nil {
+		return nil
+	}
+	c.globalModels.Lock()
+	defer c.globalModels.Unlock()
+	if len(c.globalModels.names) == 0 || time.Since(c.globalModels.fetched) >= globalModelsTTL {
+		return nil
+	}
+	return c.globalModels.names
+}
+
 // fetchGlobalModelsOnce 单次探测决策（缓存命中/负缓存/触发探测），返回 (names, infos)。
 // 纯动态：成功 = 并集结果去重；一切失败 = nil（不回落静态）。
 // infos 仅对象形态成功探测时非 nil。

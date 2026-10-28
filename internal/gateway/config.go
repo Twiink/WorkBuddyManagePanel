@@ -179,6 +179,14 @@ type Config struct {
 		// 生效点：GET /v1/models 列表过滤 + POST /v1/chat/completions 点名拒绝。
 		// 面板保存后经 livecfg 热生效，无需重启。
 		Hidden []string `json:"hidden"`
+		// BareNames 裸名模式（默认 false = 现状 cn:/global: 前缀列表）。开启后
+		// GET /v1/models 两域合并去重、只输出裸名（条目带 realms 标注可用域）；
+		// 裸名请求按目录自动选域：仅一域提供 → 直达该域；两域都有/目录未知 →
+		// 先试 PreferredRealm，选不到号再回退另一域。显式前缀照旧固定该域。
+		BareNames bool `json:"bare_names"`
+		// PreferredRealm 裸名请求的首选域："cn"（默认）/ "global"。两域重名模型
+		// 优先走哪一域；裸名模式关闭时也决定裸名的默认域。
+		PreferredRealm string `json:"preferred_realm"`
 	} `json:"models"`
 
 	Prompt struct {
@@ -278,6 +286,7 @@ func Default() *Config {
 	c.Cooldown.SoftRateMax = "2h"
 	c.Server.ReadTimeout = "300s"
 	c.Panel.PackageDetailLimit = 5
+	c.Models.PreferredRealm = "cn"
 	c.Logging.RequestArchiveEnabled = true
 	c.Logging.RequestRetentionDays = 7
 	c.Logging.RequestArchiveMaxMB = 100
@@ -603,6 +612,13 @@ func (c *Config) normalize() error {
 	}
 	if c.CostExploreIntervalDur < 0 {
 		c.CostExploreIntervalDur = 0
+	}
+	switch c.Models.PreferredRealm {
+	case "":
+		c.Models.PreferredRealm = "cn"
+	case "cn", "global":
+	default:
+		return fmt.Errorf("models.preferred_realm: %q 不是合法值（cn / global）", c.Models.PreferredRealm)
 	}
 	// 积分保底：负值钳 0（= 关闭）。0 是合法默认（关闭），无需空值回落。
 	if c.Pool.CreditFloor < 0 {

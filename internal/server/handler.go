@@ -470,7 +470,125 @@ func (h *Handler) modelList() []map[string]any {
 			out = append(out, entry)
 		}
 	}
+	if live := h.loadLive(); live.BareModelNames {
+		out = mergeBareModels(out, preferredRealmOf(live))
+	}
 	return out
+}
+
+// preferredRealmOf 归一化首选域：只认 "global"，其余（含空）一律 "cn"。
+// global 路由被逃生门关闭时恒 "cn"（此时所有账号都判 cn，选 global 必然无号）。
+func preferredRealmOf(live livecfg.Snapshot) string {
+	if live.PreferredRealm == "global" && auth.GlobalEnabled() {
+		return "global"
+	}
+	return "cn"
+}
+
+// mergeBareModels 把带 realm 前缀的模型条目合并为裸名条目（models.bare_names）。
+//
+// 同名模型两域都有时只留一条：元数据取首选域那一份（倍率/档位与实际首选路由一致），
+// 顺序按首次出现。每条补 realms（可用域列表，首选域在前）并在 description 前标注，
+// 客户端只填一个服务商也能看出模型属于哪一域。
+func mergeBareModels(entries []map[string]any, preferred string) []map[string]any {
+	type merged struct {
+		entry  map[string]any
+		realm  string
+		realms []string
+	}
+	order := make([]string, 0, len(entries))
+	byID := make(map[string]*merged, len(entries))
+	for _, e := range entries {
+		id, _ := e["id"].(string)
+		realm, bare, _ := resolveModelDetail(id)
+		m, ok := byID[bare]
+		if !ok {
+			m = &merged{entry: e, realm: realm}
+			byID[bare] = m
+			order = append(order, bare)
+		} else if realm == preferred && m.realm != preferred {
+			m.entry, m.realm = e, realm
+		}
+		m.realms = append(m.realms, realm)
+	}
+	out := make([]map[string]any, 0, len(order))
+	for _, bare := range order {
+		m := byID[bare]
+		realms := m.realms
+		if len(realms) > 1 && realms[0] != preferred {
+			realms = []string{realms[1], realms[0]}
+		}
+		entry := make(map[string]any, len(m.entry)+1)
+		for k, v := range m.entry {
+			entry[k] = v
+		}
+		entry["id"] = bare
+		entry["realms"] = realms
+		tag := "[" + realmLabel(realms[0])
+		for _, r := range realms[1:] {
+			tag += "+" + realmLabel(r)
+		}
+		tag += "]"
+		if desc, _ := entry["description"].(string); desc != "" {
+			entry["description"] = tag + " " + desc
+		} else {
+			entry["description"] = tag
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func realmLabel(realm string) string {
+	if realm == "global" {
+		return "Global"
+	}
+	return "CN"
+}
+
+// bareModelRealm 为裸模型名选首选域，返回 (realm, 允许跨域回退)。
+//
+// 裸名模式关闭：恒为首选域（缺省 cn），不额外开启回退（回退仍由
+// pool.cross_domain_fallback 决定）。裸名模式开启：按已缓存的两域目录判断——
+// 只有一域提供（另一域目录已知且不含/被隐藏）→ 直达该域、不回退；两域都有或
+// 任一目录未知 → 首选域优先、选不到号回退另一域。只读缓存，不打上游。
+func (h *Handler) bareModelRealm(model string) (string, bool) {
+	live := h.loadLive()
+	preferred := preferredRealmOf(live)
+	if !live.BareModelNames || model == "" || !auth.GlobalEnabled() {
+		return preferred, false
+	}
+	// presence: 0 = 目录未知，1 = 有，-1 = 无（或在该域被隐藏）。
+	presence := func(realm string, names []string) int {
+		if _, hide := live.HiddenModels[realm+":"+model]; hide {
+			return -1
+		}
+		if names == nil {
+			return 0
+		}
+		for _, n := range names {
+			if n == model {
+				return 1
+			}
+		}
+		return -1
+	}
+	var cnNames []string
+	if snap := cachedModelsSnapshot(); snap != nil {
+		cnNames = make([]string, 0, len(snap))
+		for _, mi := range snap {
+			cnNames = append(cnNames, mi.ID)
+		}
+	}
+	cn := presence("cn", cnNames)
+	gl := presence("global", h.cfg.Upstream.CachedGlobalModelNames())
+	switch {
+	case cn == 1 && gl == -1:
+		return "cn", false
+	case gl == 1 && cn == -1:
+		return "global", false
+	}
+	return preferred, true
 }
 
 // fetchGlobalModels 返回 global 模型名单（纯动态探测结果）及被探测账号。
@@ -583,8 +701,14 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// realm 前缀解析（D6）：model 名可能带 "[realm:]" 前缀。剥出 realm + bareModel，
 	// bareModel 用于选号/粘性/出站 body 重写（前缀是网关侧路由协议，上游只认裸名）。
-	// 裸名 → ("cn", 原串)，CN 现状零回归。
+	// 裸名 → (首选域, 原串)；首选域缺省 cn，CN 现状零回归。
 	realm, bareModel, realmExplicit := resolveModelDetail(peek.Model)
+	// 裸名选域（models.bare_names / models.preferred_realm）：按已缓存目录决定首选域，
+	// bareFallback 表示两域都可能提供该模型、首选域选不到号时允许回退另一域。
+	bareFallback := false
+	if !realmExplicit {
+		realm, bareFallback = h.bareModelRealm(bareModel)
+	}
 	modelRate := ""
 	if h.cfg.Upstream != nil {
 		modelRate = h.cfg.Upstream.ModelRate(realm, bareModel)
@@ -592,8 +716,11 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	// 跨域回退（issue #135）：只有裸模型名 + 显式开启 pool.cross_domain_fallback 时生效。
 	// 语义 = 「裸名不绑定单一域」：首选域（裸名默认 cn）选不到可用号（账号级冷却/熔断/
 	// 在途占满，或该域账号对这个模型 11102 后进入模型级负缓存）时，改用另一域再选一次；
-	// 显式 cn:/global: 前缀保持原语义，永不回退。
-	crossRealm := !realmExplicit && h.cfg.Pool.CrossDomainFallback()
+	// 显式 cn:/global: 前缀保持原语义，永不回退。裸名模式下两域重名/目录未知的模型同样回退。
+	crossRealm := !realmExplicit && (h.cfg.Pool.CrossDomainFallback() || bareFallback)
+	// 粘性路由按「已选域 + 裸名」解析（与 realmAwareAvailableForModel 同协议）：
+	// 首选 global 时裸名不会被粘性分配到 cn 号。realm=cn 时与旧口径（裸名 → cn）等价。
+	routeModel := realm + ":" + bareModel
 
 	// 请求级统计：出口即打一行表格日志（任何路径都会走到）。
 	st := newChatStat(time.Now(), body, peek.Stream)
@@ -633,7 +760,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		if h.cfg.Pool.StrategyForRealm(realm) != pool.WeightedRandom {
 			resolve = h.cfg.Session.LookupForModel
 		}
-		if uid, ok := resolve(sessKey, peek.Model); ok {
+		if uid, ok := resolve(sessKey, routeModel); ok {
 			stickyUID = uid
 		}
 	}

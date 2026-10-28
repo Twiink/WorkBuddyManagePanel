@@ -310,6 +310,17 @@ label.fld > .hint { display: block; font-size: 11.5px; color: var(--ink-3); marg
 .realm-row { display: flex; align-items: center; gap: 16px; padding: 4px 0 10px; }
 .realm-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); cursor: pointer; }
 .realm-opt input { accent-color: var(--accent); margin: 0; }
+/* 二选一分段按钮（重名模型首选域）：radio 组外观化为并排按钮，表单仍按 name 取值。 */
+.realm-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); }
+.realm-seg label { cursor: pointer; }
+.realm-seg input { position: absolute; opacity: 0; width: 0; height: 0; }
+.realm-seg span {
+  display: block; padding: 5px 14px; border: 1px solid transparent; border-radius: 5px;
+  font-size: 12.5px; font-weight: 500; color: var(--ink-3); transition: color .15s, background .15s, border-color .15s;
+}
+.realm-seg label:hover span { color: var(--ink); }
+.realm-seg input:checked + span { background: var(--surface); color: var(--accent); border-color: var(--accent); font-weight: 650; }
+.realm-seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .usage-cell { min-width: 268px; }
 .usage-line {
@@ -1424,6 +1435,21 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
             </div>
             <div class="switch"><span class="lb">快过期积分优先</span>
               <input type="checkbox" name="prefer_expiring"></div>
+          </div>
+        </div>
+
+        <div class="box">
+          <header><h3>模型命名与选域</h3></header>
+          <div class="pad">
+            <div class="switch"><span class="lb">重名模型首选域</span>
+              <div class="realm-seg" role="radiogroup" aria-label="重名模型首选域">
+                <label><input type="radio" name="preferred_realm" value="cn"><span>国内版</span></label>
+                <label><input type="radio" name="preferred_realm" value="global"><span>国际版</span></label>
+              </div></div>
+            <span class="hint">两域都有的模型、不带前缀时先走哪一域；默认国内版</span>
+            <div class="switch"><span class="lb">模型列表使用裸名</span>
+              <input type="checkbox" name="bare_model_names"></div>
+            <span class="hint">开启后 /v1/models 合并两域、不带 cn:/global: 前缀；仅一域有的模型自动走该域，重名模型按首选域、选不到号回退另一域。显式前缀仍可用</span>
           </div>
         </div>
 
