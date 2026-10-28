@@ -148,6 +148,8 @@ func NewHandler(cfg Config) *Handler {
 	// /v1/messages——那是 Anthropic 模型对话的标准路径，留给未来的 chat 转发。
 	h.mux.HandleFunc("POST /v1/search/messages", h.withAuth(h.messages))
 	h.mux.HandleFunc("GET /v1/models", h.withAuth(h.models))
+	// sub2api 兼容的 key 用量查询：供 Magpie Balance URL 读取积分到期窗口（keyusage.go）。
+	h.mux.HandleFunc("GET /v1/usage", h.withAuth(h.keyUsage))
 	h.mux.HandleFunc("GET /status", h.withAuth(h.status))
 	h.mux.HandleFunc("GET /healthz", h.healthz)
 	if cfg.Panel != nil {
