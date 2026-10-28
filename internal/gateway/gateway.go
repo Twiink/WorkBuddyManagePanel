@@ -54,6 +54,8 @@ type Instance struct {
 	URL     string
 	Config  *Config
 	URLPath string
+	// DesktopHandler 仅挂到 Wails 原生资源通道，不能挂到 HTTP 监听器。
+	DesktopHandler http.Handler
 
 	server     *http.Server
 	listener   net.Listener
@@ -140,10 +142,11 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 	if opts.Version == "" {
 		opts.Version = buildinfo.Version
 	}
-	cfg, err := Load(opts.ConfigPath)
+	cfg, err := loadConfig(opts.ConfigPath, opts.DataDir)
 	if err != nil {
-		// errors.Is 才能看穿 Load 里 fmt.Errorf("%w") 的包装；os.IsNotExist 不行。
-		if errors.Is(err, fs.ErrNotExist) {
+		// 只有主配置缺失才走首次生成；引用的提示词缺失应直接报错。
+		var readErr *configReadError
+		if errors.As(err, &readErr) && errors.Is(readErr, fs.ErrNotExist) {
 			// 首次运行：目录下没有配置 → 自动落一份推荐配置再加载。
 			// 独立 server 保持原行为：生成随机密钥并要求输入后才能进入面板。
 			// 桌面版则保留空密钥，由内嵌窗口先显示设置页，让用户自行输入或
@@ -156,12 +159,12 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 			}
 			if werr == nil {
 				log.Printf("config %s 不存在，已生成推荐配置", opts.ConfigPath)
-				cfg, err = Load(opts.ConfigPath)
+				cfg, err = loadConfig(opts.ConfigPath, opts.DataDir)
 			}
 			if err != nil {
 				// 生成失败（目录只读等）：退回纯默认 + env（旧行为兜底），不阻塞启动。
 				log.Printf("config %s not found (auto-generate failed), using defaults+env: %v", opts.ConfigPath, err)
-				cfg, err = Load("")
+				cfg, err = loadConfig("", opts.DataDir)
 			}
 		}
 		if err != nil {
@@ -189,9 +192,7 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 	i := &Instance{Config: cfg, listener: listener}
 	runCtx, cancel := context.WithCancel(ctx)
 	i.cancel = cancel
-	instance, err := finishStart(
-		runCtx, i, opts.ConfigPath, opts.Version, opts.RequireLoopback,
-	)
+	instance, err := finishStart(runCtx, i, opts)
 	if err != nil {
 		_ = i.Close()
 		return nil, err
@@ -246,11 +247,14 @@ func normalizeLoopbackListen(listen string) (string, error) {
 			return "", fmt.Errorf("desktop mode only allows a loopback listen address, got %q", listen)
 		}
 	}
-	if host != "" {
-		return listen, nil
+	if port == "" {
+		return "", fmt.Errorf("desktop listen port is empty")
 	}
 	if _, err := net.LookupPort("tcp", port); err != nil {
 		return "", fmt.Errorf("desktop listen port %q: %w", port, err)
+	}
+	if host != "" {
+		return listen, nil
 	}
 	return net.JoinHostPort("127.0.0.1", port), nil
 }
@@ -258,10 +262,10 @@ func normalizeLoopbackListen(listen string) (string, error) {
 func finishStart(
 	ctx context.Context,
 	i *Instance,
-	cfgPath, version string,
-	requireLoopback bool,
+	opts Options,
 ) (*Instance, error) {
 	cfg := i.Config
+	cfgPath, version, requireLoopback := opts.ConfigPath, opts.Version, opts.RequireLoopback
 
 	auths, err := auth.LoadDir(cfg.AuthDir)
 	if err != nil {
@@ -497,14 +501,17 @@ func finishStart(
 		ProbeFile:  StateSibling(cfg.StateFile, "output_probes.json"),
 		ConfigPath: cfgPath,
 		LoadConfig: func() (any, error) {
-			return Load(cfgPath)
+			return loadConfig(cfgPath, opts.DataDir)
 		},
 		SaveConfig: func(raw []byte) ([]string, error) {
-			return saveConfig(raw, cfgPath, live, p, up, sch, requireLoopback)
+			return saveConfig(raw, cfgPath, live, p, up, sch, opts)
 		},
 		// 积分历史账本（只读展示；写入由上面的余额观察者完成）。
 		CreditHistory: creditHist,
 	})
+	if requireLoopback {
+		i.DesktopHandler = pn.DesktopHandler()
+	}
 	// 成长任务队列每日自动执行（与「执行全部待办」同管线）：Sequential 族零点解锁后
 	// 无需手动扫描；hook 返回即启动（异步执行），已在跑时内部跳过。
 	sch.SetGrowthHook(pn.RunGrowthQueueOnce)
@@ -615,7 +622,7 @@ func warmModelRates(ctx context.Context, up *upstream.Client, p *pool.Pool) {
 	// CN：有可用 CN 账号才拉（与面板 models 同口径，避免无谓上游调用）。
 	if uids := p.AvailableUIDsForRealm("cn"); len(uids) > 0 {
 		if a := p.AuthByUID(uids[0]); a != nil {
-			if _, err := up.FetchModels(a); err != nil {
+			if _, err := up.FetchModelsContext(ctx, a); err != nil {
 				log.Printf("WARN: [upstream] warm model rates (cn): %v", err)
 			} else {
 				log.Printf("[upstream] warm model rates: cn ok")
@@ -628,7 +635,7 @@ func warmModelRates(ctx context.Context, up *upstream.Client, p *pool.Pool) {
 			if a := p.AuthByUID(uids[0]); a != nil {
 				// FetchGlobalModelInfos 无错误返回（内部负缓存自行节流），
 				// 仅按结果条数判断是否拿到目录。
-				if infos := up.FetchGlobalModelInfos(a); len(infos) == 0 {
+				if infos := up.FetchGlobalModelInfosContext(ctx, a); len(infos) == 0 {
 					log.Printf("WARN: [upstream] warm model rates (global): empty model list")
 				} else {
 					log.Printf("[upstream] warm model rates: global ok (%d models)", len(infos))
@@ -662,8 +669,12 @@ func panelListenPath(listen string) string {
 // 落盘用"先写 tmp 再 rename"原子替换，且优先保留磁盘上的原始 JSON 结构（只改
 // 面板表单覆盖到的键），避免把用户手写的注释性字段/未知键洗掉——这里直接整体
 // 序列化校验后的配置，未知键在 json.Unmarshal 时已丢失，故先合并原始 map。
-func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up *upstream.Client, sch *scheduler.Scheduler, requireLoopback ...bool) ([]string, error) {
-	desktopMode := len(requireLoopback) > 0 && requireLoopback[0]
+func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up *upstream.Client, sch *scheduler.Scheduler, options ...Options) ([]string, error) {
+	var opts Options
+	if len(options) > 0 {
+		opts = options[0]
+	}
+	desktopMode := opts.RequireLoopback
 	if desktopMode {
 		var incoming map[string]any
 		if err := json.Unmarshal(raw, &incoming); err != nil {
@@ -694,7 +705,7 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	merged := mergeConfigMaps(cur, incoming)
 
 	// 2) 校验（与启动同一套 Default+normalize），失败直接返回、不落盘。
-	newCfg, err := ParseConfig(mergedJSON(merged))
+	newCfg, err := parseConfigInto(mergedJSON(merged), Default(), opts.DataDir)
 	if err != nil {
 		return nil, err
 	}

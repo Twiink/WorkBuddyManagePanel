@@ -10,6 +10,7 @@
 package upstream
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -84,7 +85,7 @@ var globalModelsProbePaths = []string{
 // 调用方负责：仅在有 global 账号时调用（无则不探测）；GlobalEnabled 关闭时（逃生门）
 // 不得调用——本方法由 globalOn(a) 内部兜底，若账号因开关回落 cn 则返回 nil。
 func (c *Client) FetchGlobalModels(a *auth.Auth) []string {
-	names, _ := c.fetchGlobalModelsOnce(a)
+	names, _ := c.fetchGlobalModelsOnce(context.Background(), a)
 	return names
 }
 
@@ -94,15 +95,20 @@ func (c *Client) FetchGlobalModels(a *auth.Auth) []string {
 // → nil（调用方按 ID 名单输出裸条目，不编造字段）。
 // 账号因 GlobalEnabled 开关回落 cn 时不探测（globalOn 兜底，零上游调用）。
 func (c *Client) FetchGlobalModelInfos(a *auth.Auth) []ModelInfo {
-	_, infos := c.fetchGlobalModelsOnce(a)
+	return c.FetchGlobalModelInfosContext(context.Background(), a)
+}
+
+// FetchGlobalModelInfosContext 允许启动预热在实例退出时取消所有探测。
+func (c *Client) FetchGlobalModelInfosContext(ctx context.Context, a *auth.Auth) []ModelInfo {
+	_, infos := c.fetchGlobalModelsOnce(ctx, a)
 	return infos
 }
 
 // fetchGlobalModelsOnce 单次探测决策（缓存命中/负缓存/触发探测），返回 (names, infos)。
 // 纯动态：成功 = 并集结果去重；一切失败 = nil（不回落静态）。
 // infos 仅对象形态成功探测时非 nil。
-func (c *Client) fetchGlobalModelsOnce(a *auth.Auth) (names []string, infos []ModelInfo) {
-	if !c.globalOn(a) {
+func (c *Client) fetchGlobalModelsOnce(ctx context.Context, a *auth.Auth) (names []string, infos []ModelInfo) {
+	if ctx.Err() != nil || !c.globalOn(a) {
 		// 逃生门兜底：账号不路由 global 上游 → 不探测（零上游调用）。
 		return nil, nil
 	}
@@ -120,7 +126,11 @@ func (c *Client) fetchGlobalModelsOnce(a *auth.Auth) (names []string, infos []Mo
 	}
 	c.globalModels.Unlock()
 
-	names, infos, efforts, defaults, err := c.probeGlobalModels(a)
+	names, infos, efforts, defaults, err := c.probeGlobalModels(ctx, a)
+	// 调用取消不代表上游故障，不能污染供后续请求使用的负缓存。
+	if ctx.Err() != nil {
+		return nil, nil
+	}
 	if err != nil || len(names) == 0 {
 		// 探测失败：负缓存 + 返回 nil（effort 桶不写，prepareBody 走 globalEffortMap 静态兜底）。
 		c.globalModels.Lock()
@@ -175,14 +185,14 @@ func (c *Client) fetchGlobalModelsOnce(a *auth.Auth) (names []string, infos []Mo
 // 合并口径：桌面端条目字段权威，IDE/CLI 只补桌面端缺失的模型 id；去重 key =
 // 模型 id，输出顺序稳定。全部 v3 路失败且企业端点也失败才返回错误；单路失败
 // 降级为其余路结果 + warn 日志，互不拖累。
-func (c *Client) probeGlobalModels(a *auth.Auth) (names []string, infos []ModelInfo, efforts map[string][]string, defaults map[string]string, err error) {
+func (c *Client) probeGlobalModels(ctx context.Context, a *auth.Auth) (names []string, infos []ModelInfo, efforts map[string][]string, defaults map[string]string, err error) {
 	// probeV3 单次 /v3/config 探测（UA 参数化）。该端点对不同 UA 下发**不同模型集合**：
 	// 桌面端 / IDE / CLI 三路各有独有模型（见 probeGlobalModels 注释），故并发三路取并集。
 	probeV3 := func(ua string) chan probeResult {
 		ch := make(chan probeResult, 1)
 		go func() {
 			// chatBase 已按 realm 切 global base。
-			byID, perr := c.fetchV3ConfigModelMap(a, ua)
+			byID, perr := c.fetchV3ConfigModelMap(ctx, a, ua)
 			if perr != nil {
 				ch <- probeResult{err: perr}
 				return
@@ -211,7 +221,11 @@ func (c *Client) probeGlobalModels(a *auth.Auth) (names []string, infos []ModelI
 		// 企业端点家族：/v2 首选 → /console 兜底（既有探活序，零回归）。
 		var lastErr error
 		for _, path := range globalModelsProbePaths {
-			names, infos, perr := c.globalModelsOnce(a, path)
+			if err := ctx.Err(); err != nil {
+				enterpriseCh <- probeResult{err: err}
+				return
+			}
+			names, infos, perr := c.globalModelsOnce(ctx, a, path)
 			if perr != nil {
 				lastErr = perr
 				continue
@@ -414,9 +428,9 @@ func mergeEffortDefaults(primary, secondary map[string]string) map[string]string
 }
 
 // globalModelsOnce 单端点探测。2xx + 解析出非空名单 → (names, infos, nil)；否则 (nil, nil, err)。
-func (c *Client) globalModelsOnce(a *auth.Auth, path string) ([]string, []ModelInfo, error) {
+func (c *Client) globalModelsOnce(ctx context.Context, a *auth.Auth, path string) ([]string, []ModelInfo, error) {
 	url := c.chatBase(a) + path // 按 realm 切 base：global 账号 → global base
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, nil, err
 	}

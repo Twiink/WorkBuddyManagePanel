@@ -13,16 +13,16 @@ tasks:
       - mkdir -p {{.BIN_DIR}}
       - task: generate:syso
       - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags production -trimpath -buildvcs=false -ldflags="-s -w -H windowsgui" -o "{{.BIN_DIR}}/{{.APP_NAME}}.exe" ./cmd/desktop
-      - cmd: rm -f wails_windows_amd64.syso
+      - cmd: rm -f cmd/desktop/wails_windows_amd64.syso
         platforms: [linux, darwin]
-      - cmd: powershell -NoProfile -Command "Remove-Item -Force wails_windows_amd64.syso"
+      - cmd: powershell -NoProfile -Command "Remove-Item -Force cmd/desktop/wails_windows_amd64.syso"
         platforms: [windows]
 
   generate:syso:
     summary: Embed the Windows icon, manifest, and version metadata
     dir: build
     cmds:
-      - wails3 generate syso -arch amd64 -icon windows/icon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../wails_windows_amd64.syso
+      - wails3 generate syso -arch amd64 -icon windows/icon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../cmd/desktop/wails_windows_amd64.syso
 
   run:
     summary: Run the Windows desktop executable

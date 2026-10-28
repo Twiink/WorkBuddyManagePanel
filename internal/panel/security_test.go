@@ -147,30 +147,38 @@ func TestAuthLayerBehavior(t *testing.T) {
 	}
 }
 
-func TestDesktopWebviewAccessWithoutGeneratedToken(t *testing.T) {
-	p := New(Config{DesktopMode: true, APIKey: "user-api-key", Pool: pool.New("")})
-
-	req := httptest.NewRequest(http.MethodGet, "/panel/api/overview", nil)
-	req.Header.Set("User-Agent", "Mozilla/5.0 wails.io")
-	rec := httptest.NewRecorder()
-	p.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("desktop panel access: status=%d body=%s", rec.Code, rec.Body.String())
-	}
-
-	browserReq := httptest.NewRequest(http.MethodGet, "/panel/api/overview", nil)
-	browserRec := httptest.NewRecorder()
-	p.ServeHTTP(browserRec, browserReq)
-	if browserRec.Code != http.StatusUnauthorized {
-		t.Fatalf("browser without key: status=%d want 401", browserRec.Code)
-	}
-
-	browserKeyReq := httptest.NewRequest(http.MethodGet, "/panel/api/overview", nil)
-	browserKeyReq.Header.Set("Authorization", "Bearer user-api-key")
-	browserKeyRec := httptest.NewRecorder()
-	p.ServeHTTP(browserKeyRec, browserKeyReq)
-	if browserKeyRec.Code != http.StatusOK {
-		t.Fatalf("browser with user key: status=%d body=%s", browserKeyRec.Code, browserKeyRec.Body.String())
+func TestDesktopAccessUsesInternalHandler(t *testing.T) {
+	for _, key := range []string{"", "user-api-key"} {
+		t.Run("key="+key, func(t *testing.T) {
+			accountPool := pool.New("")
+			defer accountPool.Close()
+			p := New(Config{DesktopMode: true, APIKey: key, Pool: accountPool})
+			rec := httptest.NewRecorder()
+			p.DesktopHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/panel/api/overview", nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("internal desktop access: status=%d body=%s", rec.Code, rec.Body.String())
+			}
+			for _, ua := range []string{"", "Mozilla/5.0 wails.io"} {
+				for _, method := range []string{http.MethodGet, http.MethodPost} {
+					req := httptest.NewRequest(method, "/panel/api/config", nil)
+					req.Header.Set("User-Agent", ua)
+					rec := httptest.NewRecorder()
+					p.ServeHTTP(rec, req)
+					if rec.Code != http.StatusUnauthorized {
+						t.Fatalf("HTTP %s with UA %q: status=%d want 401", method, ua, rec.Code)
+					}
+				}
+			}
+			if key != "" {
+				req := httptest.NewRequest(http.MethodGet, "/panel/api/overview", nil)
+				req.Header.Set("Authorization", "Bearer "+key)
+				rec := httptest.NewRecorder()
+				p.ServeHTTP(rec, req)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("browser with key: status=%d", rec.Code)
+				}
+			}
+		})
 	}
 }
 
@@ -182,5 +190,10 @@ func TestDesktopWebviewUAIgnoredOutsideDesktopMode(t *testing.T) {
 	p.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("server panel accepted desktop marker: status=%d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	p.DesktopHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("server mode granted internal desktop access: status=%d", rec.Code)
 	}
 }

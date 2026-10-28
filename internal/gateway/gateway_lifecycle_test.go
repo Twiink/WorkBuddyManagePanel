@@ -79,7 +79,11 @@ func TestNormalizeLoopbackListen(t *testing.T) {
 			t.Errorf("normalizeLoopbackListen(%q) = %q", listen, got)
 		}
 	}
-	for _, listen := range []string{"7864", "127.0.0.1", ":not-a-port", "0.0.0.0:7864"} {
+	for _, listen := range []string{
+		"7864", "127.0.0.1", ":not-a-port", "0.0.0.0:7864",
+		"127.0.0.1:78633", "localhost:65536", "[::1]:-1", "[::1]:not-a-port",
+		":", "127.0.0.1:", "localhost:", "[::1]:",
+	} {
 		if got, err := normalizeLoopbackListen(listen); err == nil {
 			t.Errorf("normalizeLoopbackListen(%q) = %q, want error", listen, got)
 		}

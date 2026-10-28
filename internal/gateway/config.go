@@ -337,6 +337,16 @@ func Default() *Config {
 
 // Load 从文件读，再用 WB2A_* env 覆盖。
 func Load(path string) (*Config, error) {
+	return loadConfig(path, "")
+}
+
+// configReadError 区分主配置文件读取失败与配置引用的文件读取失败。
+type configReadError struct{ err error }
+
+func (e *configReadError) Error() string { return "read config: " + e.err.Error() }
+func (e *configReadError) Unwrap() error { return e.err }
+
+func loadConfig(path, dataDir string) (*Config, error) {
 	c := Default()
 	if path != "" {
 		// 目录检查：Docker bind mount 在宿主机文件缺失时会静默创建同名目录，
@@ -348,29 +358,41 @@ func Load(path string) (*Config, error) {
 		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("read config: %w", err)
+			return nil, &configReadError{err: err}
 		}
-		if _, err := ParseConfigInto(raw, c); err != nil {
-			return nil, err
+		if err := json.Unmarshal(raw, c); err != nil {
+			return nil, fmt.Errorf("parse config: %w", err)
 		}
 	}
 	applyEnv(c)
-	if err := c.normalize(); err != nil {
+	if err := c.normalizeInDir(dataDir); err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-// ParseConfigInto 把 JSON 覆盖到 c 上并 normalize（不做 env、不读文件）。
+// ParseConfigInto 把 JSON 覆盖到 c 上并 normalize（不做 env、不读配置文件）。
 // 面板保存配置走这条路径：与 Load 完全同一套解析/校验逻辑，避免两处漂移。
 func ParseConfigInto(raw []byte, c *Config) (*Config, error) {
+	return parseConfigInto(raw, c, "")
+}
+
+func parseConfigInto(raw []byte, c *Config, dataDir string) (*Config, error) {
 	if err := json.Unmarshal(raw, c); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
-	if err := c.normalize(); err != nil {
+	if err := c.normalizeInDir(dataDir); err != nil {
 		return nil, err
 	}
 	return c, nil
+}
+
+// normalizeInDir 按桌面目录读取提示词，同时保留配置中的可迁移相对路径。
+func (c *Config) normalizeInDir(dataDir string) error {
+	file := c.Prompt.File
+	c.Prompt.File = anchorPath(file, dataDir)
+	defer func() { c.Prompt.File = file }()
+	return c.normalize()
 }
 
 // ParseConfig 基于默认值解析一段配置 JSON（等价于 Load 的文件分支，但不读环境变量）。
