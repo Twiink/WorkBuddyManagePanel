@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WorkBuddy2API · 控制台</title>
+<title>WorkBuddy Manage Panel · 控制台</title>
+<link rel="icon" href="icons/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <style>
 /* ── 设计令牌：行情版（报价板语言）────────────────────────────────────
    深靛导航轨 + 冷新闻纸底（浅色）/ 午夜底（深色）。面板不再是浮起的圆角卡片，
@@ -70,14 +75,10 @@ code { font: .92em var(--mono); background: var(--surface-2); border: 1px solid 
   font-weight: 700; letter-spacing: -.01em; font-size: 15px; color: var(--rail-ink);
 }
 .brand .name::before {
-  content: ""; width: 18px; height: 18px; flex: none; border-radius: 3px;
-  background:
-    linear-gradient(var(--rail) 0 0) 4px 10px / 2px 4px no-repeat,
-    linear-gradient(var(--rail) 0 0) 8px 6px / 2px 8px no-repeat,
-    linear-gradient(var(--rail) 0 0) 12px 3px / 2px 11px no-repeat,
-    #9fb3ff;
+  content: ""; width: 24px; height: 24px; flex: none;
+  background: url("icons/icon-48.png") center / contain no-repeat;
 }
-.brand .sub { color: var(--rail-ink-3); font-size: 11px; font-family: var(--mono); margin-top: 6px; padding-left: 27px; }
+.brand .sub { color: var(--rail-ink-2); font-size: 11.5px; font-weight: 500; letter-spacing: .02em; margin-top: 2px; padding-left: 33px; }
 .nav ul { list-style: none; padding: 12px 10px; flex: 1; }
 .nav a {
   display: flex; align-items: center; gap: 11px; padding: 8px 11px; margin-bottom: 2px;
@@ -92,6 +93,11 @@ code { font: .92em var(--mono); background: var(--surface-2); border: 1px solid 
 .nav .sig { padding: 13px 18px 15px; border-top: 1px solid var(--rail-line); font-size: 11.5px; color: var(--rail-ink-3); font-family: var(--mono); }
 .nav .sig .row { display: flex; align-items: center; gap: 7px; }
 .nav .sig .row:first-child { color: var(--rail-ink); font-family: var(--sans); font-size: 12px; }
+.nav .sig .build-meta { justify-content: space-between; margin-top: 8px; }
+.nav .sig .version {
+  display: inline-flex; padding: 2px 6px; border: 1px solid var(--rail-line); border-radius: var(--r);
+  background: var(--rail-2); color: var(--rail-ink-2); font: 11px/1.4 var(--mono); white-space: nowrap;
+}
 /* 日志频道筛选 chips */
 .chips { display: inline-flex; gap: 4px; align-items: center; }
 .chips .chip { padding: 2px 10px; border-radius: 999px; }
@@ -889,9 +895,9 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 <body>
 <div class="shell">
   <nav class="nav" id="navDrawer">
-    <div class="brand">
-      <div class="name">WorkBuddy2API</div>
-      <div class="sub" id="navSub">控制台</div>
+    <div class="brand" aria-label="WorkBuddy Manage Panel">
+      <div class="name">WorkBuddy</div>
+      <div class="sub" id="navSub">Manage Panel</div>
     </div>
     <ul>
       <li><a href="#accounts" data-view="accounts" class="on">
@@ -918,7 +924,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
     </ul>
     <div class="sig">
       <div class="row"><span class="pulse" id="navPulse"></span><span id="navState">连接中</span></div>
-      <div class="row" style="margin-top:5px"><span id="navVer">v-</span> · <span id="navRedis">-</span></div>
+      <div class="row build-meta"><span class="version" id="navVer" aria-label="版本信息加载中">版本加载中</span><span id="navRedis">-</span></div>
     </div>
   </nav>
 

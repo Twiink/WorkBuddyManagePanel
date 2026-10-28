@@ -604,7 +604,7 @@ func finishStart(
 	}
 	i.URL = "http://" + net.JoinHostPort(host, port) + "/panel/"
 	i.URLPath = "/panel/"
-	log.Printf("workbuddy2api listening on %s (api_key=%v)，管理面板 %s", cfg.Listen, cfg.APIKey != "", i.URL)
+	log.Printf("%s listening on %s (api_key=%v)，管理面板 %s", buildinfo.DesktopName, cfg.Listen, cfg.APIKey != "", i.URL)
 	return i, nil
 }
 

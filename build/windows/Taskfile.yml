@@ -22,7 +22,7 @@ tasks:
     summary: Embed the Windows icon, manifest, and version metadata
     dir: build
     cmds:
-      - wails3 generate syso -arch amd64 -icon windows/icon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../cmd/desktop/wails_windows_amd64.syso
+      - wails3 generate syso -arch amd64 -icon branding/appicon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../cmd/desktop/wails_windows_amd64.syso
 
   run:
     summary: Run the Windows desktop executable

@@ -1,0 +1,22 @@
+WorkBuddy Manage Panel icon
+Created: 2026-10-28
+Generator: built-in image_gen (transparent background)
+Master: build/branding/appicon.png (1024 x 1024 RGBA)
+Windows: build/branding/appicon.ico (16, 32, 48, 64, 128, 256)
+macOS: build/branding/appicon.icns
+Desktop runtime and tray: cmd/desktop/app-icon.png (512 x 512 RGBA)
+Website: internal/panel/icons/ (favicon ICO, 16/32/48/192/512 PNG, Apple touch icon 180)
+
+Platform bundle icons can be regenerated with: task generate:icons
+Raster derivatives use Lanczos resampling of the master; preserve alpha.
+
+Generation prompt:
+Use case: logo-brand
+Asset type: production desktop application icon and website favicon for WorkBuddy Manage Panel, a personal account-pool management panel and API gateway.
+Primary request: create one exceptionally clean, distinctive software icon based on a bold connected W monogram, conveying connection, routing and control. The W should be a custom geometric continuous broad ribbon with softly rounded joints and open negative spaces; its two connected valleys subtly suggest two linked gateway channels. Use a pale icy-white left ribbon and vivid periwinkle-blue right ribbon, meeting cleanly in the middle. The silhouette should be simple and unmistakable at 16 pixels.
+Scene/backdrop: centered deep-indigo rounded-square application tile, with genuinely transparent pixels OUTSIDE its rounded corners. The tile should occupy roughly 88 percent of the square image, with equal transparent safe margins on all four sides. Tile color is based on #11153a, with a very restrained cobalt-to-indigo tonal shift and a fine, understated rim highlight. No scene or surrounding surface.
+Style/medium: meticulously finished modern software brand icon, crisp vector-like geometry rendered as a high-resolution PNG; primarily flat with just a subtle crafted dimensional edge, not a 3D toy. Straight-on orthographic view.
+Composition/framing: square canvas; large centrally balanced W occupying about 65 percent of tile width. Generous optical spacing. Broad strokes, clear gaps, deliberate proportions. Strong contrast in both light and dark operating system docks. The single icon fills the canvas appropriately.
+Color palette: midnight indigo #11153a, cobalt #2a55e0, periwinkle #7393ff, icy white #f2f5ff. Match an elegant technical management console.
+Constraints: output ONE final icon only, square 1024 by 1024 or higher, actual alpha transparency around the badge. No wordmark, no tiny letters, no other text, no extra pictograms, no chart, no sparkle, no stars, no circuit-board details, no gradients in the W itself, no trademarked logo, no watermark, no mockup, no contact sheet, no labels or presentation board. This is the actual shippable icon asset.
+

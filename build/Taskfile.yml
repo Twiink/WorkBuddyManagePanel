@@ -14,15 +14,15 @@ tasks:
       - go mod tidy
 
   generate:icons:
-    summary: Generate macOS and Windows icons from build/appicon.png
+    summary: Generate macOS and Windows icons from build/branding/appicon.png
     run: once
     sources:
-      - build/appicon.png
+      - build/branding/appicon.png
     generates:
-      - build/darwin/icons.icns
-      - build/windows/icon.ico
+      - build/branding/appicon.icns
+      - build/branding/appicon.ico
     cmds:
-      - wails3 generate icons -input build/appicon.png -macfilename build/darwin/icons.icns -windowsfilename build/windows/icon.ico
+      - wails3 generate icons -input build/branding/appicon.png -macfilename build/branding/appicon.icns -windowsfilename build/branding/appicon.ico
 
   generate:dotdesktop:
     summary: Generate the Linux desktop entry

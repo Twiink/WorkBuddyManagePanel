@@ -11,7 +11,7 @@
 package panel
 
 import (
-	_ "embed"
+	"embed"
 	"net/http"
 )
 
@@ -26,6 +26,9 @@ var mobileCSS []byte
 
 //go:embed mobile.js
 var mobileJS []byte
+
+//go:embed icons
+var iconAssets embed.FS
 
 // csp 内容安全策略（严格版，无需 unsafe-inline）：
 //   - default-src 'none'        默认全禁，逐个开口

@@ -38,5 +38,5 @@ func main() {
 	}()
 
 	<-ctx.Done()
-	fmt.Println("stopping workbuddy2api")
+	fmt.Printf("stopping %s\n", buildinfo.DesktopName)
 }

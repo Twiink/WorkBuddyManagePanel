@@ -31,7 +31,7 @@ tasks:
     deps: [build]
     cmds:
       - mkdir -p build/linux/package-icons
-      - python3 -c 'from PIL import Image; Image.open("build/appicon.png").convert("RGBA").resize((128,128), Image.Resampling.LANCZOS).save("build/linux/package-icons/workbuddy-manage-panel.png", optimize=True)'
+      - python3 -c 'from PIL import Image; Image.open("build/branding/appicon.png").convert("RGBA").resize((128,128), Image.Resampling.LANCZOS).save("build/linux/package-icons/workbuddy-manage-panel.png", optimize=True)'
       - wails3 tool package -name "{{.APP_NAME}}" -format deb -config build/linux/nfpm/nfpm.yaml -out "{{.ROOT_DIR}}/{{.BIN_DIR}}"
 
   create:appimage:
@@ -42,7 +42,7 @@ tasks:
     cmds:
       - mkdir -p build/linux/appimage/stage
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" build/linux/appimage/stage/{{.APP_NAME}}
-      - cp build/appicon.png build/linux/appimage/stage/{{.APP_NAME}}.png
+      - cp build/branding/appicon.png build/linux/appimage/stage/{{.APP_NAME}}.png
       # Wails downloads linuxdeploy into the build directory. GitHub occasionally
       # returns a transient EOF; retrying makes the release job deterministic.
       - |

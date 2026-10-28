@@ -18,8 +18,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-//go:embed tray-icon.png
-var trayIcon []byte
+//go:embed app-icon.png
+var appIcon []byte
 
 type desktop struct {
 	app      *application.App
@@ -65,7 +65,7 @@ func run() error {
 	app := application.New(application.Options{
 		Name:        buildinfo.DesktopName,
 		Description: "WorkBuddy account pool and gateway",
-		Icon:        trayIcon,
+		Icon:        appIcon,
 		Assets: application.AssetOptions{
 			Handler: assets,
 		},
@@ -145,7 +145,7 @@ func run() error {
 
 	tray := app.SystemTray.New()
 	tray.SetTooltip(buildinfo.DesktopName)
-	tray.SetIcon(trayIcon)
+	tray.SetIcon(appIcon)
 
 	menu := app.NewMenu()
 	menu.Add("显示 WorkBuddy").OnClick(func(*application.Context) {

@@ -35,7 +35,7 @@ tasks:
       - rm -rf "{{.BIN_DIR}}/{{.APP_NAME}}.app"
       - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources"
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
-      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources/icons.icns"
+      - cp build/branding/appicon.icns "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources/icons.icns"
       - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Info.plist"
       - xattr -cr "{{.BIN_DIR}}/{{.APP_NAME}}.app"
       - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.app"
@@ -48,6 +48,6 @@ tasks:
       - >-
         wails3 tool package --format dmg --name "{{.APP_NAME}}" --out "{{.BIN_DIR}}"
         --background build/darwin/dmg-background.png
-        --volume-icon build/darwin/icons.icns
-        --file-icon build/darwin/dmg-file-icon.icns
+        --volume-icon build/branding/appicon.icns
+        --file-icon build/branding/appicon.icns
         --window-width 540 --window-height 380

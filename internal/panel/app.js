@@ -520,8 +520,12 @@ async function loadOverview(quiet) {
   const totSum = (d.accounts || []).reduce((a, s) => a + (s.credits_total || 0), 0);
   $('sCredits').textContent = totSum > 0 ? remSum + ' / ' + totSum : remSum;
     $('sSticky').textContent = d.sticky_sessions;
-    $('navSub').textContent = 'v' + d.version;
-    $('navVer').textContent = 'v' + d.version;
+    const fullVersion = d.version ? 'v' + d.version.replace(/^v/, '') : '';
+    const displayVersion = fullVersion.replace(/-panel$/, '');
+    const navVer = $('navVer');
+    navVer.textContent = displayVersion || '版本未知';
+    navVer.title = fullVersion ? '完整版本：' + fullVersion : '暂未获取到版本信息';
+    navVer.setAttribute('aria-label', fullVersion ? '版本 ' + fullVersion : '版本未知');
     $('navRedis').textContent = d.redis_mode === 'upstash' ? 'Redis 镜像' : '本地内存';
     $('navState').textContent = d.healthy > 0 ? '服务正常' : (d.total ? '无可用账号' : '待添加账号');
     const p = $('navPulse');
