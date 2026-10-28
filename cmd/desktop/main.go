@@ -147,6 +147,11 @@ func run() error {
 	tray.SetTooltip(buildinfo.DesktopName)
 	tray.SetIcon(appIcon)
 
+	updates, err := newDesktopUpdater(app, &d.quitting)
+	if err != nil {
+		log.Printf("updater disabled: %v", err)
+	}
+
 	menu := app.NewMenu()
 	menu.Add("显示 WorkBuddy").OnClick(func(*application.Context) {
 		d.showWindow()
@@ -156,6 +161,12 @@ func run() error {
 			log.Printf("open panel in browser: %v", err)
 		}
 	})
+	if updates != nil {
+		menu.Add("检查更新…").OnClick(func(*application.Context) {
+			go updates.check(app.Context(), true)
+		})
+		go updates.run(app.Context())
+	}
 	menu.AddSeparator()
 	menu.Add("退出").OnClick(func(*application.Context) {
 		d.quitting.Store(true)

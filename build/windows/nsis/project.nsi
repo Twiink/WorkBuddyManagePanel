@@ -22,7 +22,7 @@ Unicode true
 ## !define INFO_PROJECTNAME    "my-project" # Default "WorkBuddyManagePanel"
 ## !define INFO_COMPANYNAME    "My Company" # Default "Twiink"
 ## !define INFO_PRODUCTNAME    "My Product Name" # Default "WorkBuddy Manage Panel"
-## !define INFO_PRODUCTVERSION "1.0.0"     # Default "1.15.1"
+## !define INFO_PRODUCTVERSION "1.0.0"     # Default "1.16.0"
 ## !define INFO_COPYRIGHT      "(c) Now, My Company" # Default "Copyright 2026 Twiink"
 ###
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
