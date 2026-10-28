@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "peer": {
+    "id": "workbuddy-manage-panel"
+  },
+  "recall": {
+    "peer_scope": "actor"
+  }
+}
