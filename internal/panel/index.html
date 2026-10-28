@@ -469,6 +469,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 .dlg .tabs .tab { padding: 4px 14px; border-radius: 3px; border: none; background: transparent; color: var(--ink-3); font: 600 12.5px var(--sans); cursor: pointer; }
 .dlg .tabs .tab:hover { color: var(--ink); background: transparent; }
 .dlg .tabs .tab.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+#addVeil .tab-panel + .tab-panel { border-top: 0; margin: 0; padding: 0; }
 .tab-panel + .tab-panel { border-top: 1px solid var(--line-soft); margin: 0 -22px; padding: 14px 22px 0; }
 .url {
   background: var(--surface-2); border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: var(--r);
@@ -477,6 +478,73 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 }
 .state { font-size: 13px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
 .state.ok { color: var(--ok); } .state.err { color: var(--bad); }
+
+/* ── 添加账号弹窗 ─────────────────────────────────────────────────── */
+.dlg header.add-hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dlg header.add-hd .tabs { margin-left: 0; }
+.add-lb { font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
+.add-note { font-size: 12px; line-height: 1.6; color: var(--ink-3); margin-top: 12px; }
+.realm-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.realm-card { position: relative; display: block; cursor: pointer; }
+.realm-card input { position: absolute; opacity: 0; width: 0; height: 0; }
+.rc-body {
+  display: flex; flex-direction: column; gap: 5px; height: 100%;
+  padding: 12px 14px 12px 38px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.rc-body::before {
+  content: ""; position: absolute; left: 14px; top: 14px; width: 14px; height: 14px; box-sizing: border-box;
+  border: 1.5px solid var(--ink-3); border-radius: 50%; background: var(--surface); transition: border .15s;
+}
+.realm-card:hover .rc-body { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.realm-card input:checked + .rc-body { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+.realm-card input:checked + .rc-body::before { border: 4.5px solid var(--accent); }
+.realm-card input:focus-visible + .rc-body { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rc-t { font-size: 13.5px; font-weight: 650; color: var(--ink); }
+.rc-t em { font: 600 10.5px/1 var(--mono); font-style: normal; color: var(--ink-3); margin-left: 4px; }
+.realm-card input:checked + .rc-body .rc-t em { color: var(--accent); }
+.rc-d { font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+
+.drop {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 22px 16px; border: 1.5px dashed var(--line); border-radius: 8px; background: var(--surface-2);
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.drop svg { width: 28px; height: 28px; color: var(--accent); margin-bottom: 2px; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop.busy { opacity: .55; cursor: default; }
+.drop:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.drop-t { font-size: 13.5px; color: var(--ink); }
+.drop-t b { color: var(--accent); font-weight: 600; margin-left: 2px; }
+.drop-d { font-size: 12px; color: var(--ink-3); }
+.imp-head { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.imp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow: auto; }
+.imp-list li {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px;
+  padding: 8px 10px 8px 12px; border: 1px solid var(--line-soft); border-left: 3px solid var(--line); border-radius: 5px; background: var(--surface);
+}
+.imp-list li.ok { border-left-color: var(--ok); }
+.imp-list li.warn { border-left-color: var(--warn); }
+.imp-list li.err { border-left-color: var(--bad); }
+.imp-list li.run { border-left-color: var(--accent); }
+.imp-f { min-width: 0; }
+.imp-n { display: block; font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-m { display: block; font-size: 11.5px; line-height: 1.5; font-variant-numeric: tabular-nums; color: var(--ink-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-s { font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--ink-3); }
+.imp-list li.ok .imp-s { color: var(--ok); }
+.imp-list li.warn .imp-s { color: var(--warn); }
+.imp-list li.err .imp-s { color: var(--bad); }
+.imp-list li.run .imp-s { color: var(--accent); }
+.imp-list li button { padding: 2px 7px; line-height: 1; font-size: 15px; color: var(--ink-3); }
+.imp-errs { grid-column: 1 / -1; margin: 2px 0 0; padding: 6px 8px; border-radius: 4px; background: var(--surface-2);
+  font: 11.5px/1.55 var(--mono); color: var(--ink-3); max-height: 96px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+.imp-sum { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 13px;
+  background: var(--ok-soft); color: var(--ink); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); }
+.imp-sum.err { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+.imp-sum b { font-weight: 650; }
+.imp-sum .k-ok { color: var(--ok); } .imp-sum .k-warn { color: var(--warn); } .imp-sum .k-err { color: var(--bad); }
+#addVeil[data-tab=import] .login-only, #addVeil[data-tab=login] .import-only { display: none !important; }
+@media (max-width: 520px) { .realm-cards { grid-template-columns: 1fr; } .dlg header.add-hd { flex-wrap: wrap; } }
 .dots::after { content: "…"; animation: blink 1.2s steps(4) infinite; }
 @keyframes blink { 0% { opacity: 1; } 50% { opacity: .3; } 100% { opacity: 1; } }
 
@@ -1595,23 +1663,35 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 <!-- 添加账号 -->
 <div class="veil" id="addVeil">
   <div class="dlg">
-    <header>
+    <header class="add-hd">
       <h3>添加账号</h3>
-      <div class="tabs" id="addTabs">
-        <button class="tab on" data-tab="login">浏览器登录</button>
-        <button class="tab" data-tab="import">导入 JSON</button>
+      <div class="tabs" id="addTabs" role="tablist">
+        <button class="tab on" data-tab="login" role="tab">浏览器登录</button>
+        <button class="tab" data-tab="import" role="tab">导入 JSON</button>
       </div>
     </header>
     <div class="body">
       <!-- 浏览器登录 -->
       <div id="addTabLogin" class="tab-panel">
         <div id="addPick">
-          <div class="realm-row">
-            <span class="hint" style="font-size:12px">版本：</span>
-            <label class="realm-opt"><input type="radio" name="addRealm" value="cn" checked> 国内版（CN）</label>
-            <label class="realm-opt"><input type="radio" name="addRealm" value="global"> 国际版（Global）</label>
+          <div class="add-lb">选择版本</div>
+          <div class="realm-cards">
+            <label class="realm-card">
+              <input type="radio" name="addRealm" value="cn" checked>
+              <span class="rc-body">
+                <span class="rc-t">国内版 <em>CN</em></span>
+                <span class="rc-d">国内站账号，登录后自动签到</span>
+              </span>
+            </label>
+            <label class="realm-card">
+              <input type="radio" name="addRealm" value="global">
+              <span class="rc-body">
+                <span class="rc-t">国际版 <em>Global</em></span>
+                <span class="rc-d">自动完成注册地区、激活与试用额度领取</span>
+              </span>
+            </label>
           </div>
-          <div class="hint" style="font-size:12px;margin-top:2px">国际版登录后，网关自动完成注册地区、激活与试用额度领取，全程无需手动操作。</div>
+          <div class="add-note">点击「获取授权链接」后，在浏览器中完成登录，面板会自动检测并载入账号。</div>
         </div>
         <div id="addLoad" class="state" hidden><span class="dots">正在获取授权链接</span></div>
         <div id="addReady" hidden>
@@ -1624,17 +1704,26 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
       </div>
       <!-- 导入 JSON -->
       <div id="addTabImport" class="tab-panel" hidden>
-        <div class="hint" style="margin-bottom:8px">选择 cockpit tools 导出的 JSON 文件，批量导入账号。文件需为账号数组格式。</div>
-        <input type="file" id="importFile" accept=".json" style="margin-bottom:8px">
-        <div id="importDone" class="state ok" hidden></div>
-        <div id="importErr" class="state err" hidden></div>
+        <input type="file" id="importFile" accept=".json,application/json" multiple hidden>
+        <div class="drop" id="importDrop" role="button" tabindex="0" aria-label="选择 JSON 文件">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
+          <span class="drop-t">拖入 JSON 文件，或<b>点击选择</b></span>
+          <span class="drop-d">支持一次选择多个 cockpit tools 导出的账号数组文件</span>
+        </div>
+        <div class="imp-head" id="importHead" hidden>
+          <span id="importCount"></span>
+          <button class="xs ghost" id="btnImportClear">清空</button>
+        </div>
+        <ul class="imp-list" id="importList"></ul>
+        <div class="imp-sum" id="importSum" hidden></div>
       </div>
     </div>
     <footer>
       <span class="grow"></span>
-      <button id="btnStartLogin" class="primary">获取授权链接</button>
-      <button id="btnCopyUrl" hidden>复制链接</button>
-      <button id="btnOpenUrl" class="primary" hidden>在浏览器打开</button>
+      <button id="btnStartLogin" class="primary login-only">获取授权链接</button>
+      <button id="btnImport" class="primary import-only" disabled>开始导入</button>
+      <button id="btnCopyUrl" class="login-only" hidden>复制链接</button>
+      <button id="btnOpenUrl" class="primary login-only" hidden>在浏览器打开</button>
       <button id="btnCloseAdd">关闭</button>
     </footer>
   </div>

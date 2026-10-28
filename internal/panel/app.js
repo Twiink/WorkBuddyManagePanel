@@ -1346,18 +1346,27 @@ function openAdd() {
   $('addPick').hidden = false;
   $('addLoad').hidden = true; $('addReady').hidden = true;
   $('addDone').hidden = true; $('addErr').hidden = true;
-  $('importDone').hidden = true; $('importErr').hidden = true;
+  resetImport();
   $('btnCopyUrl').hidden = true; $('btnOpenUrl').hidden = true;
   $('btnStartLogin').hidden = false; $('btnStartLogin').disabled = false;
   stopPoll();
 }
 function switchAddTab(tab) {
-  document.querySelectorAll('#addTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('#addTabs .tab').forEach(b => {
+    b.classList.toggle('on', b.dataset.tab === tab);
+    b.setAttribute('aria-selected', b.dataset.tab === tab);
+  });
+  $('addVeil').dataset.tab = tab;
   $('addTabLogin').hidden = tab !== 'login';
   $('addTabImport').hidden = tab !== 'import';
 }
 document.querySelectorAll('#addTabs .tab').forEach(b => {
-  b.onclick = () => switchAddTab(b.dataset.tab);
+  b.onclick = () => {
+    const was = $('addVeil').dataset.tab;
+    switchAddTab(b.dataset.tab);
+    // 点「导入 JSON」直接弹出文件选择（列表为空时），省去再点一次拖放区。
+    if (b.dataset.tab === 'import' && was !== 'import' && !importQueue.length && !importBusy) $('importFile').click();
+  };
 });
 function startAddLogin() {
   const realm = (document.querySelector('input[name="addRealm"]:checked') || {}).value || 'cn';
@@ -1403,31 +1412,121 @@ $('btnStartLogin').onclick = startAddLogin;
 $('btnOpenUrl').onclick = () => open($('addUrl').textContent, '_blank');
 $('btnCopyUrl').onclick = () => navigator.clipboard.writeText($('addUrl').textContent)
   .then(() => toast('链接已复制', 'ok'), () => toast('复制失败，请手动选择复制', 'err'));
-$('importFile').onchange = async () => {
-  const file = $('importFile').files[0];
-  if (!file) return;
-  $('importDone').hidden = true; $('importErr').hidden = true;
-  const fd = new FormData();
-  fd.append('file', file);
+/* 导入 JSON：可多选/拖入多个文件，本地预读账号数后逐个上传（后端每次一个文件）。 */
+let importQueue = []; // {file, count, err, state: 'ready'|'run'|'ok'|'warn'|'err', res}
+let importBusy = false;
+async function readImportFile(file) {
+  const it = { file, count: 0, err: '', state: 'ready', res: null };
+  try {
+    const arr = JSON.parse(await file.text());
+    if (!Array.isArray(arr)) throw new Error('不是账号数组');
+    if (!arr.length) throw new Error('数组为空');
+    it.count = arr.length;
+  } catch (e) {
+    it.state = 'err';
+    it.err = e instanceof SyntaxError ? 'JSON 格式错误' : e.message;
+  }
+  return it;
+}
+async function addImportFiles(files) {
+  if (importBusy) return;
+  const list = [...files].filter(f => /\.json$/i.test(f.name) || f.type === 'application/json');
+  if (list.length < files.length) toast('已忽略 ' + (files.length - list.length) + ' 个非 JSON 文件', 'err');
+  // 新一批开始前清掉已完成的结果
+  importQueue = importQueue.filter(it => it.state === 'ready');
+  for (const f of list) {
+    if (importQueue.some(it => it.file.name === f.name && it.file.size === f.size)) continue;
+    importQueue.push(await readImportFile(f));
+  }
+  $('importSum').hidden = true;
+  renderImport();
+}
+function renderImport() {
+  const q = importQueue;
+  const n = q.reduce((s, it) => s + it.count, 0);
+  $('importHead').hidden = !q.length;
+  $('importCount').textContent = '已选 ' + q.length + ' 个文件 · 共 ' + n + ' 个账号';
+  $('btnImportClear').disabled = importBusy;
+  $('importList').innerHTML = q.map((it, i) => {
+    let st = '';
+    if (it.state === 'ready') st = '待导入';
+    else if (it.state === 'run') st = '导入中…';
+    else if (it.res) st = '成功 ' + it.res.imported + (it.res.skipped ? ' · 跳过 ' + it.res.skipped : '');
+    else st = '失败';
+    const meta = it.res ? '共 ' + it.res.total + ' 个账号 · ' + fmtBytes(it.file.size)
+      : it.err ? it.err : it.count + ' 个账号 · ' + fmtBytes(it.file.size);
+    const errs = it.res && it.res.errors && it.res.errors.length
+      ? '<pre class="imp-errs">' + esc(it.res.errors.join('\n')) + '</pre>' : '';
+    const rm = it.state === 'ready' || (it.state === 'err' && !it.res)
+      ? '<button class="xs ghost" data-rm="' + i + '" title="移除" aria-label="移除 ' + esc(it.file.name) + '">×</button>' : '<span></span>';
+    return '<li class="' + it.state + '"><span class="imp-f"><span class="imp-n" title="' + esc(it.file.name) + '">'
+      + esc(it.file.name) + '</span><span class="imp-m">' + esc(meta) + '</span></span><span class="imp-s">'
+      + esc(st) + '</span>' + (importBusy ? '<span></span>' : rm) + errs + '</li>';
+  }).join('');
+  $('btnImport').disabled = importBusy || !q.some(it => it.state === 'ready');
+  $('btnImport').textContent = importBusy ? '导入中…' : '开始导入';
+  $('importDrop').classList.toggle('busy', importBusy);
+}
+function resetImport() {
+  if (importBusy) return;
+  importQueue = [];
+  $('importSum').hidden = true;
+  $('importFile').value = '';
+  renderImport();
+}
+async function runImport() {
+  if (importBusy) return;
+  const todo = importQueue.filter(it => it.state === 'ready');
+  if (!todo.length) return;
+  importBusy = true;
   const h = {};
   const k = localStorage.getItem(LS_KEY);
   if (k) h['Authorization'] = 'Bearer ' + k;
-  try {
-    const r = await fetch('/panel/api/import/cockpit', { method: 'POST', body: fd, headers: h });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-    $('importDone').hidden = false;
-    $('importDone').textContent = '导入完成：成功 ' + d.imported + ' 个' + (d.skipped ? '，跳过 ' + d.skipped + ' 个' : '');
-    if (d.errors && d.errors.length) {
-      console.warn('import errors:', d.errors);
+  for (const it of todo) {
+    it.state = 'run'; renderImport();
+    const fd = new FormData();
+    fd.append('file', it.file);
+    try {
+      const r = await fetch('/panel/api/import/cockpit', { method: 'POST', body: fd, headers: h });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      it.res = d;
+      it.state = d.skipped ? 'warn' : 'ok';
+    } catch (e) {
+      it.state = 'err'; it.err = e.message;
     }
-    loadOverview(true);
-  } catch (e) {
-    $('importErr').hidden = false;
-    $('importErr').textContent = '导入失败：' + e.message;
   }
-  $('importFile').value = '';
+  importBusy = false;
+  renderImport();
+  const ok = todo.reduce((s, it) => s + (it.res ? it.res.imported : 0), 0);
+  const skip = todo.reduce((s, it) => s + (it.res ? it.res.skipped : 0), 0);
+  const failed = todo.filter(it => !it.res).length;
+  const sum = $('importSum');
+  sum.hidden = false;
+  sum.classList.toggle('err', ok === 0);
+  sum.innerHTML = '<span>导入完成：</span><b class="' + (ok ? 'k-ok' : '') + '">成功 ' + ok + ' 个</b>'
+    + (skip ? '<b class="k-warn">跳过 ' + skip + ' 个</b>' : '')
+    + (failed ? '<b class="k-err">' + failed + ' 个文件失败</b>' : '');
+  if (ok) loadOverview(true);
+}
+$('importFile').onchange = () => { addImportFiles($('importFile').files); $('importFile').value = ''; };
+$('btnImport').onclick = runImport;
+$('btnImportClear').onclick = resetImport;
+$('importList').onclick = e => {
+  const b = e.target.closest('[data-rm]');
+  if (!b || importBusy) return;
+  importQueue.splice(+b.dataset.rm, 1);
+  renderImport();
 };
+(() => {
+  const d = $('importDrop');
+  const pick = () => { if (!importBusy) $('importFile').click(); };
+  d.addEventListener('click', pick);
+  d.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+  ['dragenter', 'dragover'].forEach(t => d.addEventListener(t, e => { e.preventDefault(); d.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => d.addEventListener(t, e => { e.preventDefault(); d.classList.remove('over'); }));
+  d.addEventListener('drop', e => { if (!importBusy && e.dataTransfer && e.dataTransfer.files.length) addImportFiles(e.dataTransfer.files); });
+})();
 
 /* ── 顶部动作 ─────────────────────────────────────────────────────── */
 $('btnAdd').onclick = openAdd;
