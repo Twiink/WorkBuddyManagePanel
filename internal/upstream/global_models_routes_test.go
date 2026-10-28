@@ -1,11 +1,58 @@
 package upstream
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
 )
+
+func TestCancelledGlobalModelsProbeCanRetryImmediately(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	started := make(chan struct{}, 4)
+	var blocking atomic.Bool
+	blocking.Store(true)
+	c := testClient(func(r *http.Request) (*http.Response, error) {
+		if blocking.Load() {
+			started <- struct{}{}
+			<-r.Context().Done()
+			return nil, r.Context().Err()
+		}
+		return jsonResp(http.StatusOK, `{"code":0,"data":{"models":[{"id":"test-chat-model","maxOutputTokens":8192}]}}`), nil
+	})
+	c.GlobalEnabled = true
+	a := &auth.Auth{UID: "cancel-test", Domain: "www.workbuddy.ai"}
+	a.BackfillRealm()
+	done := make(chan []ModelInfo, 1)
+	go func() { done <- c.FetchGlobalModelInfosContext(ctx, a) }()
+	// Cancel only after all three v3 routes and the enterprise route are in flight.
+	for range 4 {
+		select {
+		case <-started:
+		case <-time.After(3 * time.Second):
+			t.Fatal("model probe did not start all routes")
+		}
+	}
+	cancel()
+	select {
+	case infos := <-done:
+		if len(infos) != 0 {
+			t.Fatalf("cancelled probe returned models: %v", infos)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("model probe did not finish after cancellation")
+	}
+	blocking.Store(false)
+	infos := c.FetchGlobalModelInfos(a)
+	if len(infos) != 1 || infos[0].ID != "test-chat-model" {
+		t.Fatalf("cancelled probe prevented immediate retry: %v", infos)
+	}
+}
 
 // TestMergeV3RoutesPriority 主路字段权威：同 id 在三路都出现时，字段取自主路
 // （桌面端 UA），后续路不得覆盖其窗口/effort/credits。

@@ -106,7 +106,7 @@ func TestSaveConfigDesktopListenValidation(t *testing.T) {
 
 	for _, listen := range []string{":7865", "127.0.0.1:7864", "localhost:7866", "[::1]:7867"} {
 		raw := []byte(`{"listen":` + strconv.Quote(listen) + `}`)
-		if _, err := saveConfig(raw, fp, live, p, up, sch, true); err != nil {
+		if _, err := saveConfig(raw, fp, live, p, up, sch, Options{RequireLoopback: true}); err != nil {
 			t.Errorf("saveConfig(%q) = %v", listen, err)
 		}
 		saved, err := os.ReadFile(fp)
@@ -129,9 +129,13 @@ func TestSaveConfigDesktopListenValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, listen := range []string{"0.0.0.0:7864", "192.168.1.2:7864", "[::]:7864", "7864"} {
+	for _, listen := range []string{
+		"0.0.0.0:7864", "192.168.1.2:7864", "[::]:7864", "7864",
+		"127.0.0.1:78633", "localhost:65536", "[::1]:-1", "[::1]:not-a-port",
+		"127.0.0.1:", "localhost:", "[::1]:",
+	} {
 		raw := []byte(`{"listen":` + strconv.Quote(listen) + `}`)
-		if _, err := saveConfig(raw, fp, live, p, up, sch, true); err == nil {
+		if _, err := saveConfig(raw, fp, live, p, up, sch, Options{RequireLoopback: true}); err == nil {
 			t.Errorf("saveConfig(%q) accepted non-loopback/malformed address", listen)
 		}
 		after, err := os.ReadFile(fp)

@@ -1429,6 +1429,14 @@ const codeBuddyCLIUA = "CLI/2.63.2 CodeBuddy/2.63.2"
 // /v3 失败（400/网络错/解析失败）不拖累企业端点结果——降级为仅企业端点，warn 日志；
 // 反之亦然（两路独立容错）。
 func (c *Client) FetchModels(a *auth.Auth) ([]ModelInfo, error) {
+	return c.FetchModelsContext(context.Background(), a)
+}
+
+// FetchModelsContext 的所有目录探测请求共享调用方的取消信号。
+func (c *Client) FetchModelsContext(ctx context.Context, a *auth.Auth) ([]ModelInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	type probeResult struct {
 		infos []ModelInfo
 		err   error
@@ -1436,15 +1444,18 @@ func (c *Client) FetchModels(a *auth.Auth) ([]ModelInfo, error) {
 	enterpriseCh := make(chan probeResult, 1)
 	v3Ch := make(chan probeResult, 1)
 	go func() {
-		infos, err := c.fetchEnterpriseModels(a)
+		infos, err := c.fetchEnterpriseModels(ctx, a)
 		enterpriseCh <- probeResult{infos, err}
 	}()
 	go func() {
-		infos, err := c.fetchV3Models(a)
+		infos, err := c.fetchV3Models(ctx, a)
 		v3Ch <- probeResult{infos, err}
 	}()
 	enterprise := <-enterpriseCh
 	v3 := <-v3Ch
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if enterprise.err != nil && v3.err != nil {
 		return nil, enterprise.err // 两路全失败：返回企业端点错误（既有调用方语义零漂移）
 	}
@@ -1509,10 +1520,10 @@ func mergeModelInfos(primary, secondary []ModelInfo) []ModelInfo {
 
 // fetchEnterpriseModels 单路探测企业模型端点（/console/enterprises/personal/models）。
 // 解析口径：agents[cli].models 过滤 + nonChatModel 剔除 + disabled 剔除。
-func (c *Client) fetchEnterpriseModels(a *auth.Auth) ([]ModelInfo, error) {
+func (c *Client) fetchEnterpriseModels(ctx context.Context, a *auth.Auth) ([]ModelInfo, error) {
 	// 局部变量名避开 url（本包已 import net/url，同名会造成阅读混淆）。
 	endpoint := c.chatBase(a) + "/console/enterprises/personal/models"
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1584,8 +1595,8 @@ func (c *Client) fetchEnterpriseModels(a *auth.Auth) ([]ModelInfo, error) {
 // v3 面取全量 models（不按 agents[cli] 过滤，与 global 探测口径一致），按同一
 // nonChatModel 规则剔除非对话条目（selected 会选模型报 code=11102）。
 // 失败返回错误（调用方降级为仅企业端点）。
-func (c *Client) fetchV3Models(a *auth.Auth) ([]ModelInfo, error) {
-	byID, err := c.fetchV3ConfigModelMap(a, codeBuddyIDEUA)
+func (c *Client) fetchV3Models(ctx context.Context, a *auth.Auth) ([]ModelInfo, error) {
+	byID, err := c.fetchV3ConfigModelMap(ctx, a, codeBuddyIDEUA)
 	if err != nil {
 		return nil, err
 	}
@@ -1854,8 +1865,8 @@ func v3ConfigDomain(a *auth.Auth, chatBase string) string {
 // 该端点对 UA 敏感：必须带 CodeBuddy/CodeBuddyIDE 版本，否则 400 code=12403。
 // ua 为该次请求的 User-Agent；空串等价 codeBuddyIDEUA。该端点对 UA 敏感且**不同 UA 下发
 // 不同模型集合**（见 codeBuddyCLIUA 注释），global 探测据此并发两路取并集。
-func (c *Client) fetchV3ConfigModelMap(a *auth.Auth, ua string) (map[string]ModelInfo, error) {
-	req, err := http.NewRequest(http.MethodGet, c.chatBase(a)+"/v3/config", nil)
+func (c *Client) fetchV3ConfigModelMap(ctx context.Context, a *auth.Auth, ua string) (map[string]ModelInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.chatBase(a)+"/v3/config", nil)
 	if err != nil {
 		return nil, err
 	}

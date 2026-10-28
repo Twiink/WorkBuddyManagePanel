@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -56,6 +57,7 @@ func run() error {
 	log.Printf("%s %s starting; data=%s", buildinfo.DesktopName, buildinfo.Version, dataDir)
 
 	d := &desktop{}
+	assets := http.NewServeMux()
 	// application.New acquires the single-instance lock synchronously. This
 	// must happen before the gateway binds its fixed loopback port; otherwise a
 	// second double-click fails on the port and never reaches the callback that
@@ -64,6 +66,9 @@ func run() error {
 		Name:        buildinfo.DesktopName,
 		Description: "WorkBuddy account pool and gateway",
 		Icon:        trayIcon,
+		Assets: application.AssetOptions{
+			Handler: assets,
+		},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: false,
 		},
@@ -109,14 +114,13 @@ func run() error {
 	d.gatewayM.Lock()
 	d.gateway = instance
 	d.gatewayM.Unlock()
-	// Wails WebView 的 User-Agent 会自动附加 wails.io，网关仅对桌面进程
-	// 开放管理接口；/v1/* 不识别该标记。首次没有密钥时直接落到配置页，
-	// 已有密钥时直接进入账号池。
+	// 原生资源服务器在进程内路由管理请求，HTTP 网关单独验证 API Key。
+	assets.Handle("/panel/", instance.DesktopHandler)
 	panelHash := "accounts"
 	if instance.Config.APIKey == "" {
 		panelHash = "config"
 	}
-	d.panelURL = instance.URL + "#" + panelHash
+	d.panelURL = "/panel/#" + panelHash
 
 	d.window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:            "main",
@@ -141,9 +145,7 @@ func run() error {
 
 	tray := app.SystemTray.New()
 	tray.SetTooltip(buildinfo.DesktopName)
-	if runtime.GOOS != "darwin" {
-		tray.SetIcon(trayIcon)
-	}
+	tray.SetIcon(trayIcon)
 
 	menu := app.NewMenu()
 	menu.Add("显示 WorkBuddy").OnClick(func(*application.Context) {

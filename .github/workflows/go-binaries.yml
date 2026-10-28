@@ -16,6 +16,7 @@ on:
       - "build/**"
       - "Taskfile.yml"
       - "config.example.json"
+      - "scripts/verify_windows_resources.py"
       - "README.md"
       - ".github/workflows/go-binaries.yml"
   workflow_dispatch:
@@ -281,6 +282,11 @@ jobs:
       - name: Build NSIS installer
         shell: pwsh
         run: wails3 task windows:package
+      - name: Verify Windows executable resources
+        shell: pwsh
+        run: |
+          $version = "${{ needs.read-version.outputs.version }}".Replace("-panel", "")
+          python scripts/verify_windows_resources.py bin/workbuddy-manage-panel.exe --version $version
       - name: Name release file
         shell: pwsh
         run: |
@@ -482,14 +488,14 @@ jobs:
           body: |
             ## WorkBuddy Manage Panel ${{ inputs.release_tag || github.ref_name }}
 
-            ### v1.14.3
+            ### v1.14.4
 
-            - 桌面窗口双击后直接进入管理面板，不再生成或使用临时随机登录令牌。
-            - 「配置 → API 密钥」支持输入用户自己的真实密钥、生成安全随机密钥和复制。
-            - `/v1/*` 始终只接受配置中非空的真实 API 密钥；桌面直达入口不能调用外部接口。
-            - 独立 server 保持原有 `config.json` 鉴权语义，不启用桌面直达入口。
-            - 桌面版监听端口可在「配置」中修改，仅允许本机回环地址，重启应用生效。
-            - 修正三平台安装包内版本元数据，并增加发布前一致性检查。
+            - 修复桌面管理接口的 User-Agent 鉴权绕过：内嵌页面通过进程内通道访问，HTTP 管理接口要求非空 API 密钥。
+            - 修复 Windows EXE 的图标、版本和 manifest 嵌入，构建后自动校验实际资源。
+            - 修复 macOS 托盘图标缺失，关闭窗口后可通过托盘恢复。
+            - 修复提示词相对路径解析；引用文件缺失时明确报错，保留用户配置。
+            - 模型目录预热随应用退出取消，取消操作不写入失败缓存。
+            - 配置保存前统一校验回环地址的端口，拒绝会导致重启失败的非法配置。
 
             ### 桌面应用
 

@@ -27,6 +27,7 @@ __pycache__/
 /build/linux/package-icons/
 /build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 /wails_windows_*.syso
+/cmd/desktop/wails_windows_*.syso
 
 # Backups (contains auth tokens)
 backups/
