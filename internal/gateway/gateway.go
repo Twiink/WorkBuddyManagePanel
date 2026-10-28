@@ -46,10 +46,7 @@ type Options struct {
 	Listen string
 	// RequireLoopback 供桌面版强制只监听本机回环地址。
 	RequireLoopback bool
-	// PanelToken 是桌面窗口的一次性进程内鉴权令牌；只在内存中保存，
-	// 只替代面板接口鉴权，不绕过 /v1/* 的 APIKey。
-	PanelToken string
-	Version    string
+	Version         string
 }
 
 // Instance 是一个已经完成端口绑定并开始运行的网关实例。
@@ -147,10 +144,18 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 	if err != nil {
 		// errors.Is 才能看穿 Load 里 fmt.Errorf("%w") 的包装；os.IsNotExist 不行。
 		if errors.Is(err, fs.ErrNotExist) {
-			// 首次运行：目录下没有配置 → 自动落一份推荐配置（含随机 api_key）再加载。
-			// 双击 exe / 裸跑 docker 即开，无需先手工复制样例。
-			if _, werr := WriteDefault(opts.ConfigPath); werr == nil {
-				log.Printf("config %s 不存在，已生成推荐配置（密钥保存在该文件中）", opts.ConfigPath)
+			// 首次运行：目录下没有配置 → 自动落一份推荐配置再加载。
+			// 独立 server 保持原行为：生成随机密钥并要求输入后才能进入面板。
+			// 桌面版则保留空密钥，由内嵌窗口先显示设置页，让用户自行输入或
+			// 点击生成密钥，避免悄悄替用户生成一个“登录令牌”。
+			var werr error
+			if opts.RequireLoopback {
+				werr = WriteDesktopDefault(opts.ConfigPath)
+			} else {
+				_, werr = WriteDefault(opts.ConfigPath)
+			}
+			if werr == nil {
+				log.Printf("config %s 不存在，已生成推荐配置", opts.ConfigPath)
 				cfg, err = Load(opts.ConfigPath)
 			}
 			if err != nil {
@@ -185,7 +190,7 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	i.cancel = cancel
 	instance, err := finishStart(
-		runCtx, i, opts.ConfigPath, opts.Version, opts.PanelToken, opts.RequireLoopback,
+		runCtx, i, opts.ConfigPath, opts.Version, opts.RequireLoopback,
 	)
 	if err != nil {
 		_ = i.Close()
@@ -253,7 +258,7 @@ func normalizeLoopbackListen(listen string) (string, error) {
 func finishStart(
 	ctx context.Context,
 	i *Instance,
-	cfgPath, version, panelToken string,
+	cfgPath, version string,
 	requireLoopback bool,
 ) (*Instance, error) {
 	cfg := i.Config
@@ -437,7 +442,6 @@ func finishStart(
 	// live 承载可热改字段（api_key/soft_rate/脱敏开关），面板保存配置时在线替换。
 	live := livecfg.New(livecfg.Snapshot{
 		APIKey:               cfg.APIKey,
-		PanelKey:             panelToken,
 		SoftCooldown:         cfg.SoftRateDur,
 		SanitizeFingerprints: cfg.Features.SanitizeBlacklistFingerprints,
 		RecordClientInfo:     cfg.Logging.RequestClientInfo,
@@ -483,7 +487,7 @@ func finishStart(
 		Scheduler:   sch,
 		AuthDir:     cfg.AuthDir,
 		APIKey:      cfg.APIKey,
-		PanelToken:  panelToken,
+		DesktopMode: requireLoopback,
 		RedisMode:   redisMode,
 		StickyCount: sessCount,
 		Version:     version,
@@ -511,19 +515,20 @@ func finishStart(
 	server.SetChatLogOutput(io.MultiWriter(os.Stdout, pn.Logs()))
 
 	h := server.NewHandler(server.Config{
-		Pool:         p,
-		Upstream:     up,
-		APIKey:       cfg.APIKey,
-		Session:      sessRouter,
-		StickyCount:  sessCount,
-		RedisMode:    redisMode,
-		SoftCooldown: cfg.SoftRateDur,
-		Panel:        pn,
-		Live:         live,
-		Usage:        rec,
-		RequestLog:   requestLog,
-		PromptMode:   cfg.Prompt.Mode,
-		PromptText:   cfg.PromptText,
+		Pool:          p,
+		Upstream:      up,
+		APIKey:        cfg.APIKey,
+		RequireAPIKey: requireLoopback,
+		Session:       sessRouter,
+		StickyCount:   sessCount,
+		RedisMode:     redisMode,
+		SoftCooldown:  cfg.SoftRateDur,
+		Panel:         pn,
+		Live:          live,
+		Usage:         rec,
+		RequestLog:    requestLog,
+		PromptMode:    cfg.Prompt.Mode,
+		PromptText:    cfg.PromptText,
 		// 来源记录开关经 livecfg 热生效；此处同时填静态字段，供 Live 为 nil 的
 		// 裸用/测试路径拿到同一缺省值。
 		RecordClientInfo: cfg.Logging.RequestClientInfo,
@@ -750,7 +755,6 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	// 4) 热应用：能立即生效的字段全部应用，并列出仍需重启的字段。
 	live.Store(livecfg.Snapshot{
 		APIKey:               newCfg.APIKey,
-		PanelKey:             live.Load().PanelKey,
 		SoftCooldown:         newCfg.SoftRateDur,
 		SanitizeFingerprints: newCfg.Features.SanitizeBlacklistFingerprints,
 		RecordClientInfo:     newCfg.Logging.RequestClientInfo,

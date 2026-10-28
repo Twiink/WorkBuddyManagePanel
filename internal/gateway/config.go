@@ -388,28 +388,42 @@ func WriteDefault(path string) (string, error) {
 		return "", fmt.Errorf("gen api_key: %w", err)
 	}
 	key := "sk-" + base64.RawURLEncoding.EncodeToString(raw)
+	if err := writeDefaultConfig(path, key); err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+// WriteDesktopDefault 创建桌面版首次启动配置，但故意保留空 API Key。
+// 桌面窗口会先进入设置页，由用户输入自己的密钥或点击生成密钥，再保存到
+// 同一配置文件。独立 server 继续使用 WriteDefault 的随机安全默认值。
+func WriteDesktopDefault(path string) error {
+	return writeDefaultConfig(path, "")
+}
+
+func writeDefaultConfig(path, key string) error {
 	c := Default()
 	c.APIKey = key
 	_ = c.normalize() // Default() 全合法，normalize 仅补齐 header/idle 超时的展示值
 	out, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
-		return "", fmt.Errorf("marshal config: %w", err)
+		return fmt.Errorf("marshal config: %w", err)
 	}
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return "", fmt.Errorf("mkdir config dir: %w", err)
+			return fmt.Errorf("mkdir config dir: %w", err)
 		}
 	}
 	// O_EXCL 原子拒绝覆盖：即使调用方漏判"不存在"，也绝不悄悄改写用户已有配置。
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		return "", fmt.Errorf("write config: %w", err)
+		return fmt.Errorf("write config: %w", err)
 	}
 	defer f.Close()
 	if _, err := f.Write(out); err != nil {
-		return "", fmt.Errorf("write config: %w", err)
+		return fmt.Errorf("write config: %w", err)
 	}
-	return key, nil
+	return nil
 }
 
 func applyEnv(c *Config) {

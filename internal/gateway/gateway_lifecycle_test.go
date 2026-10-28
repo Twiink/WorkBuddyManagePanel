@@ -160,6 +160,40 @@ func TestStartNormalizesWildcardPortForDesktop(t *testing.T) {
 	}
 }
 
+func TestDesktopFirstRunCreatesEmptyKeyAndServerFirstRunCreatesRandomKey(t *testing.T) {
+	desktopDir := t.TempDir()
+	desktop, err := Start(context.Background(), Options{
+		ConfigPath:      filepath.Join(desktopDir, "config.json"),
+		DataDir:         desktopDir,
+		Listen:          "127.0.0.1:0",
+		RequireLoopback: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if desktop.Config.APIKey != "" {
+		_ = desktop.Close()
+		t.Fatalf("desktop first run api_key=%q, want empty user-configurable key", desktop.Config.APIKey)
+	}
+	if err := desktop.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	serverDir := t.TempDir()
+	server, err := Start(context.Background(), Options{
+		ConfigPath: filepath.Join(serverDir, "config.json"),
+		DataDir:    serverDir,
+		Listen:     "127.0.0.1:0",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	if !strings.HasPrefix(server.Config.APIKey, "sk-") {
+		t.Fatalf("server first run api_key=%q, want generated sk- key", server.Config.APIKey)
+	}
+}
+
 func TestStartFailsCleanlyWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

@@ -945,8 +945,10 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
                 <span class="hint">桌面版仅允许本机回环地址；例如 :7864 或 127.0.0.1:7864，保存后重启应用生效</span></label>
               <label class="fld"><span class="lb">API 密钥</span>
                 <div class="inline"><input name="api_key" id="cfgKey" type="password" placeholder="留空 = 不修改">
-                <button type="button" class="xs" id="btnEye">显示</button></div>
-                <span class="hint">供 OpenAI 兼容客户端使用；修改后立即生效</span></label>
+                <button type="button" class="xs" id="btnEye">显示</button>
+                <button type="button" class="xs" id="btnCfgGenerate">生成密钥</button>
+                <button type="button" class="xs" id="btnCfgCopy">复制</button></div>
+                <span class="hint">真实 API 密钥，供 OpenAI 兼容客户端使用；输入自己的密钥，或点击“生成密钥”。保存后立即生效</span></label>
             </div>
             <label class="fld"><span class="lb">单账号明细默认展示条数</span>
               <input name="package_detail_limit" type="number" min="1" placeholder="5">
@@ -1341,7 +1343,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
   <div class="dlg" style="width:420px">
     <header>
       <h3>需要访问密钥</h3>
-      <div class="hint">浏览器访问时需要 config.json 中的 API 密钥；桌面应用会安全地自动进入。</div>
+      <div class="hint">浏览器访问时需要 config.json 中的 API 密钥。桌面窗口双击后可直接进入，并在“配置”页设置密钥。</div>
     </header>
     <div class="body">
       <form style="display:contents" onsubmit="return false"><input type="password" id="keyInput" placeholder="api_key" autocomplete="off"></form>

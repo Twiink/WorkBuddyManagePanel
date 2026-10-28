@@ -1205,23 +1205,37 @@ func TestAPIKeyAuth(t *testing.T) {
 	}
 }
 
-func TestDesktopPanelTokenCannotAuthenticateV1(t *testing.T) {
-	live := livecfg.New(livecfg.Snapshot{
-		APIKey:   "real-api-key",
-		PanelKey: "desktop-panel-token",
-	})
+func TestDesktopWebviewUACannotAuthenticateV1(t *testing.T) {
+	live := livecfg.New(livecfg.Snapshot{APIKey: "real-api-key"})
 	h := NewHandler(Config{
-		Pool:     testPoolWith(&auth.Auth{UID: "u1", AccessToken: "at", ExpiresAt: 9999999999}),
-		Upstream: upstream.New(),
-		APIKey:   "stale-api-key",
-		Live:     live,
+		Pool:          testPoolWith(&auth.Auth{UID: "u1", AccessToken: "at", ExpiresAt: 9999999999}),
+		Upstream:      upstream.New(),
+		APIKey:        "stale-api-key",
+		RequireAPIKey: true,
+		Live:          live,
 	})
 	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 	req.Header.Set("Authorization", "Bearer desktop-panel-token")
+	req.Header.Set("User-Agent", "Mozilla/5.0 wails.io")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("desktop panel token authenticated /v1/*: status=%d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("desktop marker authenticated /v1/*: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDesktopModeRequiresConfiguredAPIKey(t *testing.T) {
+	h := NewHandler(Config{
+		Pool:          testPoolWith(&auth.Auth{UID: "u1", AccessToken: "at", ExpiresAt: 9999999999}),
+		Upstream:      upstream.New(),
+		RequireAPIKey: true,
+	})
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 wails.io")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("empty desktop API key exposed /v1/*: status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

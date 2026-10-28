@@ -17,7 +17,6 @@ import (
 // Snapshot 一次读取的不可变配置视图。
 type Snapshot struct {
 	APIKey               string              // 网关/面板共同鉴权密钥；空 = 不鉴权
-	PanelKey             string              // 仅桌面窗口使用的进程内面板令牌；空 = 不启用
 	SoftCooldown         time.Duration       // 429 软冷却基数（<=0 时调用方回退内置默认）
 	SanitizeFingerprints bool                // 出站请求体指纹脱敏
 	RecordClientInfo     bool                // 请求日志是否记录调用来源（客户端 IP / UA）

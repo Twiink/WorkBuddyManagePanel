@@ -1,13 +1,6 @@
 'use strict';
 /* ── 状态 ─────────────────────────────────────────────────────────── */
 const LS_KEY = 'wb2api.key', LS_THEME = 'wb2api.theme';
-/* 桌面主进程通过 URL fragment 传入一次性随机令牌。fragment 不进入 HTTP
-   Referer；写入本机存储后立刻从地址栏删除，刷新窗口仍能进入。 */
-const desktopKey = new URLSearchParams(location.hash.slice(1)).get('desktop');
-if (desktopKey) {
-  localStorage.setItem(LS_KEY, desktopKey);
-  history.replaceState(null, '', location.pathname + location.search + '#accounts');
-}
 /* 账号备注与「积分到期提醒」折叠的本机键（同上：模块级声明放顶部，避开 TDZ）。 */
 const LS_REMARKS = 'wb2api.remarks.v1', LS_EXP_FOLD = 'wb2api.expfold.v1';
 let remarksCache = null;
@@ -1255,6 +1248,34 @@ $('btnEye').onclick = () => {
   const show = el.type === 'password';
   el.type = show ? 'text' : 'password';
   $('btnEye').textContent = show ? '隐藏' : '显示';
+};
+function generateAPIKey() {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return 'sk-' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+$('btnCfgGenerate').onclick = () => {
+  const el = $('cfgKey');
+  el.value = generateAPIKey();
+  el.type = 'text';
+  $('btnEye').textContent = '隐藏';
+  toast('已生成新密钥；点击“保存配置”后生效', 'ok');
+};
+$('btnCfgCopy').onclick = async () => {
+  const el = $('cfgKey');
+  const key = el.value.trim();
+  if (!key) { toast('当前没有可复制的 API 密钥', 'err'); return; }
+  try {
+    await navigator.clipboard.writeText(key);
+    toast('API 密钥已复制', 'ok');
+  } catch (e) {
+    el.focus();
+    el.select();
+    try { document.execCommand('copy'); toast('API 密钥已复制', 'ok'); }
+    catch (_) { toast('复制失败，请手动选择并复制', 'err'); }
+  }
 };
 $('btnCfgReload').onclick = loadConfig;
 $('cfgForm').onsubmit = async ev => {
