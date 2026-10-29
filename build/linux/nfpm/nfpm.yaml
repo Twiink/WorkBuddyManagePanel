@@ -6,7 +6,7 @@
 name: "workbuddy-manage-panel"
 arch: ${GOARCH}
 platform: "linux"
-version: "1.17.0"
+version: "1.17.1"
 section: "default"
 priority: "extra"
 maintainer: "Twiink <Twiink@users.noreply.github.com>"
@@ -21,8 +21,8 @@ contents:
     dst: "/usr/local/bin/workbuddy-manage-panel"
   - src: "./build/linux/package-icons/workbuddy-manage-panel.png"
     dst: "/usr/share/icons/hicolor/128x128/apps/workbuddy-manage-panel.png"
-  - src: "./build/linux/workbuddy-manage-panel.desktop"
-    dst: "/usr/share/applications/workbuddy-manage-panel.desktop"
+  - src: "./build/linux/io.github.twiink.workbuddy-manage-panel.desktop"
+    dst: "/usr/share/applications/io.github.twiink.workbuddy-manage-panel.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

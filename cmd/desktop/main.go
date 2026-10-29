@@ -77,7 +77,7 @@ func run() error {
 		},
 		Linux: application.LinuxOptions{
 			DisableQuitOnLastWindowClosed: true,
-			ProgramName:                   "workbuddy-manage-panel",
+			ProgramName:                   buildinfo.BundleID,
 			ApplicationID:                 buildinfo.BundleID,
 		},
 		SingleInstance: &application.SingleInstanceOptions{

@@ -8,4 +8,4 @@ Terminal=false
 Type=Application
 Icon=workbuddy-manage-panel
 Categories=Utility;
-StartupWMClass=workbuddy-manage-panel
+StartupWMClass=io.github.twiink.workbuddy-manage-panel

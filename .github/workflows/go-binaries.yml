@@ -494,8 +494,9 @@ jobs:
           body: |
             ## WorkBuddy Manage Panel ${{ inputs.release_tag || github.ref_name }}
 
-            ### v1.17.0
+            ### ${{ inputs.release_tag || github.ref_name }}
 
+            - Linux 桌面入口：统一 Wayland `app_id`、X11 `WM_CLASS` 与 `.desktop` 文件身份，修复 GNOME dock 显示通用图标和回退名称的问题。
             - 账号级每日限额：新增每日 token、积分和单模型 token 上限，支持热更新；因限额无可用账号时返回 `429 daily_quota_exceeded`，面板账号页显示今日用量。
             - 账号健康概览：新增「健康」页，展示近 24 小时成功率、错误类型、最近错误和积分查询结果，并支持只看异常账号。
             - 动态价格估值：后台同步 OpenRouter 模型价格，支持手动映射、自动匹配、渠道后缀、模型加价和美元/人民币汇率校准；模型页可搜索、筛选和编辑配置。

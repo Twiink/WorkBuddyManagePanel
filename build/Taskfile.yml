@@ -30,9 +30,9 @@ tasks:
     sources:
       - build/linux/desktop
     generates:
-      - build/linux/workbuddy-manage-panel.desktop
+      - build/linux/io.github.twiink.workbuddy-manage-panel.desktop
     cmds:
-      - cp build/linux/desktop build/linux/workbuddy-manage-panel.desktop
+      - cp build/linux/desktop build/linux/io.github.twiink.workbuddy-manage-panel.desktop
 
   build:server:
     summary: Build the headless server binary
