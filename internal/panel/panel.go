@@ -29,6 +29,7 @@ import (
 	"github.com/linguo2625469/workbuddy2api-panel/internal/health"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/httpauth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/logstore"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/reqlog"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/scheduler"
@@ -74,6 +75,8 @@ type Config struct {
 	Health *health.Tracker
 	// Prices OpenRouter 价格刷新与校准（nil = 价格接口返回 501）。
 	Prices *usage.PriceRefresher
+	// LogStore SQLite 请求记录 / 运行日志存储（nil 或未开启 = 检索接口返回 503）。
+	LogStore *logstore.Store
 
 	// ProbeFile 模型输出上限探测结果文件（scripts/probe_max_tokens.py --panel-out
 	// 写入；空或文件不存在 = model_probes 端点返回空集，面板不显示任何实测标注）。
@@ -175,6 +178,11 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("GET /panel/api/pricing", p.withAuth(p.pricingView))
 	p.mux.HandleFunc("POST /panel/api/pricing/refresh", p.withAuth(p.pricingRefresh))
 	p.mux.HandleFunc("POST /panel/api/pricing/settings", p.withAuth(p.pricingSettings))
+	p.mux.HandleFunc("GET /panel/api/store/stats", p.withAuth(p.storeStats))
+	p.mux.HandleFunc("GET /panel/api/store/requests", p.withAuth(p.storeRequests))
+	p.mux.HandleFunc("GET /panel/api/store/logs", p.withAuth(p.storeLogs))
+	p.mux.HandleFunc("GET /panel/api/store/export", p.withAuth(p.storeExport))
+	p.mux.HandleFunc("POST /panel/api/store/clear", p.withAuth(p.storeClear))
 	p.mux.HandleFunc("GET /panel/api/models", p.withAuth(p.models))
 	p.mux.HandleFunc("POST /panel/api/login/start", p.withAuth(p.loginStart))
 	p.mux.HandleFunc("GET /panel/api/login/poll", p.withAuth(p.loginPoll))

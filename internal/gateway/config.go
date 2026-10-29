@@ -46,6 +46,12 @@ type Config struct {
 		// 关掉。关闭后 Event.ClientIP/UserAgent 保持为空，归档里不出现该字段。
 		// 热生效（经 livecfg 快照），无需重启。
 		RequestClientInfo bool `json:"request_client_info"`
+		// SQLiteEnabled 把请求记录与运行日志同时写入 data/logs.sqlite3，供面板检索
+		// 与导出（缺省关）。下面三个上限各自独立，0 = 该维度不限。均热生效。
+		SQLiteEnabled       bool `json:"sqlite_enabled"`
+		SQLiteRetentionDays int  `json:"sqlite_retention_days"`
+		SQLiteMaxRows       int  `json:"sqlite_max_rows"`
+		SQLiteMaxMB         int  `json:"sqlite_max_mb"`
 	} `json:"logging"`
 
 	Server struct {
@@ -301,6 +307,8 @@ func Default() *Config {
 	// 缺省 true 靠显式赋值实现（同 Schedule 开关）：JSON 里键缺席时字段保留此值，
 	// 只有显式 false 才关闭来源记录。
 	c.Logging.RequestClientInfo = true
+	c.Logging.SQLiteRetentionDays = 30
+	c.Logging.SQLiteMaxMB = 500
 	c.Schedule.CheckinHours = []int{9, 21}
 	c.Schedule.TravelHours = []int{9, 21}
 	c.Schedule.ActivityHours = []int{10}
@@ -559,6 +567,9 @@ func (c *Config) normalize() error {
 	}
 	if c.Logging.RequestArchiveMaxMB <= 0 {
 		c.Logging.RequestArchiveMaxMB = 100
+	}
+	if c.Logging.SQLiteRetentionDays < 0 || c.Logging.SQLiteMaxRows < 0 || c.Logging.SQLiteMaxMB < 0 {
+		return fmt.Errorf("logging.sqlite_*: 上限不能为负数（0 = 不限）")
 	}
 	// 入站读取上限（issue #100）：空值回落默认 300s；"0" 合法（不限制）；
 	// 负值无语义，fail fast（静默钳 0 会把保护悄悄关掉）。

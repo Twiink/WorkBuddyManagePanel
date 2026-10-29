@@ -26,6 +26,7 @@ import (
 	"github.com/linguo2625469/workbuddy2api-panel/internal/credithist"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/health"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/logstore"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/panel"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/redisstore"
@@ -70,6 +71,7 @@ type Instance struct {
 	requestLog *reqlog.Recorder
 	health     *health.Tracker
 	prices     *usage.PriceRefresher
+	logStore   *logstore.Store
 	session    *session.Router
 }
 
@@ -115,6 +117,9 @@ func (i *Instance) shutdown() {
 	}
 	if i.requestLog != nil {
 		i.requestLog.Close()
+	}
+	if i.logStore != nil {
+		i.logStore.Close()
 	}
 	if i.prices != nil {
 		i.prices.Stop()
@@ -502,6 +507,17 @@ func finishStart(
 		log.Printf("[reqlog] 请求指标已启用；JSONL 归档已关闭")
 	}
 
+	// SQLite 存储：请求记录 + 运行日志，供面板检索与导出（缺省关，面板开关热生效）。
+	// 写入是非阻塞投递，队列满即丢弃计数；与 state 同目录。
+	logStore := logstore.New(StateSibling(cfg.StateFile, "logs.sqlite3"))
+	if err := logStore.Configure(sqliteSettingsOf(cfg)); err != nil {
+		log.Printf("[logstore] SQLite 存储打开失败（检索/导出不可用）: %v", err)
+	} else if logStore.Enabled() {
+		log.Printf("[logstore] SQLite 存储已启用: %s", logStore.Path())
+	}
+	i.logStore = logStore
+	requestLog.SetSink(logStore.AppendRequest)
+
 	// 积分历史：把每次真实查到的余额与上一次比对，变动即留痕（新账号首次只建
 	// 基线）。挂载在余额查询路径上（upstream 的余额观察者），签到 / 活跃上报 /
 	// 旅行 / 保活 / 面板手动刷新全覆盖——上游只在少数渠道落金额日志，比对余额
@@ -540,10 +556,20 @@ func finishStart(
 			return loadConfig(cfgPath, opts.DataDir)
 		},
 		SaveConfig: func(raw []byte) ([]string, error) {
-			return saveConfig(raw, cfgPath, live, p, up, sch, opts)
+			restart, err := saveConfig(raw, cfgPath, live, p, up, sch, opts)
+			if err == nil {
+				// SQLite 开关与上限热生效：落盘成功后按新配置重新配置存储。
+				if nc, lerr := loadConfig(cfgPath, opts.DataDir); lerr == nil {
+					if cerr := logStore.Configure(sqliteSettingsOf(nc)); cerr != nil {
+						log.Printf("[logstore] 应用 SQLite 设置失败: %v", cerr)
+					}
+				}
+			}
+			return restart, err
 		},
 		// 积分历史账本（只读展示；写入由上面的余额观察者完成）。
 		CreditHistory: creditHist,
+		LogStore:      logStore,
 	})
 	if requireLoopback {
 		i.DesktopHandler = pn.DesktopHandler()
@@ -554,6 +580,7 @@ func finishStart(
 	// 清扫回调返回统计汇总（测试/日志可观测），调度器 hook 只要求 func()：
 	// 这里收掉返回值——汇总已由 panel 侧内部日志输出。
 	sch.SetTaskSweepHook(func() { pn.RunTaskSweepOnce() })
+	pn.Logs().SetSink(func(e panel.LogEntry) { logStore.AppendLog(e.TS, e.Ch, e.Text) })
 	log.SetOutput(io.MultiWriter(os.Stderr, pn.Logs()))
 	server.SetChatLogOutput(io.MultiWriter(os.Stdout, pn.Logs()))
 
@@ -836,6 +863,16 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	sch.SetIncludeDisabledInTasks(newCfg.Schedule.IncludeDisabledInTasks)
 
 	return restartRequiredFields(newCfg), nil
+}
+
+// sqliteSettingsOf 从配置取 SQLite 存储设置。
+func sqliteSettingsOf(c *Config) logstore.Settings {
+	return logstore.Settings{
+		Enabled:       c.Logging.SQLiteEnabled,
+		RetentionDays: c.Logging.SQLiteRetentionDays,
+		MaxRows:       c.Logging.SQLiteMaxRows,
+		MaxMB:         c.Logging.SQLiteMaxMB,
+	}
 }
 
 // applyCNChatBase 把 config cn.chat_base 装配进上游 client；空则保留内置默认，

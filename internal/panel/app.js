@@ -376,7 +376,7 @@ let lastPackagesAt = 0;
 let expFetching = false;                       // 到期卡片在途标记（防重复打上游）
 const EXP_FRESH_MS = 2 * 60 * 1000;            // 缓存新鲜窗口：2 分钟内复用
 
-const TITLES = { accounts: '账号池', health: '健康', usage: '用量', packages: '积分构成', taskscenter: '任务中心', models: '模型与档位', config: '配置', logs: '运行日志' };
+const TITLES = { accounts: '账号池', health: '健康', store: '数据检索', usage: '用量', packages: '积分构成', taskscenter: '任务中心', models: '模型与档位', config: '配置', logs: '运行日志' };
 function go(v) {
   view = v;
   document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== 'view-' + v);
@@ -388,6 +388,7 @@ function go(v) {
   if (v === 'logs') loadLogs();
   if (v === 'usage') { loadUsage(); loadRequests(); }
   if (v === 'health') loadHealth();
+  if (v === 'store') loadStore();
   if (v === 'packages') { loadPackages(); loadCreditHistory(); }
   // 到期提醒卡片：默认可见，进页面即用 overview 快照渲染（零上游请求，随首页统计
   // 每轮刷新）。不再「打开账号池就打上游」——逐账号实时查在账号多时会卡死面板。
@@ -1748,6 +1749,7 @@ function refreshVisible() {
   else if (view === 'logs') loadLogs();
   else if (view === 'usage') loadRequests();
   else if (view === 'health') loadHealth();
+  else if (view === 'store') loadStoreStats();
   else if (view === 'taskscenter') reattachQueueView();
 }
 function start() {
@@ -1846,6 +1848,211 @@ function renderPricing(d) {
   }
   renderPricingTable();
 }
+/* ── 数据检索（SQLite 存储的请求记录 / 运行日志）──────────────────────────
+   检索走服务端（LIKE + 时间索引），翻页用 offset；导出用当前筛选条件，
+   经 fetch 取 blob 再下载——API Key 在 Authorization 头里，裸链接带不上。
+   5 秒轮询只刷新顶部统计，不重拉表格（免得翻到第 3 页时被拉回第 1 页）。 */
+const st = { kind: 'requests', offset: 0, total: 0, stats: null, qTimer: null };
+const ST_OUTCOME = { success: ['ok', '成功'], http_error: ['bad', 'HTTP 错误'], stream_error: ['bad', '流错误'], interrupted: ['warn', '中断'] };
+const ST_CH = { chat: '对话', task: '任务', sys: '系统' };
+
+function stDateText(iso) {
+  if (!iso || String(iso).startsWith('0001-')) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+// stMark 转义后高亮搜索词（大小写不敏感）。先切分原文再逐段转义，避免把 &amp; 之类拆坏。
+function stMark(text, q) {
+  text = String(text == null ? '' : text);
+  const kws = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!kws.length || !text) return esc(text);
+  const lower = text.toLowerCase();
+  const hit = new Array(text.length).fill(false);
+  for (const kw of kws) {
+    for (let i = lower.indexOf(kw); i >= 0; i = lower.indexOf(kw, i + kw.length)) {
+      for (let j = i; j < i + kw.length; j++) hit[j] = true;
+    }
+  }
+  let out = '', i = 0;
+  while (i < text.length) {
+    let j = i;
+    while (j < text.length && hit[j] === hit[i]) j++;
+    out += hit[i] ? '<mark>' + esc(text.slice(i, j)) + '</mark>' : esc(text.slice(i, j));
+    i = j;
+  }
+  return out;
+}
+function stQuery() {
+  const q = trangeQuery('stRange', false);
+  const kw = $('stQ').value.trim();
+  if (kw) q.set('q', kw);
+  if (st.kind === 'requests') {
+    if ($('stOutcome').value) q.set('outcome', $('stOutcome').value);
+  } else {
+    if ($('stCh').value) q.set('ch', $('stCh').value);
+    if ($('stLevel').value) q.set('level', $('stLevel').value);
+  }
+  return q;
+}
+function renderStoreStats(d) {
+  st.stats = d || {};
+  const on = !!st.stats.enabled;
+  $('stState').textContent = on ? '已开启' : '未开启';
+  $('stState').style.color = on ? 'var(--ok)' : 'var(--ink-3)';
+  $('stReq').textContent = on ? fmtTok(d.requests) : '—';
+  $('stLog').textContent = on ? fmtTok(d.logs) : '—';
+  $('stSize').textContent = d.bytes ? fmtBytes(d.bytes) : '—';
+  $('stSizeK').textContent = d.max_mb ? '文件大小 / 上限 ' + d.max_mb + ' MiB' : '文件大小';
+  const oldest = [d.oldest_request, d.oldest_log].filter(x => x && !String(x).startsWith('0001-')).sort()[0];
+  $('stOldest').textContent = on && oldest ? ago(oldest) : '—';
+  $('stOldest').title = oldest ? stDateText(oldest) : '';
+  if (d.path) $('stPath').textContent = d.path;
+  $('stOffBox').hidden = on;
+  $('stBox').hidden = !on;
+  const caps = [d.retention_days ? '保留 ' + d.retention_days + ' 天' : '不限天数',
+    d.max_rows ? '每表 ' + fmtTok(d.max_rows) + ' 行' : '不限行数',
+    d.max_mb ? '上限 ' + d.max_mb + ' MiB' : '不限大小'];
+  $('stCaps').textContent = (on ? '' : '未开启 · ') + caps.join(' · ') +
+    (d.dropped ? ' · 队列满丢弃 ' + d.dropped + ' 条' : '') + (d.last_error ? ' · 最近错误：' + d.last_error : '');
+  const f = document.activeElement && document.activeElement.closest && document.activeElement.closest('#stForm');
+  if (!f) {
+    $('stEnabled').checked = on;
+    $('stDays').value = d.retention_days || 0;
+    $('stRows').value = d.max_rows || 0;
+    $('stMB').value = d.max_mb || 0;
+  }
+}
+async function loadStoreStats() {
+  try { renderStoreStats(await api('store/stats')); } catch (e) { /* 概览已提示 */ }
+}
+async function loadStore() {
+  await loadStoreStats();
+  if (st.stats && st.stats.enabled) loadStoreRows();
+}
+function stHeadHtml() {
+  return st.kind === 'requests'
+    ? '<tr><th>时间</th><th>结果</th><th>模型</th><th>账号</th><th>来源 IP</th><th>客户端</th><th class="num">耗时</th><th class="num">Token</th><th class="num">积分</th><th>请求 ID</th></tr>'
+    : '<tr><th style="width:150px">时间</th><th style="width:56px">频道</th><th style="width:48px">级别</th><th>内容</th></tr>';
+}
+function stRequestRow(e, q) {
+  const [cls, label] = ST_OUTCOME[e.outcome] || ['mute', e.outcome || '—'];
+  const tok = Number(e.total_tokens || 0) || (Number(e.prompt_tokens || 0) + Number(e.completion_tokens || 0));
+  const cell = v => v ? '<span class="clip" title="' + esc(v) + '">' + stMark(v, q) + '</span>' : '<span class="muted">—</span>';
+  return '<tr>' +
+    '<td class="mono">' + esc(stDateText(e.time)) + '</td>' +
+    '<td><span class="tag ' + cls + '">' + esc(String(e.status || '—') + ' ' + label) + '</span></td>' +
+    '<td>' + cell(e.model) + '</td><td>' + cell(e.account) + '</td>' +
+    '<td class="mono">' + cell(e.client_ip) + '</td><td>' + cell(e.user_agent) + '</td>' +
+    '<td class="num">' + fmtMs(e.duration_ms) + '</td>' +
+    '<td class="num">' + (tok ? fmtTok(tok) : '—') + '</td>' +
+    '<td class="num">' + (e.credit_known ? trimFixed(Number(e.credit).toFixed(2)) : '<span class="muted">—</span>') + '</td>' +
+    '<td class="mono">' + cell(e.request_id) + '</td></tr>';
+}
+function stLogRow(l, q) {
+  return '<tr class="' + esc(l.level || '') + '">' +
+    '<td class="mono">' + esc(stDateText(l.ts)) + '</td>' +
+    '<td>' + esc(ST_CH[l.ch] || l.ch || '—') + '</td>' +
+    '<td>' + (l.level === 'e' ? '<span class="tag bad">错误</span>' : l.level === 'w' ? '<span class="tag warn">警告</span>' : '') + '</td>' +
+    '<td class="tx">' + stMark(l.text, q) + '</td></tr>';
+}
+async function loadStoreRows() {
+  const q = stQuery();
+  const limit = Number($('stLimit').value) || 100;
+  q.set('limit', limit);
+  q.set('offset', st.offset);
+  const kw = $('stQ').value.trim();
+  $('stHead').innerHTML = stHeadHtml();
+  const cols = st.kind === 'requests' ? 10 : 4;
+  try {
+    const d = await api('store/' + st.kind + '?' + q.toString());
+    const rows = d.entries || [];
+    st.total = Number(d.total || 0);
+    $('stBody').innerHTML = rows.length
+      ? rows.map(r => st.kind === 'requests' ? stRequestRow(r, kw) : stLogRow(r, kw)).join('')
+      : '<tr><td colspan="' + cols + '" class="empty">没有符合条件的记录</td></tr>';
+    $('stCount').textContent = '命中 ' + st.total.toLocaleString('zh-CN') + ' 条';
+    const pages = Math.max(1, Math.ceil(st.total / limit));
+    $('stPage').textContent = '第 ' + (Math.floor(st.offset / limit) + 1) + ' / ' + pages + ' 页';
+    $('btnStPrev').disabled = st.offset <= 0;
+    $('btnStNext').disabled = st.offset + limit >= st.total;
+  } catch (e) {
+    $('stBody').innerHTML = '<tr><td colspan="' + cols + '" class="empty">' + esc('检索失败：' + e.message) + '</td></tr>';
+    $('stCount').textContent = '—';
+  }
+}
+function stReset() { st.offset = 0; loadStoreRows(); }
+$('stTabs').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-kind]');
+  if (!b || b.dataset.kind === st.kind) return;
+  st.kind = b.dataset.kind;
+  $('stTabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  const req = st.kind === 'requests';
+  $('stOutcome').hidden = !req; $('stCh').hidden = req; $('stLevel').hidden = req;
+  $('stQ').placeholder = req ? '搜索模型 / 账号 / IP / UA / 请求 ID，空格分隔多个词' : '搜索日志内容，空格分隔多个词';
+  stReset();
+});
+$('stQ').oninput = () => { clearTimeout(st.qTimer); st.qTimer = setTimeout(stReset, 300); };
+['stOutcome', 'stCh', 'stLevel', 'stLimit'].forEach(id => { $(id).onchange = stReset; });
+trangeBind('stRange', stReset, '0');
+$('btnStPrev').onclick = () => { st.offset = Math.max(0, st.offset - (Number($('stLimit').value) || 100)); loadStoreRows(); };
+$('btnStNext').onclick = () => { st.offset += Number($('stLimit').value) || 100; loadStoreRows(); };
+
+async function stExport(format) {
+  const q = stQuery();
+  q.set('kind', st.kind);
+  q.set('format', format);
+  const btn = format === 'csv' ? $('btnStCsv') : $('btnStJsonl');
+  btn.disabled = true;
+  try {
+    const h = {};
+    const k = localStorage.getItem(LS_KEY);
+    if (k) h['Authorization'] = 'Bearer ' + k;
+    const r = await fetch('/panel/api/store/export?' + q.toString(), { headers: h });
+    if (r.status === 401) { openKey(); throw new Error('密钥无效或未填写'); }
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || ('HTTP ' + r.status)); }
+    const blob = await r.blob();
+    const m = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = m ? m[1] : 'export.' + format;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast('已导出 ' + (st.total > 200000 ? '最新 200,000' : st.total.toLocaleString('zh-CN')) + ' 条', 'ok');
+  } catch (e) {
+    toast('导出失败：' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+$('btnStCsv').onclick = () => stExport('csv');
+$('btnStJsonl').onclick = () => stExport('jsonl');
+
+async function stSaveSettings(enabled) {
+  const num = id => Math.max(0, Math.floor(Number($(id).value) || 0));
+  const body = { logging: { sqlite_enabled: enabled, sqlite_retention_days: num('stDays'), sqlite_max_rows: num('stRows'), sqlite_max_mb: num('stMB') } };
+  try {
+    await api('config', { method: 'POST', body: JSON.stringify(body) });
+    toast(enabled ? 'SQLite 存储设置已保存' : 'SQLite 存储已关闭（文件保留）', 'ok');
+    if (document.activeElement) document.activeElement.blur();
+    await loadStore();
+  } catch (e) { toast('保存失败：' + e.message, 'err'); }
+}
+$('btnStSave').onclick = () => stSaveSettings($('stEnabled').checked);
+$('btnStEnable').onclick = () => stSaveSettings(true);
+$('stSettings').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-clear]');
+  if (!b) return;
+  const label = { requests: '请求记录', logs: '运行日志', all: '全部记录' }[b.dataset.clear];
+  if (!confirm('确定清空 SQLite 中的' + label + '？此操作不可撤销。')) return;
+  try {
+    renderStoreStats(await api('store/clear', { method: 'POST', body: JSON.stringify({ kind: b.dataset.clear }) }));
+    toast('已清空' + label, 'ok');
+    stReset();
+  } catch (e) { toast('清空失败：' + e.message, 'err'); }
+});
+
 async function loadPricing() {
   try { renderPricing(await api('pricing')); }
   catch (e) { $('prStats').innerHTML = ''; $('prBody').innerHTML = '<tr><td colspan="7"><div class="empty">读取价格失败：' + esc(e.message) + '</div></td></tr>'; }

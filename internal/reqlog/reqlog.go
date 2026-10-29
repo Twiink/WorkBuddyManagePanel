@@ -134,6 +134,19 @@ type Recorder struct {
 	durationSum int64
 	recent      []Event
 	archive     *archiveWriter
+	sink        atomic.Pointer[func(Event)]
+}
+
+// SetSink 登记额外的落盘目标（SQLite 存储）。sink 必须不阻塞；nil 取消。
+func (r *Recorder) SetSink(fn func(Event)) {
+	if r == nil {
+		return
+	}
+	if fn == nil {
+		r.sink.Store(nil)
+		return
+	}
+	r.sink.Store(&fn)
 }
 
 // New 创建记录器；Dir 为空或 Enabled=false 时只启用内存指标。
@@ -193,6 +206,9 @@ func (r *Recorder) Record(e Event) {
 	r.mu.Unlock()
 	if r.archive != nil {
 		r.archive.enqueue(e)
+	}
+	if fn := r.sink.Load(); fn != nil {
+		(*fn)(e)
 	}
 }
 

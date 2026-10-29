@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WorkBuddy Manage Panel · 控制台</title>
-<link rel="icon" href="icons/favicon.ico" sizes="16x16 32x32 48x48">
-<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/favicon.ico?v=384e86bd" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png?v=384e86bd">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=384e86bd">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=384e86bd">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=384e86bd">
 <style>
 /* ── 设计令牌：行情版（报价板语言）────────────────────────────────────
    深靛导航轨 + 冷新闻纸底（浅色）/ 午夜底（深色）。面板不再是浮起的圆角卡片，
@@ -76,7 +76,7 @@ code { font: .92em var(--mono); background: var(--surface-2); border: 1px solid 
 }
 .brand .name::before {
   content: ""; width: 24px; height: 24px; flex: none;
-  background: url("icons/icon-48.png") center / contain no-repeat;
+  background: url("icons/icon-48.png?v=384e86bd") center / contain no-repeat;
 }
 .brand .sub { color: var(--rail-ink-2); font-size: 11.5px; font-weight: 500; letter-spacing: .02em; margin-top: 2px; padding-left: 33px; }
 .nav ul { list-style: none; padding: 12px 10px; flex: 1; }
@@ -409,6 +409,32 @@ label.fld > .hint { display: block; font-size: 11.5px; color: var(--ink-3); marg
 .pr-table input.pr-mk.invalid { border-color: var(--bad); }
 .pr-table tr.cal td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
 .pr-foot { padding: 10px 18px; font-size: 11.5px; color: var(--ink-3); border-top: 1px solid var(--line-soft); }
+
+/* ── 数据检索（SQLite） ─────────────────────────────────────────────── */
+.st-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.st-stats .v { font-size: 22px; }
+.st-off { padding: 26px 22px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.st-off .txt { flex: 1; min-width: 260px; color: var(--ink-2); font-size: 13px; line-height: 1.6; }
+.st-off .txt b { color: var(--ink); font-size: 14.5px; display: block; margin-bottom: 4px; }
+.st-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
+.st-tabs button { border: 0; background: transparent; padding: 4px 12px; font-size: 12.5px; color: var(--ink-2); }
+.st-tabs button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+.st-scroll { max-height: 560px; overflow: auto; }
+.st-scroll thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; box-shadow: inset 0 -1px 0 var(--line); }
+.st-table td { font-size: 12.5px; }
+.st-table td.num, .st-table td.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-table td.tx { font-family: var(--mono); white-space: pre-wrap; word-break: break-word; }
+.st-table tr.e td.tx { color: var(--bad); }
+.st-table tr.w td.tx { color: var(--warn); }
+.st-table .clip { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.st-table mark { background: var(--warn-soft); color: inherit; border-radius: 2px; padding: 0 1px; }
+.st-pager { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-top: 1px solid var(--line-soft); font-size: 12.5px; color: var(--ink-3); }
+.st-pager .grow { flex: 1; }
+.st-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 18px; padding: 16px 18px 6px; }
+.st-form .switch { grid-column: 1 / -1; }
+@media (max-width: 760px) { .st-form, .st-stats { grid-template-columns: 1fr 1fr; } }
+.st-danger { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 18px 16px; border-top: 1px solid var(--line-soft); margin-top: 10px; font-size: 12.5px; color: var(--ink-3); }
+.st-danger button[data-clear] { color: var(--bad); }
 
 /* ── 健康页 ─────────────────────────────────────────────────────────── */
 .hl-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
@@ -1049,6 +1075,9 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
       <li><a href="#config" data-view="config">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.9M8 12.5v1.9M1.6 8h1.9M12.5 8h1.9M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3"/></svg>
         配置</a></li>
+      <li><a href="#store" data-view="store">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="8" cy="3.8" rx="5.2" ry="1.9"/><path d="M2.8 3.8v8.4c0 1 2.3 1.9 5.2 1.9s5.2-.9 5.2-1.9V3.8M2.8 8c0 1 2.3 1.9 5.2 1.9s5.2-.9 5.2-1.9"/></svg>
+        数据检索</a></li>
       <li><a href="#logs" data-view="logs">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h7"/></svg>
         运行日志</a></li>
@@ -1702,7 +1731,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
               <input type="checkbox" name="request_client_info"></div>
             <div class="hint">开启后，「运行日志」页的请求记录会显示每次调用来自哪个 IP、用什么客户端；
               关闭则归档与面板都不再出现来源信息。改动即时生效，无需重启。</div>
-            <div class="hint" style="margin-top:8px">归档开关、保留天数与容量上限（<code>logging.request_archive_*</code>）需手工编辑配置文件。</div>
+            <div class="hint" style="margin-top:8px">归档开关、保留天数与容量上限（<code>logging.request_archive_*</code>）需手工编辑配置文件。SQLite 存储在「数据检索」页设置。</div>
           </div>
         </div>
 
@@ -1755,6 +1784,99 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
             <tbody id="hlBody"></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-store" hidden>
+      <div class="stats st-stats">
+        <div class="stat"><div class="v" id="stState">-</div><div class="k">SQLite 存储</div></div>
+        <div class="stat"><div class="v" id="stReq">-</div><div class="k">请求记录</div></div>
+        <div class="stat"><div class="v" id="stLog">-</div><div class="k">运行日志</div></div>
+        <div class="stat"><div class="v" id="stSize">-</div><div class="k" id="stSizeK">文件大小</div></div>
+        <div class="stat"><div class="v" id="stOldest">-</div><div class="k">最早记录</div></div>
+      </div>
+
+      <div class="box" id="stOffBox" hidden>
+        <div class="st-off">
+          <div class="txt"><b>SQLite 存储未开启</b>开启后，每条请求记录（脱敏元数据）和运行日志都会写入
+            <code id="stPath">data/logs.sqlite3</code>，重启后仍可检索，并能按筛选条件导出 CSV / JSONL。
+            写入在后台批量进行，不影响请求速度。</div>
+          <button class="primary" id="btnStEnable" type="button">开启 SQLite 存储</button>
+        </div>
+      </div>
+
+      <div class="box" id="stBox">
+        <header>
+          <h3>检索</h3>
+          <span class="st-tabs" id="stTabs" role="tablist">
+            <button type="button" class="on" data-kind="requests" role="tab">请求记录</button>
+            <button type="button" data-kind="logs" role="tab">运行日志</button>
+          </span>
+          <span class="grow"></span>
+          <button class="xs" id="btnStCsv" type="button">导出 CSV</button>
+          <button class="xs" id="btnStJsonl" type="button">导出 JSONL</button>
+        </header>
+        <div class="fbar">
+          <input id="stQ" type="search" placeholder="关键词，空格分隔多个词（全部命中）" aria-label="搜索">
+          <select id="stOutcome" aria-label="按结果筛选">
+            <option value="">全部结果</option><option value="success">成功</option>
+            <option value="http_error">HTTP 错误</option><option value="stream_error">流错误</option>
+            <option value="interrupted">中断</option>
+          </select>
+          <select id="stCh" aria-label="按频道筛选" hidden>
+            <option value="">全部频道</option><option value="chat">对话</option>
+            <option value="task">任务</option><option value="sys">系统</option>
+          </select>
+          <select id="stLevel" aria-label="按级别筛选" hidden>
+            <option value="">全部级别</option><option value="e">错误</option><option value="w">警告</option>
+          </select>
+          <span class="trange" id="stRange"></span>
+          <span class="grow"></span>
+          <span class="note" id="stCount">—</span>
+        </div>
+        <div class="tbl-wrap st-scroll">
+          <table class="acc st-table">
+            <thead id="stHead"></thead>
+            <tbody id="stBody"></tbody>
+          </table>
+        </div>
+        <div class="st-pager">
+          <select id="stLimit" aria-label="每页条数" style="width:auto">
+            <option value="50">50 条/页</option><option value="100" selected>100 条/页</option>
+            <option value="200">200 条/页</option><option value="500">500 条/页</option>
+          </select>
+          <span class="grow"></span>
+          <span id="stPage">—</span>
+          <button class="xs" id="btnStPrev" type="button">上一页</button>
+          <button class="xs" id="btnStNext" type="button">下一页</button>
+        </div>
+      </div>
+
+      <div class="box">
+        <details class="pr-settings" id="stSettings">
+          <summary>存储设置 <span class="hint" id="stCaps"></span></summary>
+          <div class="st-form" id="stForm">
+            <div class="switch"><span class="lb">写入 SQLite（请求记录 + 运行日志）</span>
+              <input type="checkbox" id="stEnabled"></div>
+            <label class="fld"><span class="lb">保留天数</span>
+              <input id="stDays" type="number" min="0" placeholder="30">
+              <span class="hint">早于此天数的记录自动删除；0 不限</span></label>
+            <label class="fld"><span class="lb">每表最多行数</span>
+              <input id="stRows" type="number" min="0" placeholder="0">
+              <span class="hint">请求记录、运行日志各自只留最新 N 行；0 不限</span></label>
+            <label class="fld"><span class="lb">文件上限（MiB）</span>
+              <input id="stMB" type="number" min="0" placeholder="500">
+              <span class="hint">超过后删最旧的记录并收缩文件；0 不限</span></label>
+          </div>
+          <div class="st-danger">
+            <button class="primary" id="btnStSave" type="button">保存设置</button>
+            <span class="grow"></span>
+            <span>清空：</span>
+            <button class="xs" type="button" data-clear="requests">请求记录</button>
+            <button class="xs" type="button" data-clear="logs">运行日志</button>
+            <button class="xs" type="button" data-clear="all">全部</button>
+          </div>
+        </details>
       </div>
     </section>
 

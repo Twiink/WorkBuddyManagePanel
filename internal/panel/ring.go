@@ -56,6 +56,14 @@ type Ring struct {
 	mu      sync.Mutex
 	entries []LogEntry
 	cap     int
+	sink    func(LogEntry) // 额外落盘（SQLite），必须不阻塞；持 mu 调用
+}
+
+// SetSink 登记每行入环时的额外落盘目标；nil 取消。
+func (r *Ring) SetSink(fn func(LogEntry)) {
+	r.mu.Lock()
+	r.sink = fn
+	r.mu.Unlock()
 }
 
 // NewRing 构建容量为 capacity 的日志环（非正值回退 500）。
@@ -76,7 +84,11 @@ func (r *Ring) Write(p []byte) (int, error) {
 			continue
 		}
 		text := tsPrefixRe.ReplaceAllString(line, "")
-		r.entries = append(r.entries, LogEntry{TS: now, Ch: classifyLine(text), Text: text})
+		e := LogEntry{TS: now, Ch: classifyLine(text), Text: text}
+		r.entries = append(r.entries, e)
+		if r.sink != nil {
+			r.sink(e)
+		}
 		if overflow := len(r.entries) - r.cap; overflow > 0 {
 			r.entries = r.entries[overflow:]
 		}
