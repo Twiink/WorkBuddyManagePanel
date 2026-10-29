@@ -80,6 +80,45 @@ func TestMergeBareModels(t *testing.T) {
 	}
 }
 
+func TestMergeBareModelsCaseInsensitiveIDs(t *testing.T) {
+	in := []map[string]any{
+		{"id": "cn:glm-5.3", "description": "cn desc"},
+		{"id": "global:GLM-5.3", "description": "global desc"},
+		{"id": "cn:GLM-5.3", "description": "cn duplicate"},
+	}
+	cases := []struct {
+		preferred string
+		id        string
+		desc      string
+		realms    []string
+	}{
+		{"cn", "glm-5.3", "[CN+Global] cn desc", []string{"cn", "global"}},
+		{"global", "GLM-5.3", "[Global+CN] global desc", []string{"global", "cn"}},
+	}
+	for _, tc := range cases {
+		out := mergeBareModels(in, tc.preferred)
+		if len(out) != 1 {
+			t.Fatalf("preferred=%s: want one case-insensitive model, got %v", tc.preferred, out)
+		}
+		if got := out[0]["id"]; got != tc.id {
+			t.Errorf("preferred=%s: id=%v want %q", tc.preferred, got, tc.id)
+		}
+		if got := out[0]["description"]; got != tc.desc {
+			t.Errorf("preferred=%s: description=%v want %q", tc.preferred, got, tc.desc)
+		}
+		realms, _ := out[0]["realms"].([]string)
+		if len(realms) != len(tc.realms) {
+			t.Fatalf("preferred=%s: realms=%v want %v", tc.preferred, realms, tc.realms)
+		}
+		for i := range tc.realms {
+			if realms[i] != tc.realms[i] {
+				t.Errorf("preferred=%s: realms=%v want %v", tc.preferred, realms, tc.realms)
+				break
+			}
+		}
+	}
+}
+
 func TestModelsBareNamesListing(t *testing.T) {
 	seedCNCatalog(t, "glm-5.2", "deepseek-v4.1-flash")
 	up := newFakeUpstream(t, func(string) (int, string, bool) { return 200, `{"data":[]}`, false })

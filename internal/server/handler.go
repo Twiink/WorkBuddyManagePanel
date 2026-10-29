@@ -495,12 +495,14 @@ func preferredRealmOf(live livecfg.Snapshot) string {
 
 // mergeBareModels 把带 realm 前缀的模型条目合并为裸名条目（models.bare_names）。
 //
-// 同名模型两域都有时只留一条：元数据取首选域那一份（倍率/档位与实际首选路由一致），
-// 顺序按首次出现。每条补 realms（可用域列表，首选域在前）并在 description 前标注，
-// 客户端只填一个服务商也能看出模型属于哪一域。
+// 同名模型两域都有时只留一条：模型 ID 按大小写不敏感合并（上游可能返回
+// glm-5.3 / GLM-5.3 两种写法），元数据取首选域那一份（倍率/档位与实际首选路由
+// 一致），顺序按首次出现。每条补去重后的 realms（首选域在前）并在 description
+// 前标注，客户端只填一个服务商也能看出模型属于哪一域。
 func mergeBareModels(entries []map[string]any, preferred string) []map[string]any {
 	type merged struct {
 		entry  map[string]any
+		bare   string
 		realm  string
 		realms []string
 	}
@@ -509,28 +511,43 @@ func mergeBareModels(entries []map[string]any, preferred string) []map[string]an
 	for _, e := range entries {
 		id, _ := e["id"].(string)
 		realm, bare, _ := resolveModelDetail(id)
-		m, ok := byID[bare]
+		key := strings.ToLower(strings.TrimSpace(bare))
+		m, ok := byID[key]
 		if !ok {
-			m = &merged{entry: e, realm: realm}
-			byID[bare] = m
-			order = append(order, bare)
+			m = &merged{entry: e, bare: bare, realm: realm}
+			byID[key] = m
+			order = append(order, key)
 		} else if realm == preferred && m.realm != preferred {
-			m.entry, m.realm = e, realm
+			m.entry, m.bare, m.realm = e, bare, realm
 		}
-		m.realms = append(m.realms, realm)
+		seenRealm := false
+		for _, r := range m.realms {
+			if r == realm {
+				seenRealm = true
+				break
+			}
+		}
+		if !seenRealm {
+			m.realms = append(m.realms, realm)
+		}
 	}
 	out := make([]map[string]any, 0, len(order))
-	for _, bare := range order {
-		m := byID[bare]
-		realms := m.realms
-		if len(realms) > 1 && realms[0] != preferred {
-			realms = []string{realms[1], realms[0]}
+	for _, key := range order {
+		m := byID[key]
+		realms := make([]string, 0, len(m.realms))
+		for _, realm := range []string{preferred, otherRealm(preferred)} {
+			for _, available := range m.realms {
+				if available == realm {
+					realms = append(realms, realm)
+					break
+				}
+			}
 		}
 		entry := make(map[string]any, len(m.entry)+1)
 		for k, v := range m.entry {
 			entry[k] = v
 		}
-		entry["id"] = bare
+		entry["id"] = m.bare
 		entry["realms"] = realms
 		tag := "[" + realmLabel(realms[0])
 		for _, r := range realms[1:] {
