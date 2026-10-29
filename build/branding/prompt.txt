@@ -1,22 +1,36 @@
-WorkBuddy Manage Panel icon
-Created: 2026-10-28
+WorkBuddy Manage Panel icon — 翡翠星门
+Updated: 2026-10-29
+Style skill: gpt-image-2-style-library
+Templates: Brand Identity Package / 品牌身份包 (case 354); Illustration & Art Style / 插画与艺术风格 (case 346)
 Generator: built-in image_gen (transparent background)
-Master: build/branding/appicon.png (1024 x 1024 RGBA)
-Windows: build/branding/appicon.ico (16, 32, 48, 64, 128, 256)
-macOS: build/branding/appicon.icns
+Brand reference: WorkBuddy source logo, repository commit 7f745b9 / build/appicon.png
+Master: build/branding/appicon.png (1024 x 1024 RGBA, alpha transparency)
+Windows: build/branding/appicon.ico (16, 32, 48, 64, 128, 256; alpha transparency)
+macOS: build/branding/appicon.icns (alpha transparency)
 Desktop runtime and tray: cmd/desktop/app-icon.png (512 x 512 RGBA)
-Website: internal/panel/icons/ (favicon ICO, 16/32/48/192/512 PNG, Apple touch icon 180)
+Website: internal/panel/icons/ (favicon ICO, 16/32/48/192/512 PNG, Apple touch icon 180; alpha transparency)
+README: build/branding/appicon.png
+macOS DMG file icon: build/darwin/dmg-file-icon.png (same transparent PNG as master)
+macOS DMG window background: build/darwin/dmg-background.png (540 x 380 installer artwork)
+macOS DMG background prompt: build/branding/dmg-background-prompt.txt
+Website icon cache version: bb36b7a2 (master PNG SHA-256 prefix)
 
 Platform bundle icons can be regenerated with: task generate:icons
 Raster derivatives use Lanczos resampling of the master; preserve alpha.
 
-Generation prompt:
-Use case: logo-brand
-Asset type: production desktop application icon and website favicon for WorkBuddy Manage Panel, a personal account-pool management panel and API gateway.
-Primary request: create one exceptionally clean, distinctive software icon based on a bold connected W monogram, conveying connection, routing and control. The W should be a custom geometric continuous broad ribbon with softly rounded joints and open negative spaces; its two connected valleys subtly suggest two linked gateway channels. Use a pale icy-white left ribbon and vivid periwinkle-blue right ribbon, meeting cleanly in the middle. The silhouette should be simple and unmistakable at 16 pixels.
-Scene/backdrop: centered deep-indigo rounded-square application tile, with genuinely transparent pixels OUTSIDE its rounded corners. The tile should occupy roughly 88 percent of the square image, with equal transparent safe margins on all four sides. Tile color is based on #11153a, with a very restrained cobalt-to-indigo tonal shift and a fine, understated rim highlight. No scene or surrounding surface.
-Style/medium: meticulously finished modern software brand icon, crisp vector-like geometry rendered as a high-resolution PNG; primarily flat with just a subtle crafted dimensional edge, not a 3D toy. Straight-on orthographic view.
-Composition/framing: square canvas; large centrally balanced W occupying about 65 percent of tile width. Generous optical spacing. Broad strokes, clear gaps, deliberate proportions. Strong contrast in both light and dark operating system docks. The single icon fills the canvas appropriately.
-Color palette: midnight indigo #11153a, cobalt #2a55e0, periwinkle #7393ff, icy white #f2f5ff. Match an elegant technical management console.
-Constraints: output ONE final icon only, square 1024 by 1024 or higher, actual alpha transparency around the badge. No wordmark, no tiny letters, no other text, no extra pictograms, no chart, no sparkle, no stars, no circuit-board details, no gradients in the W itself, no trademarked logo, no watermark, no mockup, no contact sheet, no labels or presentation board. This is the actual shippable icon asset.
+成品设计规格：
+WorkBuddy白色猫耳机器人外框、翡翠绿面罩和两枚白色胶囊眼，配翡翠水晶新月。
+原有造型、构图、绿白配色与晶石切面保持一致；前景之外及新月和头像之间的镂空区域均使用真实alpha透明。
+输出1:1高分辨率RGBA PNG，边缘平滑、均匀透明安全边距，所有平台图标保持透明通道。
 
+透明化编辑提示词：
+
+Use case: background-extraction.
+
+编辑目标：图1为已经确认的软件图标。请仅做精确抠图，输出同一图标的真实透明背景版本。
+
+前景必须完整保留：WorkBuddy白色猫耳机器人外框、圆润的翡翠绿色面罩、两枚白色胶囊眼、左右耳侧构件，以及包围它的翡翠水晶新月。保留现有图形的每个位置、造型、比例、颜色、材质、晶体切面、亮部与轮廓，主体不重新设计、不旋转、不放大、不裁切。绿色面罩是实体前景，必须保留不透明。翡翠晶石也是实体前景，必须完整保留颜色。
+
+需要清空的区域：四角、四边、图标周围的所有深墨绿色背景，以及新月与机器人头像之间的所有背景空隙。特别包括新月顶端下方与猫耳上方的大片弧形空隙，以及头部下沿与新月上缘之间的细小弧形空隙。所有这些区域应当是真正的alpha=0透明。前景仅保留贴合外轮廓的平滑抗锯齿边缘，主体内部保持不透明。清除背景上的大范围光晕，仅保留晶石表面与白色外框表面的光影。背景不得残留深绿色块、毛刺或散落像素。
+
+输出一枚正方形RGBA PNG，至少1024×1024，构图和画布留白保持图1原样，透明区域干净。不要添加任何背景、底板、阴影、文字、水印或棋盘格。图片的外部透明和内部空隙透明都必须由真正alpha通道表示。

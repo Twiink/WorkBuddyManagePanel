@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DGZSbot/ai-icon/refs/heads/main/WorkBuddy.png" alt="WorkBuddy Manage Panel" width="120">
+  <img src="build/branding/appicon.png" alt="WorkBuddy Manage Panel" width="120">
 </p>
 
 <h1 align="center">WorkBuddy Manage Panel</h1>
