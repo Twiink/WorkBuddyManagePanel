@@ -69,6 +69,7 @@ type Instance struct {
 	usage      *usage.Recorder
 	requestLog *reqlog.Recorder
 	health     *health.Tracker
+	prices     *usage.PriceRefresher
 	session    *session.Router
 }
 
@@ -114,6 +115,9 @@ func (i *Instance) shutdown() {
 	}
 	if i.requestLog != nil {
 		i.requestLog.Close()
+	}
+	if i.prices != nil {
+		i.prices.Stop()
 	}
 	if i.health != nil {
 		i.health.Stop()
@@ -474,6 +478,14 @@ func finishStart(
 	p.SetDailyModels(rec.DailyModels)
 	log.Printf("[usage] 逐请求用量记录已启用: %s (%s)", usagePath, rec.Describe())
 
+	// OpenRouter 动态价格：后台按间隔刷新（默认 24h），失败沿用上一版；请求链路只读
+	// 内存中的当前表。需要定价的模型 = 内置快照 ∪ 上游目录 ∪ 用过的模型。
+	priceRef := usage.NewPriceRefresher(filepath.Dir(usagePath), func() []string {
+		return append(up.KnownModels(), rec.Models()...)
+	}, nil)
+	priceRef.Start()
+	i.prices = priceRef
+
 	// 请求指标始终启用；JSONL 归档只写脱敏元数据，写盘失败不影响聊天请求。
 	requestLog := reqlog.New(reqlog.Config{
 		Dir:           StateSibling(cfg.StateFile, "request-logs"),
@@ -510,6 +522,7 @@ func finishStart(
 		Usage:       rec,
 		RequestLog:  requestLog,
 		Health:      healthTracker,
+		Prices:      priceRef,
 		Upstream:    up,
 		Scheduler:   sch,
 		AuthDir:     cfg.AuthDir,

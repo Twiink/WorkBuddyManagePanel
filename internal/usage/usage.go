@@ -531,7 +531,7 @@ func (g *aggAcc) finish() Agg {
 	if total := g.CacheHitTokens + g.CacheMissTokens; total > 0 {
 		a.CacheHitRate = float64(g.CacheHitTokens) / float64(total) * 100
 	}
-	a.CostCNY = a.CostUSD * prices.UsdCny
+	a.CostCNY = a.CostUSD * usdCnyNow()
 	return a
 }
 
@@ -593,7 +593,7 @@ func (a *creditAcc) finish() CreditAgg {
 	if total := a.CacheHitTokens + a.CacheMissTokens; total > 0 {
 		out.CacheHitRate = float64(a.CacheHitTokens) / float64(total) * 100
 	}
-	out.CostCNY = out.CostUSD * prices.UsdCny
+	out.CostCNY = out.CostUSD * usdCnyNow()
 	return out
 }
 
@@ -815,7 +815,7 @@ func (r *Recorder) SnapshotWindow(w Window, nicks map[string]string, currentRate
 		ByModel:         keyed(modelAgg, func(k string) (string, string) { return k, "" }),
 		CreditByAccount: creditKeyed(creditAcctAgg),
 		CreditByModel:   creditKeyed(creditModelAgg),
-		Pricing:         PriceInfo{Source: prices.Source, GeneratedAt: prices.GeneratedAt, UsdCny: prices.UsdCny},
+		Pricing:         priceInfo(),
 		Buckets:         matched,
 		Generated:       time.Now().Format(time.RFC3339),
 	}
@@ -917,6 +917,25 @@ func keyed(m map[string]*aggAcc, label func(string) (string, string)) []KeyedAgg
 		}
 		return out[i].Key < out[j].Key
 	})
+	return out
+}
+
+// Models 返回出现过用量的全部模型（规范化后，去重）。
+func (r *Recorder) Models() []string {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	seen := map[string]bool{}
+	var out []string
+	for _, b := range r.buckets {
+		m := canonicalUsageModel(b.Model)
+		if !seen[m] {
+			seen[m] = true
+			out = append(out, m)
+		}
+	}
 	return out
 }
 

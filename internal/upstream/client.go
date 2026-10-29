@@ -1844,6 +1844,27 @@ func (c *Client) ModelRate(realm, model string) string {
 	return c.modelRates[realmKey(realm)][model]
 }
 
+// KnownModels 返回最近刷新过倍率的全部模型名（两域并集，去重，无序）。
+// 供价格刷新确定「需要定价的模型」：上游新增模型不必等发版就能进价格表。
+func (c *Client) KnownModels() []string {
+	if c == nil {
+		return nil
+	}
+	c.effortsMu.RLock()
+	defer c.effortsMu.RUnlock()
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range c.modelRates {
+		for id := range m {
+			if !seen[id] {
+				seen[id] = true
+				out = append(out, id)
+			}
+		}
+	}
+	return out
+}
+
 // GlobalEffortSnapshot 导出 global 域 effort 能力缓存（探测下发 ∪ 静态兜底合并后的桶），
 // 供 /v1/models 输出 reasoning_supported_efforts / reasoning_default_effort。
 // 返回副本；桶未填充（无 global 账号或从未探测）→ nil（调用方回落静态兜底表）。

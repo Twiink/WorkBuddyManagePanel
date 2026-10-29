@@ -14,6 +14,7 @@ package panel
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -71,6 +72,8 @@ type Config struct {
 	CreditHistory *credithist.Ledger
 	// Health 账号健康台账（nil = 健康接口返回空视图）。
 	Health *health.Tracker
+	// Prices OpenRouter 价格刷新与校准（nil = 价格接口返回 501）。
+	Prices *usage.PriceRefresher
 
 	// ProbeFile 模型输出上限探测结果文件（scripts/probe_max_tokens.py --panel-out
 	// 写入；空或文件不存在 = model_probes 端点返回空集，面板不显示任何实测标注）。
@@ -169,6 +172,9 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("GET /panel/api/request_logs", p.withAuth(p.requestLogs))
 	p.mux.HandleFunc("GET /panel/api/credit_history", p.withAuth(p.creditHistory))
 	p.mux.HandleFunc("GET /panel/api/health", p.withAuth(p.healthView))
+	p.mux.HandleFunc("GET /panel/api/pricing", p.withAuth(p.pricingView))
+	p.mux.HandleFunc("POST /panel/api/pricing/refresh", p.withAuth(p.pricingRefresh))
+	p.mux.HandleFunc("POST /panel/api/pricing/settings", p.withAuth(p.pricingSettings))
 	p.mux.HandleFunc("GET /panel/api/models", p.withAuth(p.models))
 	p.mux.HandleFunc("POST /panel/api/login/start", p.withAuth(p.loginStart))
 	p.mux.HandleFunc("GET /panel/api/login/poll", p.withAuth(p.loginPoll))
@@ -1092,4 +1098,51 @@ func (p *Panel) healthView(w http.ResponseWriter, r *http.Request) {
 		"balance_refresh_sec":  p.balanceRefreshSec(),
 		"balance_refreshed_at": p.balanceRefreshedAt(),
 	})
+}
+
+// pricingView 价格来源、刷新状态、校准设置与当前生效价格表。
+func (p *Panel) pricingView(w http.ResponseWriter, r *http.Request) {
+	if p.cfg.Prices == nil {
+		writeErr(w, http.StatusNotImplemented, "pricing not available")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"info":     p.cfg.Prices.Info(),
+		"status":   p.cfg.Prices.Status(),
+		"settings": p.cfg.Prices.Settings(),
+		"rows":     p.cfg.Prices.Rows(),
+	})
+}
+
+// pricingRefresh 立即拉取一次 OpenRouter（同步，最长约 45s）。
+func (p *Panel) pricingRefresh(w http.ResponseWriter, r *http.Request) {
+	if p.cfg.Prices == nil {
+		writeErr(w, http.StatusNotImplemented, "pricing not available")
+		return
+	}
+	st := p.cfg.Prices.RefreshNow()
+	if st.LastError != "" && st.LastAttempt.After(st.LastSuccess) {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": st.LastError, "status": st})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": st, "info": p.cfg.Prices.Info()})
+}
+
+// pricingSettings 保存刷新间隔、汇率、校准系数与手填映射。
+func (p *Panel) pricingSettings(w http.ResponseWriter, r *http.Request) {
+	if p.cfg.Prices == nil {
+		writeErr(w, http.StatusNotImplemented, "pricing not available")
+		return
+	}
+	var s usage.PriceSettings
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&s); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json: "+err.Error())
+		return
+	}
+	saved, err := p.cfg.Prices.SetSettings(s)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"settings": saved, "info": p.cfg.Prices.Info()})
 }

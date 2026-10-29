@@ -383,6 +383,7 @@ function go(v) {
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
   $('ttl').textContent = TITLES[v];
   if (v === 'models' && !$('mdBody').children.length) loadModels();
+  if (v === 'models') loadPricing();
   if (v === 'config') loadConfig();
   if (v === 'logs') loadLogs();
   if (v === 'usage') { loadUsage(); loadRequests(); }
@@ -1762,6 +1763,159 @@ async function checkAuthGate() {
 }
 start();
 
+/* ── 价格与校准（模型与档位页） ──────────────────────────────────────
+   校准系数直接在价格表里逐行改（留空 / 1 = 不校准），刷新间隔、汇率与手填映射收在
+   折叠的「刷新与映射设置」里；未匹配的模型列成按钮，点一下就在映射里起好一行。
+   所有修改攒在一起由「保存」一次提交，未保存时给出提示，避免改一半就刷新丢掉。 */
+const PR_VIA = { exact: ['名字匹配', 'ok'], override: ['映射', 'mute'], variant: ['去后缀继承', 'warn'] };
+let prData = null;
+let prMarkup = {};   // 编辑中的校准系数（模型 → 系数）
+let prDirty = false;
+function prLines(map) { return Object.entries(map || {}).sort((a, b) => a[0].localeCompare(b[0])).map(([k, v]) => k + ' = ' + v).join('\n'); }
+/* prParse 解析「key = value」多行文本。返回 { map, bad }（bad 为格式错误的行号）。 */
+function prParse(text) {
+  const map = {}, bad = [];
+  String(text || '').split(/\n/).forEach((line, i) => {
+    const raw = line.trim();
+    if (!raw || raw.startsWith('#')) return;
+    const m = raw.match(/^(.+?)\s*[=:：]\s*(.+)$/);
+    if (!m) { bad.push(i + 1); return; }
+    map[m[1].trim()] = m[2].trim();
+  });
+  return { map, bad };
+}
+function prPrice(v) { return v == null ? '<span class="muted">—</span>' : trimFixed(Number(v).toFixed(4)); }
+function prSetDirty(on) { prDirty = on; $('prDirty').hidden = !on; }
+function prMatch(r) {
+  const q = $('prQ').value.trim().toLowerCase(), via = $('prVia').value;
+  if (q && !(r.model.toLowerCase().includes(q) || String(r.or_id || '').toLowerCase().includes(q))) return false;
+  if (via === 'calibrated') return prMarkup[r.model] > 0 && prMarkup[r.model] !== 1;
+  if (via && r.via !== via) return false;
+  return true;
+}
+function renderPricingTable() {
+  if (!prData) return;
+  const dyn = (prData.info || {}).dynamic;
+  const rows = (prData.rows || []).filter(prMatch);
+  const total = (prData.rows || []).length;
+  $('prCount').textContent = rows.length === total ? total + ' 个模型' : '命中 ' + rows.length + ' / ' + total;
+  $('prBody').innerHTML = rows.length ? rows.map(r => {
+    const mk = prMarkup[r.model];
+    const on = mk > 0 && mk !== 1;
+    const via = PR_VIA[r.via];
+    return '<tr class="' + (on ? 'cal' : '') + '"><td class="mono">' + esc(r.model) + '</td>' +
+      '<td class="num">' + prPrice(r.input) + '</td><td class="num">' + prPrice(r.cache_hit) + '</td><td class="num">' + prPrice(r.output) + '</td>' +
+      '<td class="num"><input class="pr-mk' + (on ? ' on' : '') + '" type="number" min="0" step="0.05" placeholder="1" data-m="' + esc(r.model) + '" value="' + (on ? mk : '') + '" aria-label="' + esc(r.model) + ' 校准系数"></td>' +
+      '<td class="mono" style="font-size:12px">' + esc(r.or_id || '—') + '</td>' +
+      '<td class="via">' + (via ? '<span class="tag ' + via[1] + '">' + via[0] + '</span>' : '<span class="muted">' + (dyn ? '—' : '内置快照') + '</span>') + '</td></tr>';
+  }).join('') : '<tr><td colspan="7"><div class="empty">' + (total ? '没有符合筛选条件的模型' : '价格表为空') + '</div></td></tr>';
+}
+function renderPricing(d) {
+  prData = d;
+  const info = d.info || {}, st = d.status || {}, cfg = d.settings || {};
+  const rows = d.rows || [];
+  const calibrated = Object.keys(cfg.markup || {}).length;
+  const failed = st.last_error && (!st.last_success || new Date(st.last_attempt) > new Date(st.last_success));
+  const unmatched = st.unmatched || [];
+  $('prStats').innerHTML =
+    usKpi(info.dynamic ? '动态' : '内置', '价格来源', info.dynamic ? 'c-ok' : 'c-mute',
+      info.dynamic ? 'OpenRouter · ' + String(info.generated_at || '').replace('T', ' ').slice(5, 16) : '尚未成功刷新，用发版快照') +
+    usKpi(String(rows.length), '已定价模型', 'c-accent', unmatched.length ? unmatched.length + ' 个未匹配' : '全部匹配') +
+    usKpi(String(info.usd_cny || '—'), '美元汇率', cfg.usd_cny ? 'c-warn' : 'c-soft', cfg.usd_cny ? '手动设置' : '跟随价格表') +
+    usKpi(String(calibrated), '已校准模型', calibrated ? 'c-warn' : 'c-mute', calibrated ? '估算金额已按系数调整' : '未校准') +
+    usKpi(st.last_success ? ago(st.last_success) : '—', '上次刷新', failed ? 'c-bad' : 'c-soft',
+      cfg.refresh_enabled ? '每 ' + (cfg.refresh_hours || 24) + ' 小时自动刷新' : '自动刷新已关闭');
+  $('prNote').textContent = '';
+  const al = $('prAlert');
+  al.hidden = !failed;
+  if (failed) al.textContent = '上次刷新失败，仍在使用之前的价格：' + st.last_error;
+  const um = $('prUnmatched');
+  um.hidden = !unmatched.length;
+  if (unmatched.length) {
+    um.innerHTML = '<span class="lb">未匹配到 OpenRouter 的模型（不计价）：</span>' +
+      unmatched.map(m => '<button type="button" class="xs ghost" data-um="' + esc(m) + '" title="在手填映射里添加这一行">' + esc(m) + ' +</button>').join('');
+  }
+  // 表单回填：只在没有未保存修改时覆盖，避免后台刷新冲掉正在编辑的内容。
+  if (!prDirty) {
+    const f = $('prForm');
+    f.elements.refresh_enabled.checked = !!cfg.refresh_enabled;
+    f.elements.refresh_hours.value = cfg.refresh_hours || '';
+    f.elements.usd_cny.value = cfg.usd_cny || '';
+    f.elements.mapping.value = prLines(cfg.mapping);
+    prMarkup = Object.assign({}, cfg.markup || {});
+  }
+  renderPricingTable();
+}
+async function loadPricing() {
+  try { renderPricing(await api('pricing')); }
+  catch (e) { $('prStats').innerHTML = ''; $('prBody').innerHTML = '<tr><td colspan="7"><div class="empty">读取价格失败：' + esc(e.message) + '</div></td></tr>'; }
+}
+$('prQ').addEventListener('input', renderPricingTable);
+$('prVia').onchange = renderPricingTable;
+$('prForm').addEventListener('submit', ev => ev.preventDefault()); // 回车不触发原生提交（CSP form-action 'none'）
+$('prForm').addEventListener('input', () => prSetDirty(true));
+$('prBody').addEventListener('input', ev => {
+  const el = ev.target.closest('input.pr-mk');
+  if (!el) return;
+  const raw = el.value.trim(), n = Number(raw);
+  const bad = raw !== '' && !(Number.isFinite(n) && n > 0);
+  el.classList.toggle('invalid', bad);
+  if (!bad) {
+    if (raw === '' || n === 1) delete prMarkup[el.dataset.m]; else prMarkup[el.dataset.m] = n;
+    const on = raw !== '' && n !== 1;
+    el.classList.toggle('on', on);
+    el.closest('tr').classList.toggle('cal', on);
+  }
+  prSetDirty(true);
+});
+$('prUnmatched').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-um]');
+  if (!b) return;
+  const ta = $('prForm').elements.mapping;
+  const line = b.dataset.um + ' = ';
+  if (!ta.value.split('\n').some(l => l.trim().startsWith(b.dataset.um + ' '))) {
+    ta.value = (ta.value.trim() ? ta.value.trim() + '\n' : '') + line;
+  }
+  $('prSettings').open = true;
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  prSetDirty(true);
+});
+$('btnPrRefresh').onclick = async () => {
+  const b = $('btnPrRefresh');
+  b.disabled = true; b.textContent = '刷新中…';
+  try { await api('pricing/refresh', { method: 'POST' }); toast('价格已刷新', 'ok'); }
+  catch (e) { toast('刷新失败（沿用当前价格）：' + e.message, 'err'); }
+  finally { b.disabled = false; b.textContent = '立即刷新'; }
+  await loadPricing();
+};
+$('btnPrSave').onclick = async () => {
+  const f = $('prForm');
+  if ($('prBody').querySelector('input.pr-mk.invalid')) { toast('校准系数须为正数', 'err'); return; }
+  const mapping = prParse(f.elements.mapping.value);
+  const incomplete = Object.entries(mapping.map).filter(([, v]) => !v).map(([k]) => k);
+  if (mapping.bad.length || incomplete.length) {
+    $('prSettings').open = true;
+    toast('手填映射' + (mapping.bad.length ? '第 ' + mapping.bad.join('、') + ' 行' : '') + '格式不对，应为「本地模型名 = OpenRouter 模型 id」', 'err');
+    return;
+  }
+  const body = {
+    refresh_enabled: f.elements.refresh_enabled.checked,
+    refresh_hours: Number(f.elements.refresh_hours.value) || 24,
+    usd_cny: Number(f.elements.usd_cny.value) || 0,
+    markup: prMarkup, mapping: mapping.map,
+  };
+  const b = $('btnPrSave');
+  b.disabled = true;
+  try {
+    await api('pricing/settings', { method: 'POST', body: JSON.stringify(body) });
+    prSetDirty(false);
+    toast('价格设置已保存', 'ok');
+    await loadPricing();
+  } catch (e) { toast('保存失败：' + e.message, 'err'); }
+  finally { b.disabled = false; }
+};
+
 /* ── 健康 ─────────────────────────────────────────────────────────── */
 /* 错误类型的中文名（upstream.ErrKind.String() + 网关自有的 transport/timeout/refresh）。 */
 const HL_KIND = {
@@ -2686,9 +2840,10 @@ function renderCreditDim() {
 
 /* usKpiCost 估算价值卡：数值是美元，副行是人民币；悬停给出计价口径。 */
 function usKpiCost(t, pr, unpriced) {
-  const tip = '按模型官方公布单价（输入 / 输出 / 缓存命中，' + (pr.source || '价格表') +
+  const tip = '按 OpenRouter 公布单价（输入 / 输出 / 缓存命中，' + (pr.dynamic ? '动态刷新' : '内置快照') +
     (pr.generated_at ? '，快照 ' + String(pr.generated_at).slice(0, 10) : '') +
-    '）估算，汇率 1 USD = ' + (pr.usd_cny || '—') + ' CNY；不等于实际结算（实际结算看积分）。' +
+    '）估算，汇率 1 USD = ' + (pr.usd_cny || '—') + ' CNY' + (pr.calibrated ? '，部分模型已按校准系数调整' : '') +
+    '；历史用量按当前价格计；不等于实际结算（实际结算看积分）。' +
     '按输入长度分档的模型只按基础档计。' +
     (unpriced.length ? '\n未计价模型：' + unpriced.join('、') : '');
   return '<div class="kpi c-warn" title="' + esc(tip) + '">' +

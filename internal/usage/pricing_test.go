@@ -38,7 +38,7 @@ func TestSnapshotCostEstimate(t *testing.T) {
 
 // 没有公布命中价的模型，命中部分按未命中价计（宁高勿低）。
 func TestCostCacheHitFallsBackToMissPrice(t *testing.T) {
-	p, ok := prices.Models["kimi-k2-thinking"]
+	p, ok := pricesNow().table.Models["kimi-k2-thinking"]
 	if !ok || p.CacheHit != nil {
 		t.Skip("价格表里 kimi-k2-thinking 已有命中价")
 	}
