@@ -9,6 +9,7 @@ let pkDetailUid = '';
 let theme = localStorage.getItem(LS_THEME) || 'auto';   // auto | light | dark
 let view = 'accounts';
 let overviewData = null, cfgLoaded = null;
+let listenFallbackNotified = false;
 let logPin = true, loginState = null, loginTimer = null;
 let refTimer = null;
 /* 视图级筛选状态（模块级声明放在文件顶部，避免顶层 go() 早于声明执行时踩 TDZ）。 */
@@ -535,6 +536,7 @@ async function loadOverview(quiet) {
   try {
     const d = await api('overview');
     overviewData = d;
+    renderListenStatus(d.listen);
     $('sTotal').textContent = d.total;
     $('sHealthy').textContent = d.healthy;
     $('sCooling').textContent = d.cooling;
@@ -557,7 +559,8 @@ async function loadOverview(quiet) {
     p.className = 'pulse' + (d.healthy > 0 ? '' : (d.total ? ' warn' : ' bad'));
     $('accNote').textContent = d.in_flight_full ? d.in_flight_full + ' 个账号在途占满' : '';
     const up = Math.floor(d.uptime_sec);
-    $('subMeta').textContent = '运行 ' + (up >= 86400 ? Math.floor(up / 86400) + ' 天 ' : '') + Math.floor(up % 86400 / 3600) + ' 时 ' + Math.floor(up % 3600 / 60) + ' 分';
+    const portMeta = d.listen && d.listen.port ? ' · 端口 ' + d.listen.port : '';
+    $('subMeta').textContent = '运行 ' + (up >= 86400 ? Math.floor(up / 86400) + ' 天 ' : '') + Math.floor(up % 86400 / 3600) + ' 时 ' + Math.floor(up % 3600 / 60) + ' 分' + portMeta;
     renderAccounts(d.accounts || []);
     renderModelLocks(d.model_locks);
     // 到期卡片跟随首页统计同步刷新（用同一份响应里的按日批次，不额外发请求）。
@@ -566,6 +569,27 @@ async function loadOverview(quiet) {
     const liveFresh = lastPackages && (Date.now() - lastPackagesAt) < EXP_FRESH_MS;
     if ($('expBox') && !liveFresh) renderExpirySnapshot(d);
   } catch (e) { if (!quiet) toast(e.message, 'err'); }
+}
+
+function renderListenStatus(info) {
+  if (!info || !info.port) return;
+  const cfgHint = $('cfgListenHint');
+  if (cfgHint) cfgHint.textContent =
+    '桌面版仅允许本机回环地址；保存后重启应用生效。当前实际监听：' + (info.actual || ('端口 ' + info.port));
+  const alert = $('listenAlert');
+  if (!alert) return;
+  if (!info.fallback) { alert.hidden = true; return; }
+  alert.hidden = false;
+  const actual = info.actual || ('端口 ' + info.port);
+  const configured = info.configured || '配置端口';
+  $('listenAlertTitle').textContent = '监听端口已自动切换';
+  $('listenAlertText').textContent =
+    '配置的 ' + configured + ' 已被占用；当前实际监听 ' + actual +
+    '。客户端 API Base 应使用 http://' + actual + '/v1，托盘中的“在浏览器中打开面板”也会使用实际端口。';
+  if (!listenFallbackNotified) {
+    listenFallbackNotified = true;
+    toast('端口 ' + configured + ' 被占用，已自动切换到 ' + actual, '');
+  }
 }
 
 $('accBody').addEventListener('click', async ev => {

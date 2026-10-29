@@ -59,6 +59,8 @@
   .topbar button { padding: 5px 9px; font-size: 12.5px; border-radius: 8px; }
   .topbar button.icon { padding: 5px 8px; }
   .topbar #btnAdd { padding: 5px 12px; }
+  .listen-alert { margin: 10px 10px 0; padding: 10px 12px; font-size: 12px; }
+  .listen-alert code { white-space: normal; overflow-wrap: anywhere; }
 
   /* ── 3. 宽表 → 卡片 ────────────────────────────────────────────────
      关键一条：.tbl-wrap 必须覆盖桌面端的 overflow-x:auto，否则卡片列再好看，

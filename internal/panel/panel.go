@@ -48,6 +48,9 @@ type Config struct {
 	DesktopMode bool
 	RedisMode   string // "upstash" / "noop"，仅观测透出
 	Version     string // 面板版本号（展示用）
+	// Listen 是本次进程的监听状态：Configured 来自配置文件，Actual 是成功绑定的
+	// 地址。桌面端遇到端口占用时会临时换端口，但不会改写配置文件。
+	Listen ListenInfo
 
 	// Live 运行期可变配置（在线改配置立即生效）。
 	Live *livecfg.Holder
@@ -82,6 +85,14 @@ type Config struct {
 	// 写入；空或文件不存在 = model_probes 端点返回空集，面板不显示任何实测标注）。
 	// 只读展示：网关不解析、不依赖其内容做任何路由/出站决策。
 	ProbeFile string
+}
+
+// ListenInfo 区分用户配置与实际绑定地址，供面板在端口回退后明确提示用户。
+type ListenInfo struct {
+	Configured string `json:"configured"`
+	Actual     string `json:"actual"`
+	Port       int    `json:"port"`
+	Fallback   bool   `json:"fallback"`
 }
 
 // Panel 管理面板 handler。挂载方式：外层 mux Handle("/panel/", panel)，
@@ -302,6 +313,7 @@ func (p *Panel) overview(w http.ResponseWriter, r *http.Request) {
 		"uptime_sec":      int(time.Since(p.started).Seconds()),
 		"auth_required":   p.apiKey() != "",
 		"redis_mode":      p.cfg.RedisMode,
+		"listen":          p.cfg.Listen,
 		"sticky_sessions": sticky,
 		"total":           total,
 		"healthy":         healthy,

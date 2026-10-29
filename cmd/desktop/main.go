@@ -103,10 +103,11 @@ func run() error {
 	d.app = app
 
 	instance, err := gateway.Start(app.Context(), gateway.Options{
-		ConfigPath:      filepath.Join(dataDir, "config.json"),
-		DataDir:         dataDir,
-		RequireLoopback: true,
-		Version:         buildinfo.Version,
+		ConfigPath:             filepath.Join(dataDir, "config.json"),
+		DataDir:                dataDir,
+		FallbackOnPortConflict: true,
+		RequireLoopback:        true,
+		Version:                buildinfo.Version,
 	})
 	if err != nil {
 		return fmt.Errorf("start local gateway: %w", err)
@@ -124,7 +125,7 @@ func run() error {
 
 	d.window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:            "main",
-		Title:           buildinfo.DesktopName,
+		Title:           desktopWindowTitle(instance),
 		Width:           1360,
 		Height:          900,
 		MinWidth:        900,
@@ -144,7 +145,7 @@ func run() error {
 	})
 
 	tray := app.SystemTray.New()
-	tray.SetTooltip(buildinfo.DesktopName)
+	tray.SetTooltip(desktopTrayTooltip(instance))
 	tray.SetIcon(appIcon)
 
 	updates, err := newDesktopUpdater(app, &d.quitting)
@@ -206,6 +207,26 @@ func desktopDataDir() (string, error) {
 		return "", fmt.Errorf("resolve user config directory: %w", err)
 	}
 	return filepath.Join(base, "WorkBuddyManagePanel"), nil
+}
+
+func desktopWindowTitle(instance *gateway.Instance) string {
+	if instance == nil || instance.ListenPort == 0 {
+		return buildinfo.DesktopName
+	}
+	if instance.PortFallback {
+		return fmt.Sprintf("%s · 端口 %d（%s 被占用）", buildinfo.DesktopName, instance.ListenPort, instance.ConfiguredListen)
+	}
+	return fmt.Sprintf("%s · 端口 %d", buildinfo.DesktopName, instance.ListenPort)
+}
+
+func desktopTrayTooltip(instance *gateway.Instance) string {
+	if instance == nil || instance.ListenPort == 0 {
+		return buildinfo.DesktopName
+	}
+	if instance.PortFallback {
+		return fmt.Sprintf("%s · 端口 %d（已自动切换）", buildinfo.DesktopName, instance.ListenPort)
+	}
+	return fmt.Sprintf("%s · 端口 %d", buildinfo.DesktopName, instance.ListenPort)
 }
 
 // BuildUniqueID is stable across releases so a second launch focuses the

@@ -46,6 +46,9 @@ type Options struct {
 	DataDir string
 	// Listen 非空时覆盖配置文件和 WB2A_LISTEN。
 	Listen string
+	// FallbackOnPortConflict 在监听地址被占用时临时改用系统分配的可用端口。
+	// 桌面版启用；独立 server 仍保持固定端口语义，避免客户端静默连错地址。
+	FallbackOnPortConflict bool
 	// RequireLoopback 供桌面版强制只监听本机回环地址。
 	RequireLoopback bool
 	Version         string
@@ -53,9 +56,15 @@ type Options struct {
 
 // Instance 是一个已经完成端口绑定并开始运行的网关实例。
 type Instance struct {
-	URL     string
-	Config  *Config
-	URLPath string
+	URL string
+	// ConfiguredListen 是配置文件或环境变量请求的地址；Listen/ListenPort 是本次
+	// 进程实际成功绑定的地址。PortFallback 仅表示因端口占用而临时换过端口。
+	ConfiguredListen string
+	Listen           string
+	ListenPort       int
+	PortFallback     bool
+	Config           *Config
+	URLPath          string
 	// DesktopHandler 仅挂到 Wails 原生资源通道，不能挂到 HTTP 监听器。
 	DesktopHandler http.Handler
 
@@ -199,11 +208,29 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 			return nil, err
 		}
 	}
-	listener, err := net.Listen("tcp", cfg.Listen)
+	configuredListen := cfg.Listen
+	listener, portFallback, err := listenGateway(configuredListen, opts.FallbackOnPortConflict)
 	if err != nil {
-		return nil, fmt.Errorf("listen %s: %w", cfg.Listen, err)
+		return nil, err
 	}
-	i := &Instance{Config: cfg, listener: listener}
+	actualListen := listener.Addr().String()
+	actualPort, err := listenerPort(listener)
+	if err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+	cfg.Listen = actualListen
+	if portFallback {
+		log.Printf("监听地址 %s 已被占用，本次临时改用 %s", configuredListen, actualListen)
+	}
+	i := &Instance{
+		Config:           cfg,
+		ConfiguredListen: configuredListen,
+		Listen:           actualListen,
+		ListenPort:       actualPort,
+		PortFallback:     portFallback,
+		listener:         listener,
+	}
 	runCtx, cancel := context.WithCancel(ctx)
 	i.cancel = cancel
 	instance, err := finishStart(runCtx, i, opts)
@@ -216,6 +243,43 @@ func Start(ctx context.Context, opts Options) (*Instance, error) {
 		return nil, err
 	}
 	return instance, nil
+}
+
+// listenGateway 绑定请求地址；只有明确的 address-in-use 才允许桌面版临时换端口。
+// 其他错误（无权限、地址非法等）继续直接报错，避免掩盖需要用户修正的问题。
+func listenGateway(listen string, allowFallback bool) (net.Listener, bool, error) {
+	ln, err := net.Listen("tcp", listen)
+	if err == nil {
+		return ln, false, nil
+	}
+	if !allowFallback || !errors.Is(err, syscall.EADDRINUSE) {
+		return nil, false, fmt.Errorf("listen %s: %w", listen, err)
+	}
+	host, _, splitErr := net.SplitHostPort(listen)
+	if splitErr != nil {
+		return nil, false, fmt.Errorf("listen %s: %w", listen, err)
+	}
+	fallbackListen := net.JoinHostPort(host, "0")
+	fallback, fallbackErr := net.Listen("tcp", fallbackListen)
+	if fallbackErr != nil {
+		return nil, false, fmt.Errorf(
+			"listen %s: %w (fallback %s: %v)",
+			listen, err, fallbackListen, fallbackErr,
+		)
+	}
+	return fallback, true, nil
+}
+
+func listenerPort(listener net.Listener) (int, error) {
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return 0, fmt.Errorf("resolve listener address: %w", err)
+	}
+	n, err := net.LookupPort("tcp", port)
+	if err != nil {
+		return 0, fmt.Errorf("resolve listener port %q: %w", port, err)
+	}
+	return n, nil
 }
 
 // resolveConfigPaths 把桌面数据目录中的相对路径锚定到同一目录。
@@ -547,7 +611,13 @@ func finishStart(
 		RedisMode:   redisMode,
 		StickyCount: sessCount,
 		Version:     version,
-		Live:        live,
+		Listen: panel.ListenInfo{
+			Configured: i.ConfiguredListen,
+			Actual:     i.Listen,
+			Port:       i.ListenPort,
+			Fallback:   i.PortFallback,
+		},
+		Live: live,
 		// 模型上限探测数据（scripts/probe_max_tokens.py --panel-out 写入）：
 		// 与 state 文件同目录，缺省 data/output_probes.json。
 		ProbeFile:  StateSibling(cfg.StateFile, "output_probes.json"),

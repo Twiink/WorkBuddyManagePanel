@@ -2,10 +2,12 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -228,13 +230,86 @@ func TestStartFailureReleasesPort(t *testing.T) {
 
 	dataDir := t.TempDir()
 	_, err = Start(context.Background(), Options{
-		ConfigPath:      filepath.Join(dataDir, "config.json"),
-		DataDir:         dataDir,
-		Listen:          listener.Addr().String(),
-		RequireLoopback: true,
+		ConfigPath: filepath.Join(dataDir, "config.json"),
+		DataDir:    dataDir,
+		Listen:     listener.Addr().String(),
 	})
 	if err == nil {
-		t.Fatal("Start() unexpectedly succeeded on an occupied port")
+		t.Fatal("server Start() unexpectedly succeeded on an occupied port")
+	}
+}
+
+func TestStartFallsBackWhenDesktopPortOccupied(t *testing.T) {
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer occupied.Close()
+
+	dataDir := t.TempDir()
+	instance, err := Start(context.Background(), Options{
+		ConfigPath:             filepath.Join(dataDir, "config.json"),
+		DataDir:                dataDir,
+		Listen:                 occupied.Addr().String(),
+		RequireLoopback:        true,
+		FallbackOnPortConflict: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer instance.Close()
+
+	if !instance.PortFallback {
+		t.Fatal("PortFallback=false, want automatic fallback")
+	}
+	if instance.ConfiguredListen != occupied.Addr().String() {
+		t.Fatalf("ConfiguredListen=%q, want %q", instance.ConfiguredListen, occupied.Addr().String())
+	}
+	if instance.Listen == instance.ConfiguredListen || instance.ListenPort == 0 {
+		t.Fatalf("actual listen=%q port=%d, want a different bound port", instance.Listen, instance.ListenPort)
+	}
+	configRaw, err := os.ReadFile(filepath.Join(dataDir, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var storedConfig struct {
+		Listen string `json:"listen"`
+	}
+	if err := json.Unmarshal(configRaw, &storedConfig); err != nil {
+		t.Fatal(err)
+	}
+	if storedConfig.Listen != ":7863" {
+		t.Fatalf("fallback rewrote config listen=%q, want default :7863", storedConfig.Listen)
+	}
+
+	resp, err := http.Get(instance.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s = %d", instance.URL, resp.StatusCode)
+	}
+
+	rec := httptest.NewRecorder()
+	instance.DesktopHandler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/panel/api/overview", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("overview status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var overview struct {
+		Listen struct {
+			Configured string `json:"configured"`
+			Actual     string `json:"actual"`
+			Port       int    `json:"port"`
+			Fallback   bool   `json:"fallback"`
+		} `json:"listen"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &overview); err != nil {
+		t.Fatal(err)
+	}
+	if !overview.Listen.Fallback || overview.Listen.Port != instance.ListenPort || overview.Listen.Actual != instance.Listen {
+		t.Fatalf("overview listen=%+v, want actual fallback port", overview.Listen)
 	}
 }
 
