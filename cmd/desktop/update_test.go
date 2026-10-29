@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/buildinfo"
@@ -28,7 +30,7 @@ var releaseAssets = []github.ReleaseAsset{
 func TestUpdateAssetSelection(t *testing.T) {
 	cases := []struct {
 		goos, goarch string
-		manual       bool
+		debInstall   bool
 		want         string
 	}{
 		{"darwin", "arm64", false, "workbuddy-manage-panel-1.15.1-macos-universal.zip"},
@@ -38,10 +40,10 @@ func TestUpdateAssetSelection(t *testing.T) {
 		{"linux", "amd64", true, "workbuddy-manage-panel_1.15.1_amd64.deb"},
 	}
 	for _, tc := range cases {
-		suffix := updateAssetSuffix(tc.goos, tc.goarch, tc.manual)
+		suffix := updateAssetSuffix(tc.goos, tc.goarch, tc.debInstall)
 		idx := assetMatcher(suffix)(updater.CheckRequest{}, releaseAssets)
 		if idx < 0 || releaseAssets[idx].Name != tc.want {
-			t.Errorf("%s/%s manual=%v picked %d, want %s", tc.goos, tc.goarch, tc.manual, idx, tc.want)
+			t.Errorf("%s/%s debInstall=%v picked %d, want %s", tc.goos, tc.goarch, tc.debInstall, idx, tc.want)
 		}
 	}
 	if s := updateAssetSuffix("linux", "arm64", false); s != "" {
@@ -87,5 +89,61 @@ func TestVerifiedProviderRequiresDigest(t *testing.T) {
 	}
 	if rel, err := (verifiedProvider{stubProvider{nil}}).Check(context.Background(), updater.CheckRequest{}); rel != nil || err != nil {
 		t.Fatalf("up to date: rel=%v err=%v", rel, err)
+	}
+}
+
+type downloadProvider struct {
+	body []byte
+}
+
+func (downloadProvider) Name() string { return "download-test" }
+func (downloadProvider) Check(context.Context, updater.CheckRequest) (*updater.Release, error) {
+	return nil, nil
+}
+func (p downloadProvider) Download(_ context.Context, _ *updater.Release, dst io.Writer, progress func(int64, int64)) error {
+	if _, err := dst.Write(p.body); err != nil {
+		return err
+	}
+	if progress != nil {
+		progress(int64(len(p.body)), int64(len(p.body)))
+	}
+	return nil
+}
+
+func TestDownloadDebVerifiesArtifact(t *testing.T) {
+	body := []byte("a verified deb payload")
+	rel := &updater.Release{
+		Artifact: updater.Artifact{
+			Filename: "workbuddy-manage-panel_9.9.9_amd64.deb",
+			Size:     int64(len(body)),
+		},
+	}
+	path, cleanup, err := downloadDeb(context.Background(), downloadProvider{body: body}, rel)
+	if err != nil {
+		t.Fatalf("downloadDeb: %v", err)
+	}
+	defer cleanup()
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read downloaded payload: %v", err)
+	}
+	if string(got) != string(body) {
+		t.Fatalf("downloaded payload = %q, want %q", got, body)
+	}
+	digest := sha256.Sum256(body)
+	if err := verifySHA256(path, &updater.Verification{DigestAlgo: "sha256", Digest: digest[:]}); err != nil {
+		t.Fatalf("verifySHA256: %v", err)
+	}
+	digest[0] ^= 0xff
+	if err := verifySHA256(path, &updater.Verification{DigestAlgo: "sha256", Digest: digest[:]}); err == nil {
+		t.Fatal("verifySHA256 accepted a mismatched digest")
+	}
+}
+
+func TestDownloadDebRejectsNonDebArtifact(t *testing.T) {
+	rel := &updater.Release{Artifact: updater.Artifact{Filename: "workbuddy-manage-panel.zip"}}
+	if _, _, err := downloadDeb(context.Background(), downloadProvider{}, rel); err == nil {
+		t.Fatal("downloadDeb accepted a non-deb artifact")
 	}
 }

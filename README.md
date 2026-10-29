@@ -280,7 +280,7 @@ flowchart LR
 | 系统 | 安装文件 | 使用方式 |
 |---|---|---|
 | Windows | `workbuddy-manage-panel-*-windows-amd64-setup.exe` | 双击安装；首次启动如缺少 WebView2，安装程序会引导安装 |
-| macOS | `workbuddy-manage-panel-*-macos-universal.dmg` | 打开后把应用拖入“应用程序”；同时支持 Intel 与 Apple Silicon |
+| macOS | `workbuddy-manage-panel-*-macos-universal.dmg` | 打开后把 `WorkBuddy Manage Panel.app` 拖入“应用程序”；同时支持 Intel 与 Apple Silicon |
 | Linux Debian / Ubuntu | `workbuddy-manage-panel_*_amd64.deb` | 双击由软件中心安装，或执行 `sudo apt install ./文件名.deb` |
 | Linux 其他发行版 | `workbuddy-manage-panel-*-linux-amd64.AppImage` | 右键属性允许执行，或执行 `chmod +x 文件名.AppImage` 后双击 |
 
@@ -288,8 +288,8 @@ flowchart LR
 “退出”。重复双击只会唤起已有窗口，不会再次占用端口。
 
 应用会在启动后和每 6 小时检查一次新版本，也可在托盘菜单选择「检查更新…」。Windows、macOS
-和 AppImage 版本下载新版本并校验 SHA-256 后提示重启完成更新；`.deb` 安装只提示并打开下载页面，
-需手动安装新的 `.deb`。
+和 AppImage 版本下载新版本并校验 SHA-256 后提示重启完成更新；`.deb` 版本会下载新包、校验
+SHA-256，并通过 Polkit 请求管理员授权后使用 `apt-get` 安装，安装完成后可选择立即重启。
 
 首次双击会直接进入管理面板，不要求先生成或复制临时登录令牌。请在
 「配置 → API 密钥」中输入自己的真实 API Key，或点击「生成密钥」后点击

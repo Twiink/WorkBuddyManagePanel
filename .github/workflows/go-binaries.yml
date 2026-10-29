@@ -42,6 +42,7 @@ permissions:
 env:
   WAILS_VERSION: v3.0.0
   APP_NAME: workbuddy-manage-panel
+  MACOS_APP_NAME: WorkBuddy Manage Panel
 
 jobs:
   test:
@@ -331,22 +332,38 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Build universal .app and DMG
         run: wails3 task darwin:package
+      - name: Verify macOS app metadata
+        shell: bash
+        run: |
+          APP="bin/${MACOS_APP_NAME}.app"
+          PLIST="$APP/Contents/Info.plist"
+          test -d "$APP"
+          test -s "$APP/Contents/Resources/icons.icns"
+          plutil -lint "$PLIST"
+          test "$(plutil -extract CFBundleDisplayName raw -o - "$PLIST")" = "$MACOS_APP_NAME"
+          test "$(plutil -extract CFBundleName raw -o - "$PLIST")" = "$MACOS_APP_NAME"
+          test "$(plutil -extract CFBundleExecutable raw -o - "$PLIST")" = "$APP_NAME"
+          test "$(plutil -extract CFBundleIconFile raw -o - "$PLIST")" = "icons"
+          if plutil -extract CFBundleIconName raw -o - "$PLIST" >/dev/null 2>&1; then
+            echo "::error::CFBundleIconName requires Assets.car, but this bundle uses icons.icns"
+            exit 1
+          fi
       - name: Name release files
         run: |
           V="${{ needs.read-version.outputs.version }}"
           V="${V%-panel}"
           mkdir -p release
-          DMG="$(find bin -maxdepth 1 -type f -name '*.dmg' | head -1)"
-          if [[ -z "$DMG" ]]; then
-            echo "::error::DMG not found"
+          DMG="bin/${MACOS_APP_NAME}.dmg"
+          if [[ ! -f "$DMG" ]]; then
+            echo "::error::DMG not found: $DMG"
             exit 1
           fi
           cp "$DMG" "release/workbuddy-manage-panel-${V}-macos-universal.dmg"
           ditto -c -k --sequesterRsrc --keepParent \
-            bin/workbuddy-manage-panel.app \
+            "bin/${MACOS_APP_NAME}.app" \
             "release/workbuddy-manage-panel-${V}-macos-universal.zip"
-          lipo -archs bin/workbuddy-manage-panel.app/Contents/MacOS/workbuddy-manage-panel
-          codesign --verify --deep --strict bin/workbuddy-manage-panel.app
+          lipo -archs "bin/${MACOS_APP_NAME}.app/Contents/MacOS/${APP_NAME}"
+          codesign --verify --deep --strict "bin/${MACOS_APP_NAME}.app"
           test -s "release/workbuddy-manage-panel-${V}-macos-universal.dmg"
           test -s "release/workbuddy-manage-panel-${V}-macos-universal.zip"
       - uses: actions/upload-artifact@v4
@@ -451,10 +468,17 @@ jobs:
         run: |
           V="${{ needs.read-version.outputs.version }}"
           V="${V%-panel}"
-          test "$(dpkg-deb -f dist/workbuddy-manage-panel_${V}_amd64.deb Version)" = "${V}-1"
-          unzip -p dist/workbuddy-manage-panel-${V}-macos-universal.zip \
-            workbuddy-manage-panel.app/Contents/Info.plist > /tmp/Info.plist
+          test "$(dpkg-deb -f "dist/workbuddy-manage-panel_${V}_amd64.deb" Version)" = "${V}-1"
+          dpkg-deb -f "dist/workbuddy-manage-panel_${V}_amd64.deb" Depends | grep -qw pkexec
+          unzip -p "dist/workbuddy-manage-panel-${V}-macos-universal.zip" \
+            "WorkBuddy Manage Panel.app/Contents/Info.plist" > /tmp/Info.plist
           test "$(sed -n '/<key>CFBundleShortVersionString<\/key>/{n;s/.*<string>\(.*\)<\/string>.*/\1/p;}' /tmp/Info.plist)" = "$V"
+          test "$(sed -n '/<key>CFBundleDisplayName<\/key>/{n;s/.*<string>\(.*\)<\/string>.*/\1/p;}' /tmp/Info.plist)" = "WorkBuddy Manage Panel"
+          test "$(sed -n '/<key>CFBundleIconFile<\/key>/{n;s/.*<string>\(.*\)<\/string>.*/\1/p;}' /tmp/Info.plist)" = "icons"
+          if grep -q '<key>CFBundleIconName</key>' /tmp/Info.plist; then
+            echo "::error::CFBundleIconName requires Assets.car"
+            exit 1
+          fi
       - name: Verify expected assets
         shell: bash
         run: |

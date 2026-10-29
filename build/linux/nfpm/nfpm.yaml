@@ -24,10 +24,12 @@ contents:
   - src: "./build/linux/io.github.twiink.workbuddy-manage-panel.desktop"
     dst: "/usr/share/applications/io.github.twiink.workbuddy-manage-panel.desktop"
 
-# Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
+# Default dependencies for the GTK4 + WebKitGTK 6.0 stack and Polkit-based
+# in-app .deb updates (Ubuntu 24.04+ / Debian 13+).
 depends:
   - libgtk-4-1
   - libwebkitgtk-6.0-4
+  - pkexec
 
 # Distribution-specific overrides for different package formats
 overrides:
