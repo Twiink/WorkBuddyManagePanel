@@ -25,6 +25,7 @@ import (
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/credithist"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/health"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/httpauth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
@@ -68,6 +69,8 @@ type Config struct {
 	// CreditHistory 积分变动账本（nil = 积分历史接口返回 501）。只读展示：
 	// 留痕由余额查询路径（upstream.Client 的余额观察者）写入。
 	CreditHistory *credithist.Ledger
+	// Health 账号健康台账（nil = 健康接口返回空视图）。
+	Health *health.Tracker
 
 	// ProbeFile 模型输出上限探测结果文件（scripts/probe_max_tokens.py --panel-out
 	// 写入；空或文件不存在 = model_probes 端点返回空集，面板不显示任何实测标注）。
@@ -165,6 +168,7 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("GET /panel/api/request_metrics", p.withAuth(p.requestMetrics))
 	p.mux.HandleFunc("GET /panel/api/request_logs", p.withAuth(p.requestLogs))
 	p.mux.HandleFunc("GET /panel/api/credit_history", p.withAuth(p.creditHistory))
+	p.mux.HandleFunc("GET /panel/api/health", p.withAuth(p.healthView))
 	p.mux.HandleFunc("GET /panel/api/models", p.withAuth(p.models))
 	p.mux.HandleFunc("POST /panel/api/login/start", p.withAuth(p.loginStart))
 	p.mux.HandleFunc("GET /panel/api/login/poll", p.withAuth(p.loginPoll))
@@ -712,6 +716,7 @@ func (p *Panel) accountBalance(w http.ResponseWriter, r *http.Request) {
 func (p *Panel) accountRemove(w http.ResponseWriter, r *http.Request) {
 	uid := r.PathValue("uid")
 	a := p.cfg.Pool.Remove(uid)
+	p.cfg.Health.Forget(uid)
 	if a == nil {
 		writeErr(w, http.StatusNotFound, "account not found")
 		return
@@ -1071,4 +1076,20 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeErr(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]any{"ok": false, "error": msg})
+}
+
+// healthView 账号健康与错误可观测性：全池近 24h 成功率、错误类型分布、逐账号
+// 最近错误与余额查询状态，并附带池内实时状态（冷却/禁用/余额）便于对照。
+func (p *Panel) healthView(w http.ResponseWriter, r *http.Request) {
+	list := p.cfg.Pool.List()
+	uids := make([]string, 0, len(list))
+	for _, st := range list {
+		uids = append(uids, st.UID)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"summary":              p.cfg.Health.Snapshot(uids),
+		"accounts":             list,
+		"balance_refresh_sec":  p.balanceRefreshSec(),
+		"balance_refreshed_at": p.balanceRefreshedAt(),
+	})
 }

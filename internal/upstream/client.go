@@ -789,6 +789,8 @@ type Client struct {
 	// creditObserver 余额查询观察者（见 CreditObserver / SetCreditObserver）。
 	// atomic：启动期挂载、运行期并发读，不参与任何出站决策。
 	creditObserver atomic.Pointer[CreditObserver]
+	// balanceResultObserver 余额查询结果观察者（成功与失败都通知，健康台账用）。
+	balanceResultObserver atomic.Pointer[BalanceResultObserver]
 }
 
 // CreditObserver 余额查询观察者：每次**真实查到**余额后回调（uid + 余额绝对值）。
@@ -796,6 +798,10 @@ type Client struct {
 // （internal/credithist）：余额查询是"积分变动"唯一可靠的观测口——签到 / 活跃
 // 上报等渠道上游不落金额日志，只能靠比对余额覆盖。
 type CreditObserver func(uid string, credits int64)
+
+// BalanceResultObserver 余额查询结果观察者：err == nil 为查询成功。与 CreditObserver
+// 的区别是失败也通知——用于回答「这个号的余额还查不查得到」。
+type BalanceResultObserver func(uid string, err error)
 
 // New 生产默认值。Transport 由 newTransport() 集中构造（连接层加固：真正禁 h2 /
 // TLS 握手超时 / 短 keepalive 探测 / 失败清池，参数见 transport.go——吸收上游
@@ -2319,6 +2325,7 @@ func (c *Client) UserResourceSnapshot(a *auth.Auth, soon time.Duration) (remain,
 		return e
 	})
 	if err != nil {
+		c.notifyCredits(a, 0, err)
 		return 0, 0, 0, time.Time{}, 0, nil, err
 	}
 	var resp struct {
@@ -2341,7 +2348,9 @@ func (c *Client) UserResourceSnapshot(a *auth.Auth, soon time.Duration) (remain,
 		} `json:"Response"`
 	}
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return 0, 0, 0, time.Time{}, 0, nil, fmt.Errorf("resource parse: %w", err)
+		err = fmt.Errorf("resource parse: %w", err)
+		c.notifyCredits(a, 0, err)
+		return 0, 0, 0, time.Time{}, 0, nil, err
 	}
 	byDate := make(map[string]*ExpiryBucket)
 	for _, acct := range resp.Response.Data.Accounts {
@@ -2416,10 +2425,35 @@ func (c *Client) SetCreditObserver(fn CreditObserver) {
 	c.creditObserver.Store(&fn)
 }
 
+// SetBalanceResultObserver 挂载/注销（nil）余额查询结果观察者（成功失败都通知）。
+func (c *Client) SetBalanceResultObserver(fn BalanceResultObserver) {
+	if c == nil {
+		return
+	}
+	if fn == nil {
+		c.balanceResultObserver.Store(nil)
+		return
+	}
+	c.balanceResultObserver.Store(&fn)
+}
+
 // notifyCredits 查询成功（err == nil）后旁路通知观察者。失败不是观测值：
 // 网络抖动返回的 0 余额若被留痕，会在下一次成功时造出一条假变动。
 func (c *Client) notifyCredits(a *auth.Auth, credits int64, err error) {
-	if c == nil || err != nil || a == nil {
+	if c == nil || a == nil {
+		return
+	}
+	if rf := c.balanceResultObserver.Load(); rf != nil {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("WARN: [upstream] 余额结果观察者 panic 已忽略: %v", r)
+				}
+			}()
+			(*rf)(a.UID, err)
+		}()
+	}
+	if err != nil {
 		return
 	}
 	fn := c.creditObserver.Load()

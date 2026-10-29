@@ -376,7 +376,7 @@ let lastPackagesAt = 0;
 let expFetching = false;                       // 到期卡片在途标记（防重复打上游）
 const EXP_FRESH_MS = 2 * 60 * 1000;            // 缓存新鲜窗口：2 分钟内复用
 
-const TITLES = { accounts: '账号池', usage: '用量', packages: '积分构成', taskscenter: '任务中心', models: '模型与档位', config: '配置', logs: '运行日志' };
+const TITLES = { accounts: '账号池', health: '健康', usage: '用量', packages: '积分构成', taskscenter: '任务中心', models: '模型与档位', config: '配置', logs: '运行日志' };
 function go(v) {
   view = v;
   document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== 'view-' + v);
@@ -386,6 +386,7 @@ function go(v) {
   if (v === 'config') loadConfig();
   if (v === 'logs') loadLogs();
   if (v === 'usage') { loadUsage(); loadRequests(); }
+  if (v === 'health') loadHealth();
   if (v === 'packages') { loadPackages(); loadCreditHistory(); }
   // 到期提醒卡片：默认可见，进页面即用 overview 快照渲染（零上游请求，随首页统计
   // 每轮刷新）。不再「打开账号池就打上游」——逐账号实时查在账号多时会卡死面板。
@@ -1745,6 +1746,7 @@ function refreshVisible() {
   if (view === 'accounts') { loadOverview(true); renderCachedCompensation(); }
   else if (view === 'logs') loadLogs();
   else if (view === 'usage') loadRequests();
+  else if (view === 'health') loadHealth();
   else if (view === 'taskscenter') reattachQueueView();
 }
 function start() {
@@ -1759,6 +1761,112 @@ async function checkAuthGate() {
   catch (e) { if (String(e.message).includes('密钥') || String(e.message).includes('api_key')) return; }
 }
 start();
+
+/* ── 健康 ─────────────────────────────────────────────────────────── */
+/* 错误类型的中文名（upstream.ErrKind.String() + 网关自有的 transport/timeout/refresh）。 */
+const HL_KIND = {
+  soft_rate: '限流', hard_credit: '余额不足', session_dead: '会话失效', not_found: '404',
+  server: '上游 5xx', content_blocked: '内容拦截', bad_params: '参数错误', model_blocked: '模型不可用',
+  waf_block: 'WAF 拦截', prompt_too_long: '上下文超限', image_invalid: '图片无效', upstream_busy: '上游满载',
+  account_fault: '账号故障', channel_refused: '通道校验', client: '其他 4xx',
+  transport: '网络错误', timeout: '上游超时', refresh: '刷新失败', none: '未分类',
+};
+const hlKind = k => HL_KIND[k] || k;
+let healthData = null;
+function hlRate(r) { return r == null || r < 0 ? '—' : trimFixed(Number(r).toFixed(1)) + '%'; }
+function hlStateTag(s) {
+  if (!s) return '<span class="tag mute">未知</span>';
+  if (s.disabled) return '<span class="tag bad">已禁用</span>';
+  if (s.paused) return '<span class="tag warn">已暂停</span>';
+  if (s.cooling) return '<span class="tag warn">冷却中</span>';
+  if (s.daily && s.daily.token_blocked) return '<span class="tag warn">今日额度已满</span>';
+  return '<span class="tag ok">可用</span>';
+}
+/* 异常 = 不可用、或近 24h 成功率低于 80%（至少 5 次尝试才判，避免一次失败就报警）、或余额查不到。 */
+function hlIsBad(v, s) {
+  if (s && (s.disabled || s.cooling)) return true;
+  if (v.balance_err) return true;
+  return v.ok_24h + v.err_24h >= 5 && v.success_rate >= 0 && v.success_rate < 80;
+}
+function hlMini(hourly) {
+  const max = Math.max(1, ...hourly.map(h => h.ok + h.err));
+  return '<span class="hl-mini">' + hourly.map(h => {
+    const n = h.ok + h.err;
+    const ht = n ? Math.max(3, Math.round(n / max * 22)) : 2;
+    const cls = !n ? '' : (h.err > h.ok ? 'bad' : 'ok');
+    return '<i class="' + cls + '" style="height:' + ht + 'px" title="' + esc(h.hour.slice(11) + ':00 成功 ' + h.ok + ' / 失败 ' + h.err) + '"></i>';
+  }).join('') + '</span>';
+}
+function renderHealth(d) {
+  healthData = d;
+  const sum = (d && d.summary) || {};
+  const byUID = {};
+  for (const s of (d && d.accounts) || []) byUID[s.uid] = s;
+  const rows = sum.accounts || [];
+  const bad = rows.filter(v => hlIsBad(v, byUID[v.uid]));
+  $('hlRate').textContent = hlRate(sum.success_rate);
+  $('hlOk').textContent = fmtTok(sum.ok_24h || 0);
+  $('hlErr').textContent = fmtTok(sum.err_24h || 0);
+  $('hlBad').textContent = rows.length ? bad.length + ' / ' + rows.length : '0';
+  $('hlBal').textContent = String(rows.filter(v => v.balance_err).length);
+
+  const hourly = sum.hourly || [];
+  const max = Math.max(1, ...hourly.map(h => h.ok + h.err));
+  $('hlBars').innerHTML = hourly.map(h => {
+    const n = h.ok + h.err;
+    const tip = h.hour.replace('T', ' ') + ':00　成功 ' + h.ok + ' / 失败 ' + h.err;
+    return '<div class="hl-bar" title="' + esc(tip) + '" style="height:' + (n ? Math.max(4, n / max * 100) : 3) + '%">' +
+      '<i class="ok" style="flex:' + h.ok + '"></i><i class="err" style="flex:' + h.err + '"></i></div>';
+  }).join('');
+  $('hlAxis').innerHTML = hourly.map((h, i) => '<span>' + (i % 3 === 0 ? h.hour.slice(11) : '') + '</span>').join('');
+  const kinds = sum.kinds_24h || [];
+  $('hlKinds').innerHTML = kinds.length
+    ? kinds.map(k => '<span class="k" title="' + esc(k.kind) + '">' + esc(hlKind(k.kind)) + '<b>' + k.count + '</b></span>').join('')
+    : '<span class="hint">近 24 小时没有失败尝试</span>';
+
+  const onlyBad = $('hlOnlyBad').checked;
+  const shown = (onlyBad ? bad : rows).slice().sort((a, b) => {
+    const ba = hlIsBad(a, byUID[a.uid]) ? 0 : 1, bb = hlIsBad(b, byUID[b.uid]) ? 0 : 1;
+    return ba - bb || (b.err_24h - a.err_24h) || a.uid.localeCompare(b.uid);
+  });
+  const balAgo = d && d.balance_refreshed_at ? ago(d.balance_refreshed_at) : '—';
+  $('hlNote').textContent = '共 ' + rows.length + ' 个账号' + (balAgo !== '—' ? ' · 余额 ' + balAgo + '刷新' : '');
+  if (!shown.length) {
+    $('hlBody').innerHTML = '<tr><td colspan="8"><div class="empty">' + (onlyBad ? '没有异常账号' : '账号池是空的') + '</div></td></tr>';
+    return;
+  }
+  $('hlBody').innerHTML = shown.map(v => {
+    const s = byUID[v.uid] || {};
+    const name = s.nickname ? esc(s.nickname) : '<span style="color:var(--ink-3)">未命名</span>';
+    const short = v.uid.length > 16 ? v.uid.slice(0, 16) + '…' : v.uid;
+    const cred = s.credits_total === -1 ? '不限' : (s.credits == null ? '—' : String(s.credits));
+    const bal = v.balance_err
+      ? '<span class="tag bad" title="' + esc(v.balance_err.msg || '') + '">失败 · ' + ago(v.balance_err.time) + '</span>'
+      : (v.balance_ok ? '<span class="muted">' + ago(v.balance_ok) + '成功</span>' : '<span class="muted">—</span>');
+    const kinds = (v.kinds_24h || []).slice(0, 3).map(k => esc(hlKind(k.kind)) + ' ' + k.count).join('、') || '<span class="muted">—</span>';
+    const le = v.last_err;
+    const last = le
+      ? '<div>' + esc(hlKind(le.kind)) + (le.status ? ' · ' + le.status : '') + (le.model ? ' · ' + esc(le.model) : '') +
+        ' <span class="muted">' + ago(le.time) + '</span></div><div class="sub" title="' + esc(le.msg || '') + '">' + esc(le.msg || '') + '</div>'
+      : '<span class="muted">—</span>';
+    const reason = (s.cooling || s.disabled) && s.reason ? '<div class="hint" style="font-size:11.5px;margin-top:3px">' + esc(s.reason) + '</div>' : '';
+    return '<tr title="uid: ' + esc(v.uid) + '">' +
+      '<td class="who"><div class="nm">' + remarkName(v.uid, name) + '</div><div class="id">' + esc(short) + '</div></td>' +
+      '<td>' + hlStateTag(s) + reason + '</td>' +
+      '<td class="num">' + cred + '</td>' +
+      '<td>' + bal + '</td>' +
+      '<td class="num">' + hlRate(v.success_rate) + '<div class="muted" style="font-size:11.5px">' + v.ok_24h + ' / ' + v.err_24h + '</div></td>' +
+      '<td>' + hlMini(v.hourly || []) + '</td>' +
+      '<td style="font-size:12px">' + kinds + '</td>' +
+      '<td class="err-msg">' + last + '</td></tr>';
+  }).join('');
+}
+async function loadHealth() {
+  try { renderHealth(await api('health')); }
+  catch (e) { $('hlBody').innerHTML = '<tr><td colspan="8"><div class="empty">读取失败：' + esc(e.message) + '</div></td></tr>'; }
+}
+$('btnHealth').onclick = loadHealth;
+$('hlOnlyBad').onchange = () => { if (healthData) renderHealth(healthData); };
 
 /* ── 积分任务 ─────────────────────────────────────────────────────── */
 let taskUID = null;

@@ -24,6 +24,7 @@ import (
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/buildinfo"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/credithist"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/health"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/panel"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
@@ -67,6 +68,7 @@ type Instance struct {
 	store      redisstore.Store
 	usage      *usage.Recorder
 	requestLog *reqlog.Recorder
+	health     *health.Tracker
 	session    *session.Router
 }
 
@@ -112,6 +114,9 @@ func (i *Instance) shutdown() {
 	}
 	if i.requestLog != nil {
 		i.requestLog.Close()
+	}
+	if i.health != nil {
+		i.health.Stop()
 	}
 	if i.usage != nil {
 		i.usage.Stop()
@@ -493,10 +498,18 @@ func finishStart(
 	up.SetCreditObserver(creditHist.Observe)
 	log.Printf("[credithist] 积分历史已启用: %s", StateSibling(cfg.StateFile, "credit-history.json"))
 
+	// 账号健康台账：近 24h 成功/失败、错误类型分布、最近错误、余额查询成败。
+	// 旁路记录（请求处置不读它），与 state 同目录。
+	healthTracker := health.New(StateSibling(cfg.StateFile, "health.json"))
+	healthTracker.Start()
+	i.health = healthTracker
+	up.SetBalanceResultObserver(healthTracker.Balance)
+
 	pn := panel.New(panel.Config{
 		Pool:        p,
 		Usage:       rec,
 		RequestLog:  requestLog,
+		Health:      healthTracker,
 		Upstream:    up,
 		Scheduler:   sch,
 		AuthDir:     cfg.AuthDir,
@@ -544,6 +557,7 @@ func finishStart(
 		Live:          live,
 		Usage:         rec,
 		RequestLog:    requestLog,
+		Health:        healthTracker,
 		PromptMode:    cfg.Prompt.Mode,
 		PromptText:    cfg.PromptText,
 		// 来源记录开关经 livecfg 热生效；此处同时填静态字段，供 Live 为 nil 的
