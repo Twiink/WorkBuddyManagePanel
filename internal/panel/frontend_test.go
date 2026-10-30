@@ -1472,6 +1472,160 @@ func TestPanelRemarkAndFoldWiring(t *testing.T) {
 	}
 }
 
+// 移除账号必须使用面板内的 alertdialog，而不是浏览器原生 confirm：
+// 前者能显示账号身份、后果和不可恢复提示，并支持 Esc / 焦点循环 / 焦点归还。
+func TestPanelRemoveAccountDialog(t *testing.T) {
+	html, err := os.ReadFile("index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`id="removeVeil"`,
+		`role="alertdialog"`,
+		`aria-modal="true"`,
+		`id="removeName"`,
+		`id="removeUid"`,
+		`id="btnRemoveCancel"`,
+		`id="btnRemoveConfirm"`,
+	} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Fatalf("index.html 缺少 %s", want)
+		}
+	}
+	js, err := os.ReadFile("app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(js, []byte("confirm('移除账号")) {
+		t.Fatal("移除账号仍在使用浏览器原生 confirm")
+	}
+	if !bytes.Contains(js, []byte("confirmRemoveAccount(account)")) {
+		t.Fatal("账号移除分支没有接入自定义确认弹窗")
+	}
+
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed; remove dialog behavior test skipped")
+	}
+	script := `const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert');
+const src = fs.readFileSync(process.argv[2], 'utf8');
+const start = src.indexOf('let removeConfirmState = null;');
+const end = src.indexOf("$('accBody').addEventListener", start);
+if (start < 0 || end < 0 || end < start) throw new Error('remove dialog region not found');
+
+const elements = {};
+const handlers = {};
+const trigger = { focus() { document.activeElement = this; } };
+const replacement = { dataset: { u: 'u1' }, focus() { document.activeElement = this; } };
+let containsTarget = true;
+const document = {
+  activeElement: trigger,
+  body: { style: { overflow: 'scroll' } },
+  contains() { return containsTarget; },
+  querySelectorAll() { return [replacement]; },
+  addEventListener(type, fn) { handlers[type] = fn; },
+};
+function el(id) {
+  if (elements[id]) return elements[id];
+  const classes = new Set();
+  const node = {
+    textContent: '', title: '', disabled: false, onclick: null,
+    classList: {
+      add(c) { classes.add(c); },
+      remove(c) { classes.delete(c); },
+      contains(c) { return classes.has(c); },
+    },
+    focus() { document.activeElement = this; },
+    addEventListener(type, fn) { node.handlers[type] = fn; },
+    handlers: {},
+  };
+  elements[id] = node;
+  return node;
+}
+const ctx = {
+  $: el,
+  document,
+  remarkOf: uid => uid === 'u1' ? '备注名' : '',
+  setTimeout: fn => fn(),
+  Array, String, Promise,
+};
+vm.createContext(ctx);
+vm.runInContext(src.slice(start, end) +
+  '\nthis.confirmRemoveAccount=confirmRemoveAccount;', ctx);
+
+(async () => {
+  const veil = el('removeVeil');
+  const cancel = el('btnRemoveCancel');
+  const confirm = el('btnRemoveConfirm');
+
+  let p = ctx.confirmRemoveAccount({ uid: 'u1', nickname: '原昵称' });
+  assert.equal(el('removeName').textContent, '备注名');
+  assert.equal(el('removeAvatar').textContent, '备');
+  assert.equal(el('removeUid').textContent, 'u1');
+  assert(veil.classList.contains('on'));
+  assert.strictEqual(document.activeElement, cancel);
+  assert.strictEqual(document.body.style.overflow, 'hidden');
+  cancel.onclick();
+  assert.strictEqual(await p, false);
+  assert(!veil.classList.contains('on'));
+  assert.strictEqual(document.activeElement, trigger);
+  assert.strictEqual(document.body.style.overflow, 'scroll');
+
+  containsTarget = false;
+  p = ctx.confirmRemoveAccount({ uid: 'u1' });
+  cancel.onclick();
+  assert.strictEqual(await p, false);
+  assert.strictEqual(document.activeElement, replacement);
+
+  p = ctx.confirmRemoveAccount({ uid: 'u1' });
+  confirm.onclick();
+  assert.strictEqual(await p, true);
+
+  p = ctx.confirmRemoveAccount({ uid: 'u1' });
+  handlers.keydown({ key: 'Escape', preventDefault() {} });
+  assert.strictEqual(await p, false);
+
+  p = ctx.confirmRemoveAccount({ uid: 'u1' });
+  document.activeElement = cancel;
+  handlers.keydown({ key: 'Tab', shiftKey: true, preventDefault() {} });
+  assert.strictEqual(document.activeElement, confirm);
+  handlers.keydown({ key: 'Tab', shiftKey: false, preventDefault() {} });
+  assert.strictEqual(document.activeElement, cancel);
+  cancel.onclick();
+  await p;
+
+  process.stdout.write(JSON.stringify({
+    name: el('removeName').textContent,
+    avatar: el('removeAvatar').textContent,
+    uid: el('removeUid').textContent,
+    cancel: false,
+    confirm: true,
+    escape: false,
+    trap: true,
+    scrollLock: true,
+    focusFallback: true,
+  }));
+})().catch(e => { console.error(e); process.exitCode = 1; });`
+	f, err := os.CreateTemp(t.TempDir(), "remove-dialog-*.cjs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(script); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	out, err := exec.Command(node, f.Name(), "app.js").CombinedOutput()
+	if err != nil {
+		t.Fatalf("remove dialog node test failed: %v\n%s", err, out)
+	}
+	const want = `{"name":"备注名","avatar":"备","uid":"u1","cancel":false,"confirm":true,"escape":false,"trap":true,"scrollLock":true,"focusFallback":true}`
+	if strings.TrimSpace(string(out)) != want {
+		t.Fatalf("remove dialog=%s\nwant %s", strings.TrimSpace(string(out)), want)
+	}
+}
+
 // 用实际表单函数验证地区策略回填、独立提交以及清空账号顺序。
 func TestRegionSchedulingFormRoundTrip(t *testing.T) {
 	node, err := exec.LookPath("node")

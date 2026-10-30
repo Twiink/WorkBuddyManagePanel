@@ -21,7 +21,7 @@
   --accent: #7393ff; --accent-ink: #0a0d16; --accent-soft: rgba(115,147,255,.14);
   --ok: #3fd49b; --ok-soft: rgba(63,212,155,.12);
   --warn: #f2b13f; --warn-soft: rgba(242,177,63,.13);
-  --bad: #f26b62; --bad-soft: rgba(242,107,98,.13);
+  --bad: #f26b62; --bad-soft: rgba(242,107,98,.13); --bad-ink: #150b0d;
   --rail: #11153a; --rail-2: #181d4a; --rail-line: rgba(255,255,255,.08);
   --rail-ink: #eef0ff; --rail-ink-2: #a3aad6; --rail-ink-3: #7880b4;
   --shadow: 0 1px 0 rgba(0,0,0,.25);
@@ -37,7 +37,7 @@
   --accent: #2a55e0; --accent-ink: #ffffff; --accent-soft: rgba(42,85,224,.09);
   --ok: #0c8a57; --ok-soft: rgba(12,138,87,.09);
   --warn: #a5650a; --warn-soft: rgba(196,128,16,.11);
-  --bad: #c4342c; --bad-soft: rgba(196,52,44,.08);
+  --bad: #c4342c; --bad-soft: rgba(196,52,44,.08); --bad-ink: #ffffff;
   --rail: #151a4b; --rail-2: #1e245c; --rail-line: rgba(255,255,255,.09);
   --rail-ink: #f2f3ff; --rail-ink-2: #b2b8e4; --rail-ink-3: #8189c0;
   --shadow: 0 1px 0 rgba(16,20,32,.04);
@@ -209,6 +209,15 @@ button.ghost { background: transparent; border-color: transparent; }
 button.ghost:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line); }
 button.danger { color: var(--bad); }
 button.danger:hover:not(:disabled) { border-color: var(--bad); background: var(--bad-soft); }
+button.danger-solid { background: var(--bad); border-color: var(--bad); color: var(--bad-ink); font-weight: 650; }
+button.danger-solid:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 86%, var(--ink));
+  border-color: color-mix(in srgb, var(--bad) 86%, var(--ink));
+}
+button.danger-solid:active:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 74%, var(--ink));
+  border-color: color-mix(in srgb, var(--bad) 74%, var(--ink));
+}
 button.xs { padding: 3px 9px; font-size: 12.5px; border-radius: var(--r); white-space: nowrap; }
 /* select.xs：header 里的紧凑选择框。通用 input/select 规则是 width:100%（表单页用），
    header 里若不收窄会把同行 note 挤到换行——收成内容宽并压小外观，与 button.xs 同款。 */
@@ -572,6 +581,49 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 }
 .state { font-size: 13px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
 .state.ok { color: var(--ok); } .state.err { color: var(--bad); }
+
+/* ── 移除账号确认：危险操作不借用浏览器原生 confirm ─────────────────── */
+#removeVeil .remove-dlg { width: 500px; border-top-color: var(--bad); }
+.remove-hd { display: flex; align-items: flex-start; gap: 14px; }
+.remove-mark {
+  width: 40px; height: 40px; flex: none; display: grid; place-items: center;
+  color: var(--bad); background: var(--bad-soft);
+  border: 1px solid color-mix(in srgb, var(--bad) 30%, var(--line)); border-radius: 8px;
+}
+.remove-mark svg { width: 20px; height: 20px; }
+.remove-copy { min-width: 0; }
+.remove-copy .hint { margin-top: 5px; }
+.remove-account {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: 12px 14px; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.remove-avatar {
+  width: 38px; height: 38px; flex: none; display: grid; place-items: center;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 7px; font-size: 15px; font-weight: 700;
+}
+.remove-who { min-width: 0; display: grid; gap: 2px; }
+.remove-who b { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.remove-who code {
+  padding: 0; border: 0; background: none; color: var(--ink-3);
+  font: 11.5px/1.5 var(--mono); overflow-wrap: anywhere;
+}
+.remove-consequences { list-style: none; display: grid; gap: 8px; margin-top: 16px; }
+.remove-consequences li {
+  position: relative; padding-left: 19px; color: var(--ink-2);
+  font-size: 12.5px; line-height: 1.55;
+}
+.remove-consequences li::before {
+  content: ""; position: absolute; left: 4px; top: .62em;
+  width: 5px; height: 5px; border-radius: 1px; background: var(--bad);
+}
+.remove-consequences code { color: var(--ink); }
+.remove-warning {
+  margin-top: 16px; padding: 10px 12px; color: var(--ink-2); font-size: 12px; line-height: 1.6;
+  background: var(--bad-soft);
+  border: 1px solid color-mix(in srgb, var(--bad) 24%, var(--line)); border-radius: 5px;
+}
 
 /* ── 添加账号弹窗 ─────────────────────────────────────────────────── */
 .dlg header.add-hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -1917,6 +1969,44 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 
 <!-- 抽屉遮罩：仅 ≤760px 由 app.js 切 .on；桌面端 display:none，不参与布局 -->
 <div class="nav-veil" id="navVeil"></div>
+
+<!-- 移除账号确认 -->
+<div class="veil" id="removeVeil">
+  <div class="dlg remove-dlg" role="alertdialog" aria-modal="true"
+       aria-labelledby="removeTitle" aria-describedby="removeDesc removeWarning">
+    <header class="remove-hd">
+      <span class="remove-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6.5 7l.8 13h9.4l.8-13"/><path d="M10 11v5M14 11v5"/>
+        </svg>
+      </span>
+      <div class="remove-copy">
+        <h3 id="removeTitle">移除账号</h3>
+        <p class="hint" id="removeDesc">该账号会立即退出请求调度，并从账号池中删除。</p>
+      </div>
+    </header>
+    <div class="body">
+      <div class="remove-account">
+        <span class="remove-avatar" id="removeAvatar" aria-hidden="true">?</span>
+        <div class="remove-who">
+          <b id="removeName">未命名账号</b>
+          <code id="removeUid">—</code>
+        </div>
+      </div>
+      <ul class="remove-consequences" aria-label="移除后的影响">
+        <li>立即停止参与选号与请求转发</li>
+        <li>删除 <code>auths/</code> 下对应的凭证文件</li>
+        <li>清除账号池状态与积分到期快照</li>
+      </ul>
+      <p class="remove-warning" id="removeWarning">此操作不可恢复。若只是临时停用，请改用「暂停选号」或「禁用」。</p>
+    </div>
+    <footer>
+      <button id="btnRemoveCancel">取消</button>
+      <span class="grow"></span>
+      <button class="danger-solid" id="btnRemoveConfirm">确认移除</button>
+    </footer>
+  </div>
+</div>
 
 <!-- 积分任务 -->
 <div class="veil" id="taskVeil">

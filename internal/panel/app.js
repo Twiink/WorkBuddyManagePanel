@@ -615,11 +615,98 @@ function renderListenStatus(info) {
   }
 }
 
+/* ── 移除账号确认 ─────────────────────────────────────────────────────
+   原生 confirm 无法呈现账号身份与操作后果，也破坏面板的统一视觉。这里用
+   alertdialog：默认焦点落在「取消」，支持 Esc、遮罩点击关闭与 Tab 焦点循环。 */
+let removeConfirmState = null;
+
+function removeDialogFocusables() {
+  return [$('btnRemoveCancel'), $('btnRemoveConfirm')].filter(b => b && !b.disabled);
+}
+
+function removeDialogReturnTarget(state) {
+  const previous = state.previousFocus;
+  if (previous && typeof previous.focus === 'function' && (!document.contains || document.contains(previous))) {
+    return previous;
+  }
+  // 账号表每 5 秒重渲染，打开弹窗前的按钮可能已被替换。优先找同一账号的新按钮，
+  // 账号确实已删除时再回到页面级「刷新」，避免焦点丢到 body。
+  if (typeof document.querySelectorAll === 'function') {
+    const rowButton = Array.from(document.querySelectorAll('#accBody button[data-a="remove"]'))
+      .find(b => String(b.dataset && b.dataset.u) === state.uid);
+    if (rowButton) return rowButton;
+  }
+  return $('btnRefresh');
+}
+
+function finishRemoveDialog(confirmed) {
+  const state = removeConfirmState;
+  if (!state) return;
+  removeConfirmState = null;
+  $('removeVeil').classList.remove('on');
+  document.body.style.overflow = state.bodyOverflow;
+  const target = removeDialogReturnTarget(state);
+  if (target && typeof target.focus === 'function') target.focus();
+  state.resolve(!!confirmed);
+}
+
+function confirmRemoveAccount(account) {
+  if (removeConfirmState) finishRemoveDialog(false);
+  const uid = String((account && account.uid) || '');
+  const name = remarkOf(uid) || String((account && account.nickname) || '') || '未命名账号';
+  $('removeName').textContent = name;
+  $('removeAvatar').textContent = Array.from(name.trim())[0] || '?';
+  $('removeUid').textContent = uid || '—';
+  $('removeUid').title = uid;
+  return new Promise(resolve => {
+    removeConfirmState = {
+      resolve,
+      previousFocus: document.activeElement,
+      bodyOverflow: document.body.style.overflow,
+      uid,
+    };
+    document.body.style.overflow = 'hidden';
+    $('removeVeil').classList.add('on');
+    setTimeout(() => {
+      if (removeConfirmState) $('btnRemoveCancel').focus();
+    }, 0);
+  });
+}
+
+$('btnRemoveCancel').onclick = () => finishRemoveDialog(false);
+$('btnRemoveConfirm').onclick = () => finishRemoveDialog(true);
+$('removeVeil').addEventListener('click', ev => {
+  if (ev.target === ev.currentTarget) finishRemoveDialog(false);
+});
+document.addEventListener('keydown', ev => {
+  if (!removeConfirmState) return;
+  if (ev.key === 'Escape') {
+    ev.preventDefault();
+    finishRemoveDialog(false);
+    return;
+  }
+  if (ev.key !== 'Tab') return;
+  const items = removeDialogFocusables();
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (ev.shiftKey && (document.activeElement === first || !items.includes(document.activeElement))) {
+    ev.preventDefault();
+    last.focus();
+  } else if (!ev.shiftKey && (document.activeElement === last || !items.includes(document.activeElement))) {
+    ev.preventDefault();
+    first.focus();
+  }
+});
+
 $('accBody').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-a]');
   if (!b) return;
   const u = b.dataset.u, a = b.dataset.a;
-  if (a === 'remove' && !confirm('移除账号将删除池状态与 auths/ 下的凭证文件，且不可恢复。确认移除？')) return;
+  if (a === 'remove') {
+    const account = ((overviewData && overviewData.accounts) || [])
+      .find(s => String(s.uid) === String(u)) || { uid: u };
+    if (!await confirmRemoveAccount(account)) return;
+  }
   if (a === 'disable' && !confirm('禁用后该账号不再参与选号（保号任务默认也跳过），需手动解冻才能恢复。若只是想临时让位、仍要保号，请改用「暂停选号」。确认禁用？')) return;
   b.disabled = true;
   try {
