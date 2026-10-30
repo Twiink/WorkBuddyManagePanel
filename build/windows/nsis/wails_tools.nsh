@@ -14,7 +14,7 @@
     !define INFO_PRODUCTNAME "WorkBuddy Manage Panel"
 !endif
 !ifndef INFO_PRODUCTVERSION
-!define INFO_PRODUCTVERSION "1.17.3"
+!define INFO_PRODUCTVERSION "1.18.0"
 !endif
 !ifndef INFO_COPYRIGHT
     !define INFO_COPYRIGHT "Copyright 2026 Twiink"
