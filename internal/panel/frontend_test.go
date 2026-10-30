@@ -36,7 +36,6 @@ func TestAppJSSyntax(t *testing.T) {
 	}
 }
 
-
 // TestIndexHTMLNoInlineScript index.html 不得含内联 <script> 块：
 // 严格 CSP（script-src 'self'）会拦截内联脚本，页面将完全不可用。
 // 外链形式 <script src="..."> 允许。
@@ -1171,6 +1170,70 @@ process.stdout.write(JSON.stringify({
 	}
 }
 
+// 账号被移除或新增后，积分包缓存必须与当前账号池的 UID 集合对齐。否则首页
+// 「积分到期提醒」会继续复用删除前的 packages 响应，「积分构成」也会无限期
+// 展示已移除账号，直到用户手动点刷新或重新打开页面。
+func TestAppJSPackageCacheMatchesCurrentAccounts(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed; package cache test skipped")
+	}
+	script := `const fs = require('fs');
+const vm = require('vm');
+const src = fs.readFileSync(process.argv[2], 'utf8');
+const start = src.indexOf('function clearPackageCache');
+const end = src.indexOf('const TITLES =');
+if (start < 0 || end < 0 || end < start) throw new Error('package cache helpers not found');
+const ctx = { Set, Array, String };
+vm.createContext(ctx);
+vm.runInContext(src.slice(start, end) +
+  '\nthis.clearPackageCache=clearPackageCache;' +
+  'this.packageCacheMatchesAccounts=packageCacheMatchesAccounts;' +
+  'this.setPackageCache=function(v,t){lastPackages=v;lastPackagesAt=t};' +
+  'this.packageCacheState=function(){return {lastPackages:lastPackages,lastPackagesAt:lastPackagesAt}};', ctx);
+
+ctx.setPackageCache({accounts: [{uid: 'a'}, {uid: 'b'}]}, 123);
+const removed = ctx.packageCacheMatchesAccounts({accounts: [{uid: 'a'}]});
+ctx.clearPackageCache();
+const cleared = ctx.packageCacheState();
+
+ctx.setPackageCache({accounts: [{uid: 'b'}, {uid: 'a'}]}, 456);
+const sameSet = ctx.packageCacheMatchesAccounts({accounts: [{uid: 'a'}, {uid: 'b'}]});
+const added = ctx.packageCacheMatchesAccounts({accounts: [{uid: 'a'}, {uid: 'b'}, {uid: 'c'}]});
+const missingOverview = ctx.packageCacheMatchesAccounts(null);
+
+const overviewStart = src.indexOf('async function loadOverview');
+const overviewEnd = src.indexOf('function renderListenStatus', overviewStart);
+const packagesStart = src.indexOf('async function loadPackages');
+const packagesEnd = src.indexOf('/* ── 积分到期提醒', packagesStart);
+const removeStart = src.indexOf("} else if (a === 'remove') {");
+const wired = overviewStart >= 0 && overviewEnd > overviewStart &&
+  packagesStart >= 0 && packagesEnd > packagesStart && removeStart >= 0 &&
+  src.slice(overviewStart, overviewEnd).includes('packageCacheMatchesAccounts(d)') &&
+  src.slice(packagesStart, packagesEnd).includes('packageCacheMatchesAccounts(overviewData)') &&
+  src.slice(removeStart, removeStart + 800).includes('clearPackageCache()');
+
+process.stdout.write(JSON.stringify({
+  removed, cleared, sameSet, added, missingOverview, wired,
+}));`
+	f, err := os.CreateTemp(t.TempDir(), "pkgcache-*.cjs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(script); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	out, err := exec.Command(node, f.Name(), "app.js").CombinedOutput()
+	if err != nil {
+		t.Fatalf("package cache node test failed: %v\n%s", err, out)
+	}
+	const want = `{"removed":false,"cleared":{"lastPackages":null,"lastPackagesAt":0},"sameSet":true,"added":false,"missingOverview":true,"wired":true}`
+	if strings.TrimSpace(string(out)) != want {
+		t.Fatalf("package cache=%s\nwant %s", strings.TrimSpace(string(out)), want)
+	}
+}
+
 // TestPanelIndexExpiryBoxNotHidden 到期卡片在 HTML 骨架里不得带 hidden 属性（issue #137）。
 //
 // 与上一个用例互补：app.js 侧有 renderExpirySnapshot 兜底，HTML 侧若仍写死 hidden，
@@ -1519,4 +1582,3 @@ process.stdout.write(JSON.stringify({
 			strings.TrimSpace(string(out)), want)
 	}
 }
-

@@ -377,6 +377,28 @@ let lastPackagesAt = 0;
 let expFetching = false;                       // 到期卡片在途标记（防重复打上游）
 const EXP_FRESH_MS = 2 * 60 * 1000;            // 缓存新鲜窗口：2 分钟内复用
 
+function clearPackageCache() {
+  lastPackages = null;
+  lastPackagesAt = 0;
+}
+
+/* 包明细缓存必须与当前账号池是同一组 UID。账号被移除后若继续复用旧缓存，
+   首页到期提醒和「积分构成」都会把已删除账号当成仍然存在；新增账号也会让缓存
+   缺项。集合不一致时直接丢弃，由 overview 快照或 packages 实时请求重建。 */
+function packageCacheMatchesAccounts(overview) {
+  if (!lastPackages || !overview || !Array.isArray(overview.accounts)) return true;
+  const uidsOf = list => new Set((list || [])
+    .map(a => String((a && a.uid) || ''))
+    .filter(Boolean));
+  const active = uidsOf(overview.accounts);
+  const cached = uidsOf(lastPackages.accounts);
+  if (active.size !== cached.size) return false;
+  for (const uid of active) {
+    if (!cached.has(uid)) return false;
+  }
+  return true;
+}
+
 const TITLES = { accounts: '账号池', health: '健康', store: '数据检索', usage: '用量', packages: '积分构成', taskscenter: '任务中心', models: '模型与档位', config: '配置', logs: '运行日志' };
 function go(v) {
   view = v;
@@ -536,6 +558,7 @@ async function loadOverview(quiet) {
   try {
     const d = await api('overview');
     overviewData = d;
+    if (!packageCacheMatchesAccounts(d)) clearPackageCache();
     renderListenStatus(d.listen);
     $('sTotal').textContent = d.total;
     $('sHealthy').textContent = d.healthy;
@@ -622,6 +645,7 @@ $('accBody').addEventListener('click', async ev => {
       openTasks(u);
     } else if (a === 'remove') {
       const r = await api('accounts/' + encodeURIComponent(u) + '/remove', { method: 'POST' });
+      clearPackageCache();
       toast(r.file_error ? '已移除（凭证文件删除失败：' + r.file_error + '）' : '已移除', 'ok');
     }
   } catch (e) { toast(e.message, 'err'); }
@@ -3931,10 +3955,14 @@ if ($('pkSort')) {
 // 无缓存（首次进入）才自动查一次；显式刷新（force=true，点「刷新」按钮）始终实时查。
 async function loadPackages(force) {
   if (!force && lastPackages) {
-    renderPackages(lastPackages, lastDetailLimit);
-    const ageMin = Math.floor((Date.now() - lastPackagesAt) / 60000);
-    if (ageMin > 0) $('pkNote').textContent = lastPackages.accounts.length + ' 个账号 · ' + ageMin + ' 分钟前的数据，点「刷新」更新';
-    return;
+    if (!packageCacheMatchesAccounts(overviewData)) {
+      clearPackageCache();
+    } else {
+      renderPackages(lastPackages, lastDetailLimit);
+      const ageMin = Math.floor((Date.now() - lastPackagesAt) / 60000);
+      if (ageMin > 0) $('pkNote').textContent = lastPackages.accounts.length + ' 个账号 · ' + ageMin + ' 分钟前的数据，点「刷新」更新';
+      return;
+    }
   }
   $('pkSummary').innerHTML = '<div class="empty">查询中…（逐账号向上游实时查询）</div>';
   $('pkDetail').innerHTML = '';
