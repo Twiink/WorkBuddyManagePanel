@@ -2,6 +2,8 @@ package main
 
 import (
 	_ "embed"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -9,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -132,9 +136,15 @@ func run() error {
 		MinHeight:       600,
 		InitialPosition: application.WindowCentered,
 		URL:             d.panelURL,
+		EnableFileDrop:  true,
 		BackgroundColour: application.RGBA{
 			Red: 12, Green: 14, Blue: 20, Alpha: 255,
 		},
+	})
+	// 原生文件拖放（GTK/WebView2 拦截了 DOM 拖放事件，页面拿不到 File 对象）：
+	// 读取拖入的 JSON 文件内容，经 __wbNativeImportFiles 桥送进面板导入队列。
+	d.window.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
+		d.forwardDroppedFiles(event)
 	})
 	d.window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		if d.quitting.Load() {
@@ -199,6 +209,52 @@ func (d *desktop) showWindow() {
 	d.window.Restore()
 	d.window.UnMinimise()
 	d.window.Focus()
+}
+
+// forwardDroppedFiles 把拖进窗口的 JSON 文件转发给面板导入队列。
+// 文件内容走 base64，避免在 JS 里读取本地路径；非 JSON 与超大文件记日志跳过。
+func (d *desktop) forwardDroppedFiles(event *application.WindowEvent) {
+	paths := event.Context().DroppedFiles()
+	if len(paths) == 0 || d.window == nil {
+		return
+	}
+	type droppedFile struct {
+		Name string `json:"name"`
+		Data string `json:"data"`
+	}
+	payload := make([]droppedFile, 0, len(paths))
+	skipped := 0
+	for _, path := range paths {
+		if !strings.EqualFold(filepath.Ext(path), ".json") {
+			skipped++
+			continue
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("panel: 读取拖入文件失败 %s: %v", filepath.Base(path), err)
+			continue
+		}
+		if len(content) > 12<<20 {
+			log.Printf("panel: 拖入文件过大已跳过 %s (%d bytes)", filepath.Base(path), len(content))
+			continue
+		}
+		payload = append(payload, droppedFile{
+			Name: filepath.Base(path),
+			Data: base64.StdEncoding.EncodeToString(content),
+		})
+	}
+	if skipped > 0 {
+		d.window.ExecJS("window.toast && window.toast('已忽略 " + strconv.Itoa(skipped) + " 个非 JSON 文件', 'err');")
+	}
+	if len(payload) == 0 {
+		return
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("panel: 序列化拖入文件失败: %v", err)
+		return
+	}
+	d.window.ExecJS("window.__wbNativeImportFiles && window.__wbNativeImportFiles(" + string(raw) + ");")
 }
 
 func desktopDataDir() (string, error) {

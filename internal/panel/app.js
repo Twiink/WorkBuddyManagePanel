@@ -1523,12 +1523,7 @@ function switchAddTab(tab) {
   $('addTabImport').hidden = tab !== 'import';
 }
 document.querySelectorAll('#addTabs .tab').forEach(b => {
-  b.onclick = () => {
-    const was = $('addVeil').dataset.tab;
-    switchAddTab(b.dataset.tab);
-    // 点「导入 JSON」直接弹出文件选择（列表为空时），省去再点一次拖放区。
-    if (b.dataset.tab === 'import' && was !== 'import' && !importQueue.length && !importBusy) $('importFile').click();
-  };
+  b.onclick = () => switchAddTab(b.dataset.tab);
 });
 function startAddLogin() {
   const realm = (document.querySelector('input[name="addRealm"]:checked') || {}).value || 'cn';
@@ -1577,6 +1572,14 @@ $('btnCopyUrl').onclick = () => navigator.clipboard.writeText($('addUrl').textCo
 /* 导入 JSON：可多选/拖入多个文件，本地预读账号数后逐个上传（后端每次一个文件）。 */
 let importQueue = []; // {file, count, err, state: 'ready'|'run'|'ok'|'warn'|'err', res}
 let importBusy = false;
+async function fileToBase64(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
+}
 async function readImportFile(file) {
   const it = { file, count: 0, err: '', state: 'ready', res: null };
   try {
@@ -1641,17 +1644,15 @@ async function runImport() {
   const todo = importQueue.filter(it => it.state === 'ready');
   if (!todo.length) return;
   importBusy = true;
-  const h = {};
-  const k = localStorage.getItem(LS_KEY);
-  if (k) h['Authorization'] = 'Bearer ' + k;
   for (const it of todo) {
     it.state = 'run'; renderImport();
-    const fd = new FormData();
-    fd.append('file', it.file);
     try {
-      const r = await fetch('/panel/api/import/cockpit', { method: 'POST', body: fd, headers: h });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      // JSON+base64 传输：桌面端 wails:// 自定义协议对 multipart FormData 支持不稳，
+      // 纯文本 JSON body 走 WebKit 原生支持路径；后端同时兼容 multipart。
+      const d = await api('import/cockpit', {
+        method: 'POST',
+        body: JSON.stringify({ name: it.file.name, data: await fileToBase64(it.file) }),
+      });
       it.res = d;
       it.state = d.skipped ? 'warn' : 'ok';
     } catch (e) {
@@ -1689,6 +1690,28 @@ $('importList').onclick = e => {
   ['dragleave', 'drop'].forEach(t => d.addEventListener(t, e => { e.preventDefault(); d.classList.remove('over'); }));
   d.addEventListener('drop', e => { if (!importBusy && e.dataTransfer && e.dataTransfer.files.length) addImportFiles(e.dataTransfer.files); });
 })();
+
+/* 桌面端原生拖放：GTK/WebView2 的文件拖放不产生 DOM File 对象，由桌面外壳
+   读取文件后经此桥送入导入队列（内容 base64）。标记 body 让 wails 把整个
+   窗口当拖放目标；浏览器里无此机制，仍走上面的 HTML5 拖放。 */
+window.__wbNativeImportFiles = async items => {
+  const files = [];
+  for (const it of items || []) {
+    try {
+      const bin = atob(it.data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      files.push(new File([bytes], it.name || 'accounts.json', { type: 'application/json' }));
+    } catch (e) {
+      toast('读取 ' + (it.name || '文件') + ' 失败', 'err');
+    }
+  }
+  if (!files.length) return;
+  if (!$('addVeil').classList.contains('on')) openAdd();
+  switchAddTab('import');
+  await addImportFiles(files);
+};
+document.body.setAttribute('data-file-drop-target', 'true');
 
 /* ── 顶部动作 ─────────────────────────────────────────────────────── */
 $('btnAdd').onclick = openAdd;

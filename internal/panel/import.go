@@ -1,6 +1,7 @@
 package panel
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,23 +16,23 @@ import (
 
 // cockpitAccount 映射 cockpit tools 导出格式的单个账号。
 type cockpitAccount struct {
-	ID            string `json:"id"`
-	Email         string `json:"email"`
-	UID           string `json:"uid"`
-	Nickname      string `json:"nickname"`
-	AccessToken   string `json:"access_token"`
-	RefreshToken  string `json:"refresh_token"`
-	TokenType     string `json:"token_type"`
-	ExpiresAt     int64  `json:"expires_at"`
-	Domain        string `json:"domain"`
-	DosageNotify  string `json:"dosage_notify_code"`
-	PaymentType   string `json:"payment_type"`
-	Status        string `json:"status"`
-	UsageUpdatedAt int64 `json:"usage_updated_at"`
-	LastCheckin   int64  `json:"last_checkin_time"`
-	CheckinStreak int    `json:"checkin_streak"`
-	CreatedAt     int64  `json:"created_at"`
-	LastUsed      int64  `json:"last_used"`
+	ID             string `json:"id"`
+	Email          string `json:"email"`
+	UID            string `json:"uid"`
+	Nickname       string `json:"nickname"`
+	AccessToken    string `json:"access_token"`
+	RefreshToken   string `json:"refresh_token"`
+	TokenType      string `json:"token_type"`
+	ExpiresAt      int64  `json:"expires_at"`
+	Domain         string `json:"domain"`
+	DosageNotify   string `json:"dosage_notify_code"`
+	PaymentType    string `json:"payment_type"`
+	Status         string `json:"status"`
+	UsageUpdatedAt int64  `json:"usage_updated_at"`
+	LastCheckin    int64  `json:"last_checkin_time"`
+	CheckinStreak  int    `json:"checkin_streak"`
+	CreatedAt      int64  `json:"created_at"`
+	LastUsed       int64  `json:"last_used"`
 }
 
 // importCockpit 接收 cockpit tools 导出的 JSON 文件，批量导入账号到池中。
@@ -42,21 +43,40 @@ type cockpitAccount struct {
 //
 // 返回 {ok, total, imported, skipped, errors}。
 func (p *Panel) importCockpit(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		writeErr(w, http.StatusBadRequest, "parse form: "+err.Error())
-		return
-	}
-	file, _, err := r.FormFile("file")
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "missing file field: "+err.Error())
-		return
-	}
-	defer file.Close()
-
-	raw, err := io.ReadAll(file)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "read file: "+err.Error())
-		return
+	var raw []byte
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		// 桌面端 WebView 的自定义协议对 multipart FormData 支持不稳，前端改发
+		// JSON+base64。限制 16 MiB（base64 后约 12 MiB 账号文件），防滥用。
+		var payload struct {
+			Name string `json:"name"`
+			Data string `json:"data"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 16<<20)).Decode(&payload); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json body: "+err.Error())
+			return
+		}
+		decoded, err := base64.StdEncoding.DecodeString(payload.Data)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid base64 data: "+err.Error())
+			return
+		}
+		raw = decoded
+	} else {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			writeErr(w, http.StatusBadRequest, "parse form: "+err.Error())
+			return
+		}
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "missing file field: "+err.Error())
+			return
+		}
+		defer file.Close()
+		raw, err = io.ReadAll(file)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "read file: "+err.Error())
+			return
+		}
 	}
 
 	var accounts []cockpitAccount
