@@ -472,15 +472,18 @@ curl -s http://localhost:7863/v1/search/messages \
 需要与其他 `/v1/*` 接口相同的 Bearer Key：
 
 - `remaining`：当前参与选号口径的账号积分合计；`disabled` / `paused` 账号不计入，
-  冷却中的账号仍计入。
+  冷却中的账号仍计入。数据取自账号池的余额快照（`Credits` / `CreditsTotal` /
+  `CreditsEarliestExpiry`），不是「积分构成」页临时拉取的逐包实时结果。
 - `rate_limits[]`：固定输出一个 `7d` 窗口，`reset_at` 取账号池中最早一批积分的到期时间。
-- `used` 固定为 `0`，`limit = remaining`。这里表达的是“到最早到期时间前仍可用的积分”，
-  不是套餐已消耗比例，避免 Magpie 把快用完但即将作废的账号排到低优先级。
-- 没有剩余积分，或没有任何未来到期批次时，不返回 `rate_limits`；Magpie 会按“额度未知”处理，
-  不会伪造重置时间。
+- `total` / `limit`：当前参与选号账号的积分总额度合计；`used = total - remaining`。
+- 没有剩余积分、没有任何未来到期批次，或任一参与账号缺少总额度时，不返回
+  `rate_limits`；Magpie 会按“额度未知”处理，不会伪造 100% 用量。
 
-> 注意：`remaining` / `limit` 的单位是 WorkBuddy 积分，不是美元。部分 Magpie 版本会把
-> Balance 数值按金额样式展示，请以本网关的积分口径为准。
+> 注意：`remaining`、`total`、`limit`、`used` 的单位都是 WorkBuddy 积分，不是美元。
+> 接口会返回 `unit: "credits"`。Magpie 当前对 sub2api `rate_limits` 的显示单位硬编码为
+> `USD`，无法由本接口覆盖；百分比现在按真实积分用量计算。若只想让余额行显示积分，
+> 可在 Magpie 的 Balance field 中填写 `积分: remaining`。要彻底去掉 `7d` 窗口上的
+> `USD` 字样，需要 Magpie 上游支持读取 `rate_limits[].unit`。
 
 Magpie 的余额卡片默认读取 `$remaining`；智能路由则可结合 `reset_at` 优先使用快到期额度。
 

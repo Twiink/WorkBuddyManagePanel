@@ -4086,6 +4086,9 @@ async function loadPackages(force) {
     lastPackagesAt = Date.now();
     lastDetailLimit = pkDetailLimit(c && c.config);
     renderPackages(d, lastDetailLimit);
+    // 「积分构成」和首页到期卡片共用这份实时明细；拉到后立即同步卡片，
+    // 否则回到账号池时仍会看到上一轮后台快照，短时间内两处口径不一致。
+    if ($('expBox')) renderExpiry(d);
   } catch (e) {
     $('pkSummary').innerHTML = '<div class="empty">读取失败：' + esc(e.message) + '</div>';
     $('pkExpiry').innerHTML = '<div class="pk-expiry-empty">读取失败：' + esc(e.message) + '</div>';

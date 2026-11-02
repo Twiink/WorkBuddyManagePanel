@@ -18,23 +18,26 @@ func TestKeyUsageOfEarliestBatch(t *testing.T) {
 	soon := now.Add(30 * time.Hour)
 	later := now.Add(10 * 24 * time.Hour)
 	got := keyUsageOf([]pool.Status{
-		{UID: "a", Credits: 500, CreditsEarliestExpiry: later, CreditsEarliestRemaining: 500},
-		{UID: "b", Credits: 300, CreditsEarliestExpiry: soon, CreditsEarliestRemaining: 120},
-		{UID: "c", Credits: 200, CreditsEarliestExpiry: soon, CreditsEarliestRemaining: 80},
-		{UID: "d", Credits: 100}, // 无到期批次：计入剩余，不影响 reset_at
-		{UID: "dis", Credits: 900, Disabled: true, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 900},
-		{UID: "pz", Credits: 900, Paused: true, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 900},
-		{UID: "old", Credits: 50, CreditsEarliestExpiry: now.Add(-time.Hour), CreditsEarliestRemaining: 50},
+		{UID: "a", Credits: 500, CreditsTotal: 1000, CreditsEarliestExpiry: later, CreditsEarliestRemaining: 500},
+		{UID: "b", Credits: 300, CreditsTotal: 500, CreditsEarliestExpiry: soon, CreditsEarliestRemaining: 120},
+		{UID: "c", Credits: 200, CreditsTotal: 250, CreditsEarliestExpiry: soon, CreditsEarliestRemaining: 80},
+		{UID: "d", Credits: 100, CreditsTotal: 100}, // 无到期批次：计入额度，不影响 reset_at
+		{UID: "dis", Credits: 900, CreditsTotal: 1000, Disabled: true, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 900},
+		{UID: "pz", Credits: 900, CreditsTotal: 1000, Paused: true, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 900},
+		{UID: "old", Credits: 50, CreditsTotal: 100, CreditsEarliestExpiry: now.Add(-time.Hour), CreditsEarliestRemaining: 50},
 	}, now)
 
 	if got.Remaining != 1150 {
 		t.Fatalf("remaining=%d, want 1150", got.Remaining)
 	}
+	if got.Total != 1950 || got.Used != 800 || got.Unit != "credits" {
+		t.Fatalf("total/used/unit=%d/%d/%q, want 1950/800/credits", got.Total, got.Used, got.Unit)
+	}
 	if len(got.RateLimits) != 1 {
 		t.Fatalf("rate_limits=%v, want one 7d window", got.RateLimits)
 	}
 	w := got.RateLimits[0]
-	if w.Window != "7d" || w.Limit != 1150 || w.Used != 0 || w.Remaining != 1150 {
+	if w.Window != "7d" || w.Limit != 1950 || w.Used != 800 || w.Remaining != 1150 || w.Unit != "credits" {
 		t.Fatalf("window=%+v", w)
 	}
 	if w.ResetAt == nil || !w.ResetAt.Equal(soon) {
@@ -50,13 +53,19 @@ func TestKeyUsageOfNoExpiry(t *testing.T) {
 	now := time.Now()
 	for name, accounts := range map[string][]pool.Status{
 		"empty":     nil,
-		"no-expiry": {{UID: "a", Credits: 100}},
-		"no-credit": {{UID: "a", Credits: 0, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 10}},
-		"disabled":  {{UID: "a", Credits: 100, Disabled: true, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 10}},
+		"no-expiry": {{UID: "a", Credits: 100, CreditsTotal: 200}},
+		"no-credit": {{UID: "a", Credits: 0, CreditsTotal: 200, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 10}},
+		"disabled":  {{UID: "a", Credits: 100, CreditsTotal: 200, Disabled: true, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 10}},
+		"unknown-total": {
+			{UID: "a", Credits: 100, CreditsEarliestExpiry: now.Add(time.Hour), CreditsEarliestRemaining: 10},
+		},
 	} {
 		got := keyUsageOf(accounts, now)
 		if len(got.RateLimits) != 0 {
 			t.Errorf("%s: rate_limits=%v, want none", name, got.RateLimits)
+		}
+		if name == "unknown-total" && got.Total != 0 {
+			t.Errorf("unknown-total: total=%d, want omitted/zero", got.Total)
 		}
 	}
 }
@@ -90,21 +99,25 @@ func TestKeyUsageEndpoint(t *testing.T) {
 	}
 	var body struct {
 		Remaining  float64 `json:"remaining"`
+		Total      float64 `json:"total"`
+		Used       float64 `json:"used"`
+		Unit       string  `json:"unit"`
 		RateLimits []struct {
 			Window  string     `json:"window"`
 			Limit   float64    `json:"limit"`
 			Used    float64    `json:"used"`
+			Unit    string     `json:"unit"`
 			ResetAt *time.Time `json:"reset_at"`
 		} `json:"rate_limits"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v body=%s", err, rec.Body)
 	}
-	if body.Remaining != 800 || len(body.RateLimits) != 1 {
+	if body.Remaining != 800 || body.Total != 1000 || body.Used != 200 || body.Unit != "credits" || len(body.RateLimits) != 1 {
 		t.Fatalf("body=%s", rec.Body)
 	}
 	w := body.RateLimits[0]
-	if w.Window != "7d" || w.Limit != 800 || w.Used != 0 || w.ResetAt == nil || !w.ResetAt.Equal(expireAt) {
-		t.Fatalf("window=%+v, want 7d limit=800 used=0 reset_at=%v", w, expireAt)
+	if w.Window != "7d" || w.Limit != 1000 || w.Used != 200 || w.Unit != "credits" || w.ResetAt == nil || !w.ResetAt.Equal(expireAt) {
+		t.Fatalf("window=%+v, want 7d limit=1000 used=200 unit=credits reset_at=%v", w, expireAt)
 	}
 }

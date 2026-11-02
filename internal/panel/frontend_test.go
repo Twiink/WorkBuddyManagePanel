@@ -1170,6 +1170,70 @@ process.stdout.write(JSON.stringify({
 	}
 }
 
+// 「积分构成」拉到的实时逐包数据也必须立即刷新首页到期卡片。此前只更新
+// lastPackages 和积分构成视图，回到账号池后的 2 分钟新鲜窗口内会继续显示
+// 上一轮后台快照，造成同一账号两处到期数据不一致。
+func TestAppJSPackagesRendersExpiryCard(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed; packages expiry-card test skipped")
+	}
+	script := `const fs = require('fs');
+const vm = require('vm');
+const src = fs.readFileSync(process.argv[2], 'utf8');
+const start = src.indexOf('async function loadPackages');
+const end = src.indexOf('/* ── 积分到期提醒', start);
+if (start < 0 || end < 0 || end < start) throw new Error('loadPackages region not found');
+const sinks = {};
+const sink = id => (sinks[id] || (sinks[id] = { innerHTML: '', textContent: '' }));
+const payload = { accounts: [{ uid: 'a', nickname: '同一账号', packages: [] }] };
+let expiryRenderedWith = null;
+let packagesRenderedWith = null;
+const ctx = {
+  Date, Math, Number, String, Set, Array, Object, Promise,
+  $: sink,
+  esc: s => String(s == null ? '' : s),
+  api: async name => name === 'packages' ? payload : null,
+  pkDetailLimit: () => 5,
+  packageCacheMatchesAccounts: () => true,
+  renderPackages: d => { packagesRenderedWith = d; },
+  renderExpiry: d => { expiryRenderedWith = d; },
+  overviewData: { accounts: [{ uid: 'a' }] },
+  lastPackages: null,
+  lastPackagesAt: 0,
+  lastDetailLimit: 5,
+};
+vm.createContext(ctx);
+vm.runInContext(src.slice(start, end) + '\nthis.loadPackages = loadPackages;', ctx);
+ctx.loadPackages(true).then(() => {
+  process.stdout.write(JSON.stringify({
+    packagesSynced: packagesRenderedWith === payload,
+    expirySynced: expiryRenderedWith === payload,
+    cached: ctx.lastPackages === payload,
+    fresh: ctx.lastPackagesAt > 0,
+  }));
+}).catch(e => {
+  console.error(e);
+  process.exit(1);
+});`
+	f, err := os.CreateTemp(t.TempDir(), "pkexpiry-*.cjs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(script); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	out, err := exec.Command(node, f.Name(), "app.js").CombinedOutput()
+	if err != nil {
+		t.Fatalf("packages expiry-card node test failed: %v\n%s", err, out)
+	}
+	const want = `{"packagesSynced":true,"expirySynced":true,"cached":true,"fresh":true}`
+	if strings.TrimSpace(string(out)) != want {
+		t.Fatalf("packages expiry-card=%s\nwant %s", strings.TrimSpace(string(out)), want)
+	}
+}
+
 // 账号被移除或新增后，积分包缓存必须与当前账号池的 UID 集合对齐。否则首页
 // 「积分到期提醒」会继续复用删除前的 packages 响应，「积分构成」也会无限期
 // 展示已移除账号，直到用户手动点刷新或重新打开页面。
