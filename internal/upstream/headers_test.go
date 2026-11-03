@@ -3,6 +3,7 @@ package upstream
 import (
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
@@ -51,6 +52,39 @@ func TestChatHeadersPreservesConversationID(t *testing.T) {
 	c.ChatHeaders(req, testAuth(), "", ChatMeta{ConversationID: conv})
 	if got := req.Header.Get("X-Conversation-ID"); got != conv {
 		t.Errorf("X-Conversation-ID = %q, want supplied %q", got, conv)
+	}
+}
+
+// TestChatHeadersUseOneTraceIDAcrossFamilies 官方链路头必须同源，不能出现
+// X-Trace-ID、traceparent 与 B3 各指向不同 trace 的拼接痕迹。
+func TestChatHeadersUseOneTraceIDAcrossFamilies(t *testing.T) {
+	c := &Client{}
+	req, _ := http.NewRequest(http.MethodPost, "https://example.com/v2/chat/completions", nil)
+	const (
+		traceID = "0123456789abcdef0123456789abcdef"
+		roundID = "fedcba9876543210fedcba9876543210"
+	)
+	c.ChatHeaders(req, testAuth(), "", ChatMeta{
+		ConversationID:        "conv-1",
+		ConversationRequestID: roundID,
+		TraceID:               traceID,
+	})
+
+	if got := req.Header.Get("X-Trace-ID"); got != traceID {
+		t.Fatalf("X-Trace-ID=%q want %q", got, traceID)
+	}
+	if got := req.Header.Get("X-B3-TraceId"); got != traceID {
+		t.Fatalf("X-B3-TraceId=%q want %q", got, traceID)
+	}
+	traceparent := req.Header.Get("traceparent")
+	parts := strings.Split(traceparent, "-")
+	if len(parts) != 4 || parts[1] != traceID {
+		t.Fatalf("traceparent=%q want trace-id %q", traceparent, traceID)
+	}
+	b3 := req.Header.Get("b3")
+	parts = strings.Split(b3, "-")
+	if len(parts) != 4 || parts[0] != traceID {
+		t.Fatalf("b3=%q want trace-id %q", b3, traceID)
 	}
 }
 

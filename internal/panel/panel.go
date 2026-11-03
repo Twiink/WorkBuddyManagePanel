@@ -66,6 +66,9 @@ type Config struct {
 
 	// StickyCount 返回粘性会话绑定数；nil 时报告 0。
 	StickyCount func() int
+	// StickyRebinds 返回同一会话换绑到不同账号的累计次数（风控观测）。
+	// nil 时报告 0。
+	StickyRebinds func() int64
 
 	// Usage 逐请求用量记录器（nil = 用量接口返回 501）。
 	Usage *usage.Recorder
@@ -181,6 +184,7 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("GET /panel/mobile.js", p.mobileScript)
 	p.mux.Handle("GET /panel/icons/", http.StripPrefix("/panel/", http.FileServerFS(iconAssets)))
 	p.mux.HandleFunc("GET /panel/api/overview", p.withAuth(p.overview))
+	p.mux.HandleFunc("GET /panel/api/risk", p.withAuth(p.risk))
 	p.mux.HandleFunc("GET /panel/api/logs", p.withAuth(p.logsHandler))
 	p.mux.HandleFunc("GET /panel/api/request_metrics", p.withAuth(p.requestMetrics))
 	p.mux.HandleFunc("GET /panel/api/request_logs", p.withAuth(p.requestLogs))

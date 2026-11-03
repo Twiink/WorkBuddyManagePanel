@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -50,9 +51,13 @@ func TestChatRegionSchedulingAndStickyPriority(t *testing.T) {
 		}
 	}
 	p.CooldownSoftForModel("x", time.Hour, time.Now().Add(time.Hour), "m", "6004")
+	before := selected
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"global:m","messages":[],"metadata":{"conversation_id":"global-one"}}`)))
-	if rec.Code != 200 || selected != "y" {
-		t.Fatalf("cooled sticky: status=%d selected=%s", rec.Code, selected)
+	if rec.Code != http.StatusServiceUnavailable || selected != before {
+		t.Fatalf("cooled sticky: status=%d selected=%s before=%s want 503/no-rotation", rec.Code, selected, before)
+	}
+	if uid, ok := sess.LookupBinding("global-one"); !ok || uid != "x" {
+		t.Fatalf("binding must stay on cooled x, got %s/%v", uid, ok)
 	}
 }

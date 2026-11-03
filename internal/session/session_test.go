@@ -137,6 +137,21 @@ func TestNoSessionKeyPassthrough(t *testing.T) {
 	}
 }
 
+// LookupBinding 不因账号暂时不可用而丢失绑定；LookupForModel 仍用于旧的可路由查询。
+func TestLookupBindingIgnoresTemporaryAvailability(t *testing.T) {
+	r := New(Config{
+		TTL:       time.Minute,
+		Available: func() []string { return nil },
+	})
+	r.Bind("conv-1", "u1")
+	if uid, ok := r.LookupBinding("conv-1"); !ok || uid != "u1" {
+		t.Fatalf("LookupBinding=%q/%v want u1/true", uid, ok)
+	}
+	if _, ok := r.LookupForModel("conv-1", "m"); ok {
+		t.Fatal("LookupForModel should still treat unavailable account as not routable")
+	}
+}
+
 func TestExtractKeyPriority(t *testing.T) {
 	cases := []struct {
 		body string
@@ -427,5 +442,21 @@ func TestLookupForModelOnlyReusesValidBinding(t *testing.T) {
 	}
 	if r.Count() != 1 {
 		t.Fatal("lookup allocated a replacement")
+	}
+}
+
+func TestRebindCountIgnoresExpiredBinding(t *testing.T) {
+	r := New(Config{TTL: time.Minute})
+	r.Bind("s1", "a")
+	r.Bind("s1", "b")
+	if got := r.RebindCount(); got != 1 {
+		t.Fatalf("active-session rebind count=%d want 1", got)
+	}
+	r.mu.Lock()
+	r.entries["s1"] = entry{uid: "b", lastActive: time.Now().Add(-2 * time.Minute)}
+	r.mu.Unlock()
+	r.Bind("s1", "c")
+	if got := r.RebindCount(); got != 1 {
+		t.Fatalf("expired binding must not add another rebind, got %d", got)
 	}
 }

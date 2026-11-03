@@ -49,6 +49,24 @@ func TestSnapshotCountsWindowAndKinds(t *testing.T) {
 	}
 }
 
+func TestConsecutiveSoftRateResetsOnSuccessAndOtherFailure(t *testing.T) {
+	tr := New("")
+	tr.Failure("a", "soft_rate", 429, "m", "rate")
+	tr.Failure("a", "soft_rate", 429, "m", "rate")
+	if got := tr.Snapshot([]string{"a"}).Accounts[0].SoftRateStreak; got != 2 {
+		t.Fatalf("soft-rate streak=%d want 2", got)
+	}
+	tr.Failure("a", "server", 500, "m", "boom")
+	if got := tr.Snapshot([]string{"a"}).Accounts[0].SoftRateStreak; got != 0 {
+		t.Fatalf("different error should reset streak, got %d", got)
+	}
+	tr.Failure("a", "soft_rate", 429, "m", "rate")
+	tr.Success("a")
+	if got := tr.Snapshot([]string{"a"}).Accounts[0].SoftRateStreak; got != 0 {
+		t.Fatalf("success should reset streak, got %d", got)
+	}
+}
+
 func TestBalanceStatusAndClip(t *testing.T) {
 	now := time.Now()
 	tr := fixedTracker("", &now)

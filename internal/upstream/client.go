@@ -586,7 +586,7 @@ func Classify(status int, body string) ErrKind {
 	// WorkBuddy 11128 / 11140 的 msg 同为 "request illegal"，必须按业务码分流：
 	//   - 11128 = 通道校验失败（displayTips: 可能不是官方客户端发送）→ 账号健康，
 	//     不罚号。误判成 account_fault 会硬禁用正常账号（issue 1849 同款误伤）。
-	//   - 11140 = 账号被上游限制（异常行为/风控）→ account_fault，由 handler 禁用。
+	//   - 11140 = 账号被上游限制（异常行为/风控）→ account_fault，由 handler 隔离。
 	// 两者都要求 code + 文案双条件，避免 11140 的模型级限流变体被误判（见
 	// IsAccountRestricted 注释）。
 	if isChannelRefused(body) {
@@ -735,6 +735,14 @@ type Client struct {
 	// 面板保存配置热改 + chat 热路径并发读写，用 atomic.Bool 消除数据竞争。
 	SanitizeFingerprints atomic.Bool
 
+	// pacer 账号级出站节流（见 pacer.go）。nil = 不节流（测试/裸用）。
+	pacer *Pacer
+
+	// accountProxyMu/accountProxyClients 账号级代理客户端缓存（见 account_client.go）。
+	// 以标准化 proxy URL 为键；空代理不进入缓存，直接复用 HTTP/ChatHTTP。
+	accountProxyMu      sync.Mutex
+	accountProxyClients map[string]*accountProxyClients
+
 	// UserAgent 出站 User-Agent 显式覆盖（非空时全路径生效，优先于默认三段式）。
 	// 空 = 默认官方形态：chat/refresh/FetchModels 走
 	// `WorkBuddy/<ver> WorkBuddy/<ver> CLI/<cliVer>`；billing 走 `WorkBuddy/<ver>`
@@ -742,10 +750,10 @@ type Client struct {
 	UserAgent string
 
 	// ClientVersion WorkBuddy 客户端版本段（出站 UA 的 `WorkBuddy/<ver>` + X-IDE-Version）。
-	// 空 = 内置默认（对齐官方 5.5.4 分发包）。
+	// 空 = 内置默认（对齐官方 5.9.3 分发包）。
 	ClientVersion string
 
-	// CliVersion 出站 UA 中 `CLI/<ver>` 段版本。空 = 内置默认（官方内置 CLI 2.137.1）。
+	// CliVersion 出站 UA 中 `CLI/<ver>` 段版本。空 = 内置默认（官方内置 CLI 2.165.0）。
 	CliVersion string
 
 	// ClientName 用量归属头取值（X-Product / X-IDE-Name / X-IDE-Type / X-IDE-Version）。
@@ -820,6 +828,42 @@ func New() *Client {
 	}
 	c.SanitizeFingerprints.Store(true)
 	return c
+}
+
+// SetPacing 注入账号级出站节流参数（<=0 表示关闭）。
+func (c *Client) SetPacing(min, jitter time.Duration) {
+	if c == nil {
+		return
+	}
+	if c.pacer == nil {
+		c.pacer = NewPacer(min, jitter)
+		return
+	}
+	c.pacer.Set(min, jitter)
+}
+
+// WaitTurn 等待该账号允许发起下一次上游请求（ctx 取消立即返回）。
+func (c *Client) WaitTurn(ctx context.Context, uid string) error {
+	if c == nil || c.pacer == nil {
+		return nil
+	}
+	return c.pacer.Wait(ctx, uid)
+}
+
+// PacingSettings 返回当前账号级节流参数（供风控面板按配置而非硬编码阈值告警）。
+func (c *Client) PacingSettings() (min, jitter time.Duration) {
+	if c == nil || c.pacer == nil {
+		return 0, 0
+	}
+	return c.pacer.Settings()
+}
+
+// PacingSnapshot 返回当前账号级真实请求间隔统计（供风控面板观测）。
+func (c *Client) PacingSnapshot() []PacingStat {
+	if c == nil || c.pacer == nil {
+		return nil
+	}
+	return c.pacer.Snapshot()
 }
 
 // chatHTTP 返回聊天专用 client；未设置（如测试只注入 HTTP）时回落 HTTP。
@@ -980,8 +1024,8 @@ func (c *Client) webBase(a *auth.Auth) string {
 // doJSON 发请求并解信封；HTTP 非 2xx 或业务 code != 0 时返回带 body 片段的 *Error。
 // body 读失败（连接中断/空闲掐流/截断）返回普通错误（非 *Error）——半截 body 不进
 // Classify，不参与账号惩罚（传输层故障不该喂熔断误罚号）。
-func (c *Client) doJSON(req *http.Request) (json.RawMessage, error) {
-	resp, err := c.HTTP.Do(req)
+func (c *Client) doJSON(a *auth.Auth, req *http.Request) (json.RawMessage, error) {
+	resp, err := c.doAccountRequest(a, req, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1140,7 +1184,7 @@ func (c *Client) refreshTokenOnce(a *auth.Auth) error {
 	c.RefreshHeaders(req, &hdrSnapshot)
 
 	// 网络 I/O（锁外，30s 上限）。
-	data, err := c.doJSON(req)
+	data, err := c.doJSON(a, req)
 	if err != nil {
 		return err
 	}
@@ -1236,14 +1280,16 @@ func (c *Client) ChatStreamContext(ctx context.Context, a *auth.Auth, body []byt
 		// 同时 monitorBody.Close 仍能独立 cancel 本分支（空闲掐流）。
 		reqCtx, cancel := context.WithCancel(ctx)
 		req = req.WithContext(reqCtx)
-		resp, err := c.chatHTTP().Do(req)
+		resp, err := c.doAccountRequest(a, req, true)
 		if err != nil {
 			cancel()
 			log.Printf("ERR: [upstream] chat_stream acct=%s: transport error: %v", logfmt.Label(a.UID, a.Nickname), err)
 			// 传输层失败 → 清空共享连接池的空闲连接（连接层加固）：失败连接可能仍
 			// 留在空闲池里，下一个请求会继续捡到它——仅靠 IdleConnTimeout 等过期
 			// 不够，主动清池才断根。
-			roundTripCloseIdle(c.chatHTTP().Transport)
+			if cl, cerr := c.accountHTTPClient(a, true); cerr == nil {
+				roundTripCloseIdle(cl.Transport)
+			}
 			return nil, 0, nil, err
 		}
 		if resp.StatusCode >= 400 {
@@ -1536,7 +1582,7 @@ func (c *Client) fetchEnterpriseModels(ctx context.Context, a *auth.Auth) ([]Mod
 	c.CommonHeaders(req, a) // 复用共享请求头（Origin/Referer/UA/Accept/Content-Type）
 	// AccessToken 加锁快照（见 auth.AccessTokenValue：keepalive 刷新在 a.mu 内改写）。
 	req.Header.Set("Authorization", "Bearer "+a.AccessTokenValue())
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.doAccountRequest(a, req, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1911,7 +1957,7 @@ func (c *Client) fetchV3ConfigModelMap(ctx context.Context, a *auth.Auth, ua str
 	}
 	req.Header.Set("User-Agent", ua)
 	c.injectCodeBuddyRequest(req)
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.doAccountRequest(a, req, false)
 	if err != nil {
 		return nil, err
 	}

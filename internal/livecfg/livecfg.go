@@ -23,6 +23,8 @@ type Snapshot struct {
 	HiddenModels         map[string]struct{} // 精确隐藏的模型 id（已归一化为 "cn:x"/"global:x" 全量形式）；nil = 不隐藏
 	BareModelNames       bool                // models.bare_names：/v1/models 输出合并裸名，裸名请求按目录选域
 	PreferredRealm       string              // models.preferred_realm："cn"/"global"；空 = "cn"
+	RiskQuarantine       time.Duration       // risk.quarantine：11140 隔离周期
+	RiskProbeEnabled     bool                // risk.probe_enabled：到期后允许成功探活回池
 }
 
 // Holder 原子持有当前快照。

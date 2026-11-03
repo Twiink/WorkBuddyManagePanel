@@ -3,6 +3,7 @@
 package scheduler
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -20,10 +21,16 @@ var nowForNightWindow = time.Now
 // RunBlackcatNow 对所有可用账号执行夜猫子对话补足（窗口外跳过）。
 // 由 blackcat_hours 排程（默认 [23]）触发；执行前二次校验 InNightWindow。
 func (s *Scheduler) RunBlackcatNow() {
+	s.runBlackcat(context.Background())
+}
+
+// runBlackcat 可取消版本：账号之间按 accountSpacing 错峰。
+func (s *Scheduler) runBlackcat(ctx context.Context) {
 	if !upstream.InNightWindow(nowForNightWindow()) {
 		log.Printf("blackcat: 当前不在 23:00–08:00 计数窗口，跳过")
 		return
 	}
+	first := true
 	for _, st := range s.cfg.Pool.List() {
 		// 暂停选号（paused）账号跳过：夜猫子是全任务体系中唯一「整任务都是
 		// 真实模型对话」的（RunNightChats 逐条 ChatStream 发 glm-5.2 短对话），
@@ -40,6 +47,12 @@ func (s *Scheduler) RunBlackcatNow() {
 		}
 		if a.IsEnterpriseSession() {
 			continue // 企业版 / 企业切换会话门控：无成长体系（growth 403 / claim-gift 400「企业账号不支持该操作」；切换会话不计分）
+		}
+		if _, held := s.cfg.Pool.RiskHoldUntil(st.UID); held {
+			continue // 11140 隔离期只允许余额探活
+		}
+		if !s.waitAccountGap(ctx, &first) {
+			return
 		}
 		need, err := s.cfg.Upstream.BlackcatNeed(a)
 		if err != nil {

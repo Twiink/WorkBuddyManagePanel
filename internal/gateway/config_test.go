@@ -136,8 +136,8 @@ func TestNewPoolConfigDefaults(t *testing.T) {
 	if err := c.normalize(); err != nil {
 		t.Fatalf("normalize: %v", err)
 	}
-	if c.Pool.MaxInFlight != 3 {
-		t.Errorf("max_in_flight=%d want 3", c.Pool.MaxInFlight)
+	if c.Pool.MaxInFlight != 3 || c.Pool.MaxInFlightGlobal != 2 {
+		t.Errorf("max_in_flight=%d/%d want 3/2", c.Pool.MaxInFlight, c.Pool.MaxInFlightGlobal)
 	}
 	if c.Pool.BreakerThreshold != 3 {
 		t.Errorf("breaker_threshold=%d want 3", c.Pool.BreakerThreshold)
@@ -160,8 +160,20 @@ func TestNewPoolConfigDefaults(t *testing.T) {
 	if !c.SessionSticky.Enabled {
 		t.Error("session_sticky.enabled want true")
 	}
-	if c.SessionTTL.Minutes() != 30 || c.SessionGCInterval.Minutes() != 5 {
+	if c.SessionTTL.Hours() != 12 || c.SessionGCInterval.Minutes() != 5 {
 		t.Errorf("session durations=%v/%v", c.SessionTTL, c.SessionGCInterval)
+	}
+	if c.Pool.AccountShareCap != 2.0 {
+		t.Errorf("account_share_cap=%v want 2.0", c.Pool.AccountShareCap)
+	}
+	if c.PacingMinDur != time.Second || c.PacingJitterDur != 500*time.Millisecond {
+		t.Errorf("pacing=%v/%v want 1s/500ms", c.PacingMinDur, c.PacingJitterDur)
+	}
+	if c.RiskQuarantineDur.Hours() != 24 || !c.Risk.ProbeEnabled {
+		t.Errorf("risk defaults=%v/%v", c.RiskQuarantineDur, c.Risk.ProbeEnabled)
+	}
+	if c.Schedule.JitterMinutes != 25 || c.Schedule.AccountSpacingSeconds != 30 {
+		t.Errorf("schedule pacing=%d/%d", c.Schedule.JitterMinutes, c.Schedule.AccountSpacingSeconds)
 	}
 	if c.Upstash.URL != "" || c.Upstash.Token != "" {
 		t.Errorf("upstash default should be empty: %+v", c.Upstash)
@@ -173,6 +185,7 @@ func TestPoolConfigParsedFromFile(t *testing.T) {
 	fp := filepath.Join(dir, "c.json")
 	os.WriteFile(fp, []byte(`{
 		"upstash":{"url":"https://foo.upstash.io","token":"tok"},
+		"upstream":{"pacing":{"min_interval":"750ms","jitter":"250ms"}},
 		"pool":{
 			"max_in_flight":5,
 			"breaker_threshold":4,
@@ -209,6 +222,9 @@ func TestPoolConfigParsedFromFile(t *testing.T) {
 	}
 	if c.SessionTTL.Hours() != 1 || c.SessionGCInterval.Minutes() != 2 {
 		t.Errorf("session durations=%v/%v", c.SessionTTL, c.SessionGCInterval)
+	}
+	if c.PacingMinDur != 750*time.Millisecond || c.PacingJitterDur != 250*time.Millisecond {
+		t.Errorf("pacing overrides=%v/%v want 750ms/250ms", c.PacingMinDur, c.PacingJitterDur)
 	}
 }
 

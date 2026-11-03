@@ -35,7 +35,9 @@
     "blackcat_enabled": true,
     "balance_refresh_enabled": true,
     "balance_refresh_minutes": 5,
-    "include_disabled_in_tasks": false
+    "include_disabled_in_tasks": false,
+    "jitter_minutes": 25,
+    "account_spacing_seconds": 30
   },
   "global": {
     "enabled": true,
@@ -55,7 +57,15 @@
     "client_name": "",
     "device_token": "",
     "device_token_file": "",
-    "passthrough_ip": false
+    "passthrough_ip": false,
+    "pacing": {
+      "min_interval": "1s",
+      "jitter": "500ms"
+    }
+  },
+  "risk": {
+    "quarantine": "24h",
+    "probe_enabled": true
   },
   "features": {
     "sanitize_blacklist_fingerprints": true
@@ -99,11 +109,13 @@
     "expiring_soon": "168h",
     "cost_explore_interval": "30m",
     "credit_floor": 100,
+    "daily_request_limit": 0,
+    "account_share_cap": 2.0,
     "cross_domain_fallback": false
   },
   "session_sticky": {
     "enabled": true,
-    "ttl": "30m",
+    "ttl": "12h",
     "gc_interval": "5m"
   }
 }

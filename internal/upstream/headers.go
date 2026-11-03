@@ -14,12 +14,13 @@ import (
 
 const (
 	// defaultClientVersion 出站 WorkBuddy 客户端版本段（UA 的 `WorkBuddy/<ver>` 与
-	// 白名单头组的 X-IDE-Version）。对齐官方 WorkBuddy Desktop 分发包版本（5.5.4）。
+	// 白名单头组的 X-IDE-Version）。对齐官方 WorkBuddy Desktop 5.9.3 分发包。
+	// 版本落后于官方分发包本身就是可识别特征，故随官方升级同步。
 	// config upstream.client_version 可覆盖（空 = 内置默认）。
-	defaultClientVersion = "5.5.4"
-	// defaultCliVersion 出站 UA 中 `CLI/<ver>` 段版本。对齐官方内置 CLI（2.137.1）。
+	defaultClientVersion = "5.9.3"
+	// defaultCliVersion 出站 UA 中 `CLI/<ver>` 段版本。对齐官方 5.9.3 内置 CLI（2.165.0）。
 	// config upstream.cli_version 可覆盖（空 = 内置默认）。
-	defaultCliVersion = "2.137.1"
+	defaultCliVersion = "2.165.0"
 
 	originRefererCN     = "https://www.codebuddy.cn"
 	originRefererGlobal = "https://www.workbuddy.ai"
@@ -232,12 +233,25 @@ func (c *Client) ChatHeaders(req *http.Request, a *auth.Auth, clientIP string, m
 	}
 	// 用量归属头：默认伪造 WorkBuddy 桌面端指纹（client_name="SaaS" 还原旧行为）。
 	c.injectAttribution(req)
+	// 会话意图/隐私声明：官方网关（applyGatewayHeaders）对每条 chat 请求固定注入，
+	// 缺失会被通道校验识别为「不是官方客户端发出」。
+	req.Header.Set("X-Agent-Intent", "craft")
+	req.Header.Set("X-Private-Data", "true")
 	// 客户端 IP 透传（仅 PassthroughIP=true 且本次请求带 IP）。
 	c.injectClientIP(req, clientIP)
 	// 设备风控头：auth 每号 > config 全局 > 文件兜底；空则不注入。
 	c.injectDeviceToken(req, a)
 	// 会话头族（对话/请求/消息/B3 链路），见 injectConversationHeaders。
 	c.injectConversationHeaders(req, meta)
+	// acp-connection-id：官方网关按会话连接派生的稳定标识。缺省时按 uid + 会话 ID
+	// 派生，保证同一会话多轮稳定、不同会话/账号互异。
+	if a != nil && a.UID != "" {
+		acpConv := meta.ConversationID
+		if acpConv == "" {
+			acpConv = meta.ConversationRequestID
+		}
+		req.Header.Set("acp-connection-id", deriveAccountStableID(a.UID, "acp:"+acpConv))
+	}
 }
 
 // injectGlobalChatHeaders global 账号（无企业 ID）的 chat 专属声明头，对齐 intl 项目
@@ -287,18 +301,28 @@ func (c *Client) injectConversationHeaders(req *http.Request, meta ChatMeta) {
 	req.Header.Set("X-Conversation-Message-ID", messageID)
 	req.Header.Set("X-Request-ID", messageID)
 	req.Header.Set("X-Root-Request-ID", convReqID)
-	traceID := meta.TraceID
-	if traceID == "" {
+	traceID := strings.TrimSpace(meta.TraceID)
+	if !validTraceID(traceID) || len(traceID) != 32 {
+		// 官方 X-Trace-ID / traceparent 的 trace-id 恒为 32 hex；入站透传值形状
+		// 不受控（可能带横线/过短），非法时回落到恒 32 hex 的轮主键或消息 ID。
 		traceID = convReqID
+		if len(traceID) != 32 || !validTraceID(traceID) {
+			traceID = messageID
+		}
 	}
 	req.Header.Set("X-Trace-ID", traceID)
-	b3Trace := convReqID
-	if !validTraceID(b3Trace) {
-		b3Trace = messageID // 非法 B3 TraceId → 回落恒 32 hex 的消息级 ID
-	}
+	// 所有链路头共用同一个规范化 trace-id。官方客户端不会让 X-Trace-ID、
+	// traceparent 与 B3 指向三条不同链路；混用会被网关看成手工拼接的头族。
+	b3Trace := traceID
 	req.Header.Set("X-B3-TraceId", b3Trace)
+	// 官方 applyTraceHeaders 同时发 traceparent / b3 单头与 ParentSpanId；
+	// 缺任一项都会让链路族不完整（B3 规范允许省略，但官方客户端恒发）。
+	parentSpanID := messageID[16:]
+	req.Header.Set("X-B3-ParentSpanId", parentSpanID)
 	req.Header.Set("X-B3-SpanId", messageID[:16])
 	req.Header.Set("X-B3-Sampled", "1")
+	req.Header.Set("traceparent", "00-"+traceID+"-"+messageID[:16]+"-01")
+	req.Header.Set("b3", b3Trace+"-"+messageID[:16]+"-1-"+parentSpanID)
 }
 
 // validTraceID 判断 B3 TraceId 是否合法：16 或 32 位 hex（大小写均可）。

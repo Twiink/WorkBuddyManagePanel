@@ -62,8 +62,19 @@ type Pool struct {
 	idleWeightPerHour float64
 	idleWeightMax     float64
 	// preferExpiring 最早到期优先路由开关（默认 true）。开启且快过期窗口内存在有效
-	// 批次时，选号在成本层内先按最早到期排序；关闭后只使用普通加权路由。
+	// 批次时，在加权随机中提升该账号权重；关闭后只使用普通加权路由。
 	preferExpiring bool
+	// accountShareCap 单号小时/日请求份额上限（相对公平份额的倍数，见 share.go）。
+	// dailyRequestLimit 单号每日请求数上限（0 = 关闭）。
+	accountShareCap   float64
+	dailyRequestLimit int64
+	hourStart         time.Time
+	hourTotal         int64
+	dayStart          string
+	dayTotal          int64
+	// hourRealmTotals / dayRealmTotals 按 realm 分桶的窗口总数（份额按域独立计算）。
+	hourRealmTotals map[string]int64
+	dayRealmTotals  map[string]int64
 	// crossDomainFallback 裸模型名跨域回退开关（默认 false = 零回归，issue #135）。
 	// 仅由选号调用方（server handler）读取：开启后，未带 realm 前缀的请求在首选域
 	// 选不到可用号时改用另一域再选一次；显式 cn:/global: 前缀不受影响。
@@ -105,6 +116,11 @@ func New(stateFp string) *Pool {
 		idleWeightPerHour:  defaultIdleWeightPerHour,
 		idleWeightMax:      defaultIdleWeightMax,
 		preferExpiring:     true,
+		// 份额上限默认关闭：Pool 裸用（测试/嵌入式）不应被路由策略意外限制；
+		// 生产由 gateway 从 config（默认 2.0）显式开启。
+		accountShareCap:    0,
+		hourRealmTotals:    map[string]int64{},
+		dayRealmTotals:     map[string]int64{},
 		degradeThreshold:   defaultDegradeThreshold,
 		degradeCooldown:    defaultDegradeCooldown,
 		degradeCooldownMax: defaultDegradeCooldownMax,

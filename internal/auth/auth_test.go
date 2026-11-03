@@ -118,6 +118,42 @@ func TestParseDeviceToken(t *testing.T) {
 	}
 }
 
+// TestParseProxy 账号专用代理兼容扁平形、嵌套顶层与历史嵌套别名。
+func TestParseProxy(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "nested top-level",
+			raw:  `{"auth":{"accessToken":"at","refreshToken":"rt","expiresAt":1},"account":{"uid":"u1"},"proxy":"socks5://127.0.0.1:1081"}`,
+			want: "socks5://127.0.0.1:1081",
+		},
+		{
+			name: "nested auth alias",
+			raw:  `{"auth":{"accessToken":"at","refreshToken":"rt","expiresAt":1,"proxy":"http://127.0.0.1:8080"},"account":{"uid":"u1"}}`,
+			want: "http://127.0.0.1:8080",
+		},
+		{
+			name: "flat",
+			raw:  `{"accessToken":"at","refreshToken":"rt","expiresAt":1,"uid":"u2","proxy":"https://127.0.0.1:8443"}`,
+			want: "https://127.0.0.1:8443",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, err := Parse([]byte(tc.raw))
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			if got := a.ProxyValue(); got != tc.want {
+				t.Fatalf("ProxyValue=%q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestSaveAtomicPreservesDeviceToken SaveAtomic 写回后顶层 device_token 被保留并重新解析回来。
 func TestSaveAtomicPreservesDeviceToken(t *testing.T) {
 	dir := t.TempDir()
@@ -137,6 +173,28 @@ func TestSaveAtomicPreservesDeviceToken(t *testing.T) {
 	}
 	if b.DeviceToken != "persisted-tok" {
 		t.Errorf("roundtrip DeviceToken = %q want %q", b.DeviceToken, "persisted-tok")
+	}
+}
+
+// TestSaveAtomicPreservesProxy SaveAtomic 写回后顶层 proxy 被保留并重新解析回来。
+func TestSaveAtomicPreservesProxy(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "workbuddy-proxy.json")
+	a := &Auth{AccessToken: "at", RefreshToken: "rt", ExpiresAt: 1,
+		UID: "u1", Proxy: "socks5://127.0.0.1:1081", FilePath: fp}
+	if err := a.SaveAtomic(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	raw, err := os.ReadFile(fp)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	b, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("reparse: %v", err)
+	}
+	if got := b.ProxyValue(); got != a.Proxy {
+		t.Errorf("roundtrip ProxyValue=%q want %q", got, a.Proxy)
 	}
 }
 

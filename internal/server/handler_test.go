@@ -411,11 +411,13 @@ func TestChatSoftCoolsOnRateLimitBody(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.2","messages":[]}`)))
-	if rec.Code != 200 {
-		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	// 429 属账号级限流：不换号重发（换号=同一请求从另一个账号重放，是号池规避特征），
+	// 如实返回 429，由客户端退避重试。
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("code=%d body=%s want 429", rec.Code, rec.Body)
 	}
-	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 1 {
-		t.Errorf("calls=%v want bad/good 各 1 次", calls)
+	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 0 {
+		t.Errorf("calls=%v want bad 1 次、good 0 次（429 不换号）", calls)
 	}
 	st, _ := p.Status("bad")
 	if !st.Cooling || st.CoolKind != "soft_rate" {
@@ -426,7 +428,7 @@ func TestChatSoftCoolsOnRateLimitBody(t *testing.T) {
 		t.Errorf("cool_remaining_sec=%d want in (0,%d]", st.CoolRemaining, max)
 	}
 
-	// 冷却生效：同一账号在冷却期内不得再被选中。
+	// 冷却生效：同账号在冷却期内不得再被选中，流量落到 good。
 	before := calls["Bearer at-bad"]
 	rec2 := httptest.NewRecorder()
 	h.ServeHTTP(rec2, httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.2","messages":[]}`)))
@@ -435,6 +437,218 @@ func TestChatSoftCoolsOnRateLimitBody(t *testing.T) {
 	}
 	if calls["Bearer at-bad"] != before {
 		t.Errorf("冷却中的账号不应再次被选中: calls=%v", calls)
+	}
+	if calls["Bearer at-good"] == 0 {
+		t.Errorf("冷却后应由 good 承接: calls=%v", calls)
+	}
+}
+
+// 11140 是账号级风控信号：只打一次并进入隔离，绝不立即换号重放。
+func TestChat11140QuarantinesWithoutRotation(t *testing.T) {
+	calls := map[string]int{}
+	up := newFakeUpstream(t, func(authz string) (int, string, bool) {
+		calls[authz]++
+		if authz == "Bearer at-bad" {
+			return 400, `{"code":11140,"msg":"request illegal"}`, false
+		}
+		return 200, sseOK, true
+	})
+	p := testPoolWith(
+		&auth.Auth{UID: "bad", AccessToken: "at-bad", ExpiresAt: 9999999999},
+		&auth.Auth{UID: "good", AccessToken: "at-good", ExpiresAt: 9999999999},
+	)
+	p.SetCredits("bad", 2000, 0)
+	h := NewHandler(Config{
+		Pool:             p,
+		Upstream:         up,
+		RiskProbeEnabled: true,
+		RiskQuarantine:   time.Hour,
+	})
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions",
+		strings.NewReader(`{"model":"glm-5.2","messages":[]}`)))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("code=%d body=%s want 503", rec.Code, rec.Body)
+	}
+	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 0 {
+		t.Fatalf("calls=%v want bad=1 good=0（11140 不换号）", calls)
+	}
+	st, _ := p.Status("bad")
+	if !st.RiskHold || st.Cooling || st.Disabled {
+		t.Fatalf("bad should be risk-held but not cooling/disabled: %+v", st)
+	}
+	if st.Reason == "" || st.RiskUntil.IsZero() {
+		t.Fatalf("risk hold should expose reason/probe time: %+v", st)
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions",
+		strings.NewReader(`{"model":"glm-5.2","messages":[]}`)))
+	if rec.Code != http.StatusOK || calls["Bearer at-good"] != 1 {
+		t.Fatalf("second request code=%d calls=%v body=%s", rec.Code, calls, rec.Body)
+	}
+}
+
+// 5xx 与 429 同属账号/通道当前不可用，匿名请求也不应在同一轮内换号重放。
+func TestChat5xxDoesNotRotateAnonymous(t *testing.T) {
+	calls := map[string]int{}
+	up := newFakeUpstream(t, func(authz string) (int, string, bool) {
+		calls[authz]++
+		if authz == "Bearer at-bad" {
+			return 500, `{"code":500,"msg":"upstream error"}`, false
+		}
+		return 200, sseOK, true
+	})
+	p := testPoolWith(
+		&auth.Auth{UID: "bad", AccessToken: "at-bad", ExpiresAt: 9999999999},
+		&auth.Auth{UID: "good", AccessToken: "at-good", ExpiresAt: 9999999999},
+	)
+	p.SetCredits("bad", 2000, 0)
+	h := NewHandler(Config{Pool: p, Upstream: up})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions",
+		strings.NewReader(`{"model":"glm-5.2","messages":[]}`)))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("code=%d body=%s want 503", rec.Code, rec.Body)
+	}
+	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 0 {
+		t.Fatalf("calls=%v want bad=1 good=0（5xx 不换号）", calls)
+	}
+}
+
+// 匿名请求遇到模型路由错误时允许切换账号，但必须切断上游会话关联并生成新 ID。
+func TestChatAnonymousModelFallbackRotatesSessionIDs(t *testing.T) {
+	var mu sync.Mutex
+	var conversationIDs, requestIDs []string
+	calls := 0
+	up := &upstream.Client{
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			mu.Lock()
+			calls++
+			n := calls
+			conversationIDs = append(conversationIDs, r.Header.Get("X-Conversation-ID"))
+			requestIDs = append(requestIDs, r.Header.Get("X-Conversation-Request-ID"))
+			mu.Unlock()
+			if n == 1 {
+				return &http.Response{
+					StatusCode: 400,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(`{"code":11102,"msg":"model service info not found"}`)),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: 200,
+				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+				Body:       io.NopCloser(strings.NewReader(sseOK)),
+			}, nil
+		})},
+		ChatBaseCN: "https://fake.example",
+	}
+	p := testPoolWith(
+		&auth.Auth{UID: "bad", AccessToken: "at-bad", ExpiresAt: 9999999999},
+		&auth.Auth{UID: "good", AccessToken: "at-good", ExpiresAt: 9999999999},
+	)
+	p.SetCredits("bad", 2000, 0)
+	h := NewHandler(Config{Pool: p, Upstream: up})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions",
+		strings.NewReader(`{"model":"glm-5.2","messages":[{"role":"user","content":"same conversation"}]}`)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	}
+	if len(conversationIDs) != 2 || len(requestIDs) != 2 {
+		t.Fatalf("captured headers=%v/%v", conversationIDs, requestIDs)
+	}
+	if conversationIDs[0] == conversationIDs[1] || requestIDs[0] == requestIDs[1] {
+		t.Fatalf("fallback must rotate session IDs: conversations=%v requests=%v", conversationIDs, requestIDs)
+	}
+}
+
+// 显式会话身份已出站后，模型路由错误也必须原样返回，不能横跨账号重放。
+func TestChatExplicitSessionModelErrorDoesNotRotate(t *testing.T) {
+	calls := map[string]int{}
+	up := newFakeUpstream(t, func(authz string) (int, string, bool) {
+		calls[authz]++
+		if authz == "Bearer at-bad" {
+			return 400, `{"code":11102,"msg":"model service info not found"}`, false
+		}
+		return 200, sseOK, true
+	})
+	p := testPoolWith(
+		&auth.Auth{UID: "bad", AccessToken: "at-bad", ExpiresAt: 9999999999},
+		&auth.Auth{UID: "good", AccessToken: "at-good", ExpiresAt: 9999999999},
+	)
+	p.SetCredits("bad", 2000, 0)
+	st := newBindStore()
+	sess := session.New(session.Config{TTL: time.Minute, Store: st, Available: p.AvailableUIDs})
+	h := NewHandler(Config{Pool: p, Upstream: up, Session: sess})
+	req := httptest.NewRequest("POST", "/v1/chat/completions",
+		strings.NewReader(`{"model":"glm-5.2","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("X-Session-ID", "explicit-session")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("code=%d body=%s want 400", rec.Code, rec.Body)
+	}
+	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 0 {
+		t.Fatalf("calls=%v want bad=1 good=0（显式会话不换号）", calls)
+	}
+	if uid, ok := st.lastUID("explicit-session"); !ok || uid != "bad" {
+		t.Fatalf("explicit session binding=%q/%v want bad", uid, ok)
+	}
+	req = httptest.NewRequest("POST", "/v1/chat/completions",
+		strings.NewReader(`{"model":"glm-5.2","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("X-Session-ID", "explicit-session")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("retry code=%d body=%s want 503 on same bound account", rec.Code, rec.Body)
+	}
+	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 0 {
+		t.Fatalf("retry calls=%v must not rotate bound session", calls)
+	}
+}
+
+// 传输层尚未得到上游响应时，同一显式会话只允许回原账号重试。
+func TestChatExplicitSessionTransportRetryStaysOnSameAccount(t *testing.T) {
+	var mu sync.Mutex
+	var authz []string
+	failFirst := true
+	up := &upstream.Client{
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			mu.Lock()
+			authz = append(authz, r.Header.Get("Authorization"))
+			fail := failFirst
+			failFirst = false
+			mu.Unlock()
+			if fail {
+				return nil, errors.New("dial tcp: connection refused")
+			}
+			return &http.Response{
+				StatusCode: 200,
+				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+				Body:       io.NopCloser(strings.NewReader(sseOK)),
+			}, nil
+		})},
+		ChatBaseCN: "https://fake.example",
+	}
+	p := testPoolWith(
+		&auth.Auth{UID: "bad", AccessToken: "at-bad", ExpiresAt: 9999999999},
+		&auth.Auth{UID: "good", AccessToken: "at-good", ExpiresAt: 9999999999},
+	)
+	p.SetCredits("bad", 2000, 0)
+	h := NewHandler(Config{Pool: p, Upstream: up})
+	req := httptest.NewRequest("POST", "/v1/chat/completions",
+		strings.NewReader(`{"model":"glm-5.2","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("X-Session-ID", "transport-session")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	}
+	if len(authz) != 2 || authz[0] != "Bearer at-bad" || authz[1] != "Bearer at-bad" {
+		t.Fatalf("authz=%v want retry on same account", authz)
 	}
 }
 
@@ -491,17 +705,17 @@ func TestApplyErrorPolicyNotFoundUsesFixedBase(t *testing.T) {
 // TestApplyErrorPolicyChannelRefusedDoesNotDisable 11128 与 11140 的 msg 同为
 // "request illegal"，但语义相反：
 //   - 11128 通道校验失败 → 账号健康（官方客户端可正常使用），不得禁用/冷却；
-//   - 11140 账号被上游限制 → 硬禁用，等用户在 WorkBuddy 申诉解除；
-//   - 11140 的模型级限流变体 → 仍是软限流，不能误禁用。
+//   - 11140 账号被上游限制 → 进入隔离，等待到期后的成功只读探活；
+//   - 11140 的模型级限流变体 → 仍是普通软限流，不能误隔离。
 //
 // 回归点：只看文案的旧实现会把 11128 判成账号封禁，硬禁用健康账号（issue 1849
 // 同款误伤：用户官方客户端能用，面板里却被标成 banned）。
-func TestApplyErrorPolicyChannelRefusedDoesNotDisable(t *testing.T) {
+func TestApplyErrorPolicyChannelRefusedDoesNotPenalize(t *testing.T) {
 	cases := []struct {
 		name         string
 		body         string
 		kind         upstream.ErrKind
-		wantDisabled bool
+		wantRiskHold bool
 		wantCooling  bool
 	}{
 		{"11128 channel refused", `{"code":"11-128","msg":"request illegal","displayTips":{"en":"This call failed channel verification, possibly because it was not sent from an official client."}}`, upstream.ErrChannelRefused, false, false},
@@ -514,17 +728,21 @@ func TestApplyErrorPolicyChannelRefusedDoesNotDisable(t *testing.T) {
 				t.Fatalf("Classify=%v want %v", got, tc.kind)
 			}
 			p := pool.New("")
+			defer p.Close()
 			p.Add(&auth.Auth{UID: "u1"})
-			h := NewHandler(Config{Pool: p})
+			h := NewHandler(Config{Pool: p, RiskProbeEnabled: true, RiskQuarantine: time.Hour})
 			h.applyErrorPolicy("u1", tc.kind, tc.body, "glm-5.2", nil)
 			st, _ := p.Status("u1")
-			if st.Disabled != tc.wantDisabled {
-				t.Errorf("disabled=%v want %v (%+v)", st.Disabled, tc.wantDisabled, st)
+			if st.Disabled {
+				t.Errorf("11140/11-128 must not permanently disable the account: %+v", st)
+			}
+			if st.RiskHold != tc.wantRiskHold {
+				t.Errorf("risk_hold=%v want %v (%+v)", st.RiskHold, tc.wantRiskHold, st)
 			}
 			if st.Cooling != tc.wantCooling {
 				t.Errorf("cooling=%v want %v (%+v)", st.Cooling, tc.wantCooling, st)
 			}
-			if !tc.wantDisabled && st.ErrTotal != 0 {
+			if !tc.wantRiskHold && st.ErrTotal != 0 {
 				t.Errorf("不罚号路径不应累计错误计数: err_total=%d", st.ErrTotal)
 			}
 		})
@@ -549,8 +767,8 @@ func TestNewHandlerSoftCooldownDefault(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.2","messages":[]}`)))
-	if rec.Code != 200 {
-		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("code=%d body=%s want 429（429 不换号）", rec.Code, rec.Body)
 	}
 	st, _ := p.Status("bad")
 	if !st.Cooling || st.CoolKind != "soft_rate" {
@@ -561,7 +779,9 @@ func TestNewHandlerSoftCooldownDefault(t *testing.T) {
 	}
 }
 
-// TestChatStickyFollowsFinalSuccess 端到端验证 D4：粘性号失败换号成功后，会话绑定收敛到成功号。
+// TestChatStickyPinsOnFailure 端到端验证防封语义：粘性号失败**不换号**，
+// 会话绑定保持原账号。旧语义（失败后换号并把绑定切到成功号）会让同一个
+// conversation_id 从两个账号发出，是上游识别号池反代最直接的信号。
 func TestChatStickyFollowsFinalSuccess(t *testing.T) {
 	st := newBindStore()
 	sess := session.New(session.Config{
@@ -573,8 +793,10 @@ func TestChatStickyFollowsFinalSuccess(t *testing.T) {
 		&auth.Auth{UID: "bad", AccessToken: "at-bad", ExpiresAt: 9999999999},
 		&auth.Auth{UID: "good", AccessToken: "at-good", ExpiresAt: 9999999999},
 	)
-	// 先把会话预绑定到 bad（模拟历史粘性），bad 失败、good 成功 → 绑定应切到 good。
+	// 先把会话预绑定到 bad（模拟历史粘性）：bad 失败后应保持绑定，不打 good。
+	calls := map[string]int{}
 	up := newFakeUpstream(t, func(authz string) (int, string, bool) {
+		calls[authz]++
 		if authz == "Bearer at-bad" {
 			return 500, `{"code":500}`, false
 		}
@@ -591,12 +813,15 @@ func TestChatStickyFollowsFinalSuccess(t *testing.T) {
 	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.2","messages":[],"metadata":{"conversation_id":"conv-1"}}`))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != 200 {
-		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("code=%d body=%s want 503（钉死会话不换号）", rec.Code, rec.Body)
 	}
-	// 绑定必须收敛到最终成功的 good。
-	if uid, ok := st.lastUID("conv-1"); !ok || uid != "good" {
-		t.Fatalf("sticky binding should follow final success to good, got %s ok=%v (binds=%v)", uid, ok, st.binds)
+	// 绑定必须保持 bad：失败不能成为换号理由。
+	if uid, ok := st.lastUID("conv-1"); !ok || uid != "bad" {
+		t.Fatalf("sticky binding should stay on bad, got %s ok=%v (binds=%v)", uid, ok, st.binds)
+	}
+	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 0 {
+		t.Fatalf("calls bad=%d good=%d want bad=1 good=0", calls["Bearer at-bad"], calls["Bearer at-good"])
 	}
 }
 
@@ -625,9 +850,8 @@ func TestChatStickySuccessKeepsBinding(t *testing.T) {
 	}
 }
 
-// TestChatStickyFullFallsBackToRotation 端到端验证 C3 语义：粘性号满载不可用时，
-// 请求在同一轮内解绑并回落普通轮换选中健康账号，绑定收敛到最终成功号——而非空耗一轮。
-func TestChatStickyFullFallsBackToRotation(t *testing.T) {
+// TestChatStickyFullDoesNotRotate 已绑定会话的原号满载时只原地失败，不换号。
+func TestChatStickyFullDoesNotRotate(t *testing.T) {
 	st := newBindStore()
 	sess := session.New(session.Config{
 		TTL:       time.Minute,
@@ -642,7 +866,9 @@ func TestChatStickyFullFallsBackToRotation(t *testing.T) {
 	p.SetMaxInFlight(1)
 	p.Acquire("bad")
 
+	calls := 0
 	up := newFakeUpstream(t, func(authz string) (int, string, bool) {
+		calls++
 		return 200, sseOK, true
 	})
 	h := NewHandler(Config{
@@ -655,12 +881,14 @@ func TestChatStickyFullFallsBackToRotation(t *testing.T) {
 	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.2","messages":[],"metadata":{"conversation_id":"conv-1"}}`))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != 200 {
-		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("code=%d body=%s want 503", rec.Code, rec.Body)
 	}
-	// 满载粘性号被解绑，绑定收敛到最终成功号 good。
-	if uid, ok := st.lastUID("conv-1"); !ok || uid != "good" {
-		t.Fatalf("sticky binding should fall back to good, got %s ok=%v (binds=%v)", uid, ok, st.binds)
+	if uid, ok := st.lastUID("conv-1"); !ok || uid != "bad" {
+		t.Fatalf("sticky binding must stay on bad, got %s ok=%v (binds=%v)", uid, ok, st.binds)
+	}
+	if calls != 0 {
+		t.Fatalf("full bound account must not rotate upstream, calls=%d", calls)
 	}
 	p.Release("bad")
 }
@@ -765,8 +993,11 @@ func TestChat6004ModelResetCoolsToParsedTime(t *testing.T) {
 		strings.NewReader(`{"model":"glm-5.3","messages":[]}`))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != 200 {
-		t.Fatalf("code=%d body=%s (want 200 after rotate to good)", rec.Code, rec.Body)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("code=%d body=%s want 429（6004 不换号重发）", rec.Code, rec.Body)
+	}
+	if calls != 1 {
+		t.Fatalf("calls=%d want 1（只打触发限流的账号，不换号重放）", calls)
 	}
 	// bad 已进入 6004 模型级独立冷却：账号级不 cooling，台账单行 until ≈ reset。
 	st, _ := p.Status("bad")
@@ -814,8 +1045,11 @@ func TestChat6004WithoutResetFallsBackToBackoff(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions",
 		strings.NewReader(`{"model":"glm-5.3","messages":[]}`)))
-	if rec.Code != 200 {
-		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("code=%d body=%s want 429（6004 不换号重发）", rec.Code, rec.Body)
+	}
+	if calls != 1 {
+		t.Fatalf("calls=%d want 1（只打触发限流的账号）", calls)
 	}
 	st, _ := p.Status("bad")
 	if !st.Cooling || st.CoolKind != "soft_rate" {

@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"net/http"
 	"strings"
 )
 
@@ -41,7 +42,26 @@ func ResolveConversationID(body []byte) string {
 	if v := strOrEmpty(obj["conversation_id"]); v != "" {
 		return v
 	}
-	return strOrEmpty(obj["conversationId"])
+	if v := strOrEmpty(obj["conversationId"]); v != "" {
+		return v
+	}
+	return strOrEmpty(obj["session_id"])
+}
+
+// ResolveConversationIDWithHeaders 先取入站会话头，再回落到 body。
+//
+// 出站 X-Conversation-ID 必须是客户端真正使用的会话标识：客户端把头放在
+// X-Session-ID / X-Conversation-ID 时，body 里通常没有 conversation_id。
+// 以前只读 body 会退化成「每轮随机 ID」，上游看到的是一条会话被拆成上百条。
+func ResolveConversationIDWithHeaders(body []byte, h http.Header) string {
+	if h != nil {
+		for _, k := range []string{"x-conversation-id", "x-session-id", "x-claude-code-session-id"} {
+			if v := strings.TrimSpace(h.Get(k)); v != "" {
+				return v
+			}
+		}
+	}
+	return ResolveConversationID(body)
 }
 
 // NewMessageID 生成消息级 ID：32 位 hex（UUID v4 去横线的长度形态），对齐官方

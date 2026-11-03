@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -66,6 +67,12 @@ type Config struct {
 	// 的任务奖励领掉，不跑任何行为链路）。与 GrowthHook 同款延迟挂载；nil 时
 	// ticker 到点跳过。见 issue #174：成长队列与「一键完成」都不负责这条补领链路。
 	TaskSweepHook func()
+
+	// JitterMinutes 任务时点抖动（±分钟）。28 个号在 09:00:00 同时签到是最强的
+	// 机器行为特征之一，抖动把同一任务的不同账号分散到一个时间窗内。0 = 关闭。
+	JitterMinutes int
+	// AccountSpacing 同一批任务内账号之间的间隔。0 = 使用各任务既有的 800ms 常量。
+	AccountSpacing time.Duration
 }
 
 // Scheduler 调度器。
@@ -84,6 +91,9 @@ type Scheduler struct {
 	rearmSchedule chan struct{}
 	rearmBalance  chan struct{}
 	rearmSweep    chan struct{}
+	// jitterMinutes / accountSpacing 排程抖动与账号间隔（schedMu 保护，见 SetTaskPacing）。
+	jitterMinutes  int
+	accountSpacing time.Duration
 
 	// balanceInterval 余额刷新间隔（纳秒，0=暂停）。atomic 读写：执行循环每轮读当前值，
 	// SetBalanceInterval 可任意时刻热改（面板保存配置）。
@@ -116,13 +126,124 @@ func New(cfg Config) *Scheduler {
 	if len(cfg.BlackcatHours) == 0 {
 		cfg.BlackcatHours = []int{23}
 	}
-	return &Scheduler{
-		cfg:           cfg,
-		adoptTried:    make(map[string]string),
-		rearmSchedule: make(chan struct{}, 1),
-		rearmBalance:  make(chan struct{}, 1),
-		rearmSweep:    make(chan struct{}, 1),
+	if cfg.JitterMinutes < 0 {
+		cfg.JitterMinutes = 0
 	}
+	if cfg.JitterMinutes > 60 {
+		cfg.JitterMinutes = 60
+	}
+	if cfg.AccountSpacing < 0 {
+		cfg.AccountSpacing = 0
+	}
+	return &Scheduler{
+		cfg:            cfg,
+		adoptTried:     make(map[string]string),
+		rearmSchedule:  make(chan struct{}, 1),
+		rearmBalance:   make(chan struct{}, 1),
+		rearmSweep:     make(chan struct{}, 1),
+		jitterMinutes:  cfg.JitterMinutes,
+		accountSpacing: cfg.AccountSpacing,
+	}
+}
+
+// SetTaskPacing 热更新任务抖动与账号间隔（面板保存配置后调用，下一轮生效）。
+func (s *Scheduler) SetTaskPacing(jitterMinutes int, spacing time.Duration) {
+	if jitterMinutes < 0 {
+		jitterMinutes = 0
+	}
+	if jitterMinutes > 60 {
+		jitterMinutes = 60
+	}
+	if spacing < 0 {
+		spacing = 0
+	}
+	s.schedMu.Lock()
+	s.jitterMinutes = jitterMinutes
+	s.accountSpacing = spacing
+	s.cfg.JitterMinutes = jitterMinutes
+	s.cfg.AccountSpacing = spacing
+	s.schedMu.Unlock()
+	poke(s.rearmSchedule)
+}
+
+// jittered 对排程槽位施加确定性抖动：同一槽位每次计算得到同一结果（否则 Run
+// 每轮重算都会漂移），不同槽位/任务自然错开。范围 ±jitterMinutes 分钟。
+func (s *Scheduler) jittered(t time.Time, salt string) time.Time {
+	if t.IsZero() {
+		return t
+	}
+	s.schedMu.Lock()
+	j := s.jitterMinutes
+	s.schedMu.Unlock()
+	if j <= 0 {
+		return t
+	}
+	// FNV-1a over 槽位小时 + 任务种类：同一天同一小时的不同任务得到不同偏移，
+	// 避免签到/旅行仍然在同一分钟齐发。
+	h := uint32(2166136261)
+	for _, b := range []byte(t.Format("2006-01-02T15") + "|" + salt) {
+		h ^= uint32(b)
+		h *= 16777619
+	}
+	span := uint32(2*j + 1)
+	off := int(h%span) - j
+	return t.Add(time.Duration(off) * time.Minute)
+}
+
+// jitterFrom 施加抖动，但绝不把槽位推到当前时刻之前（否则会被当作迟到补跑
+// 立刻执行，等于提前跑任务）。
+func (s *Scheduler) jitterFrom(now, t time.Time, salt string) time.Time {
+	j := s.jittered(t, salt)
+	if j.IsZero() || !j.After(now) {
+		return t
+	}
+	return j
+}
+
+// accountGap 返回同批任务账号之间的间隔；0 表示沿用各任务既有常量。
+func (s *Scheduler) accountGap() time.Duration {
+	s.schedMu.Lock()
+	defer s.schedMu.Unlock()
+	return s.accountSpacing
+}
+
+// PacingAudit 返回当前任务抖动/账号间隔，供风控面板检测“整点齐发”配置回退。
+func (s *Scheduler) PacingAudit() (jitterMinutes int, accountSpacing time.Duration) {
+	if s == nil {
+		return 0, 0
+	}
+	s.schedMu.Lock()
+	defer s.schedMu.Unlock()
+	return s.jitterMinutes, s.accountSpacing
+}
+
+// accountGapDuration 把配置间隔映射到 [2/3, 2] 倍：默认 30s → 20–60s。
+// draw 注入仅为测试确定性；生产使用 math/rand/v2。
+func accountGapDuration(gap time.Duration, draw func(int64) int64) time.Duration {
+	if gap <= 0 {
+		return 0
+	}
+	min := gap * 2 / 3
+	span := gap*4/3 - 1
+	if span <= 0 {
+		return gap
+	}
+	return min + time.Duration(draw(int64(span)))
+}
+
+// waitAccountGap 在账号之间等待一个带抖动的间隔（配置值的 2/3–2 倍）。
+// first 为 true 时立即放行并置 false。ctx 取消返回 false。
+func (s *Scheduler) waitAccountGap(ctx context.Context, first *bool) bool {
+	if *first {
+		*first = false
+		return ctx.Err() == nil
+	}
+	gap := s.accountGap()
+	if gap <= 0 {
+		return ctx.Err() == nil
+	}
+	d := accountGapDuration(gap, rand.Int64N)
+	return sleepCtx(ctx, d)
 }
 
 // ExpiringSoonWindow 返回当前快过期路由窗口（读取时与热配置写在 schedMu 下同步）。
@@ -260,22 +381,22 @@ func (s *Scheduler) nextWake(now time.Time) (time.Time, []taskKind) {
 	}
 	var slots []slot
 	if !checkinOff {
-		slots = append(slots, slot{nextFire(now, checkinHours), taskCheckin})
+		slots = append(slots, slot{s.jitterFrom(now, nextFire(now, checkinHours), "checkin"), taskCheckin})
 	}
 	if !travelOff {
-		slots = append(slots, slot{nextFire(now, travelHours), taskTravel})
+		slots = append(slots, slot{s.jitterFrom(now, nextFire(now, travelHours), "travel"), taskTravel})
 	}
 	if !activityOff {
-		slots = append(slots, slot{nextFire(now, activityHours), taskActivity})
+		slots = append(slots, slot{s.jitterFrom(now, nextFire(now, activityHours), "activity"), taskActivity})
 	}
 	if !keepaliveOff {
-		slots = append(slots, slot{nextFire(now, keepaliveHours), taskKeepalive})
+		slots = append(slots, slot{s.jitterFrom(now, nextFire(now, keepaliveHours), "keepalive"), taskKeepalive})
 	}
 	if !blackcatOff {
-		slots = append(slots, slot{nextFire(now, blackcatHours), taskBlackcat})
+		slots = append(slots, slot{s.jitterFrom(now, nextFire(now, blackcatHours), "blackcat"), taskBlackcat})
 	}
 	if !growthOff {
-		slots = append(slots, slot{nextFire(now, growthHours), taskGrowth})
+		slots = append(slots, slot{s.jitterFrom(now, nextFire(now, growthHours), "growth"), taskGrowth})
 	}
 	var earliest time.Time
 	for _, sl := range slots {
@@ -418,15 +539,15 @@ func (s *Scheduler) runBatch(ctx context.Context, kinds []taskKind) {
 			defer wg.Done()
 			switch k {
 			case taskCheckin:
-				s.RunCheckinNow()
+				s.runCheckin(ctx)
 			case taskTravel:
-				s.RunTravelNow()
+				s.runTravel(ctx)
 			case taskActivity:
 				s.runActivity(ctx)
 			case taskKeepalive:
-				s.RunKeepaliveNow()
+				s.runKeepalive(ctx)
 			case taskBlackcat:
-				s.RunBlackcatNow()
+				s.runBlackcat(ctx)
 			case taskGrowth:
 				// 成长任务队列：回调在 panel 侧异步启动（返回不等执行完），nil 未挂载则跳过。
 				s.schedMu.Lock()
@@ -464,6 +585,13 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 // 末尾追加连登管家（streak.go）：可兑换档位自动兑换 + 抽奖次数自动抽完——
 // 连登兑换按天数解锁，挂在每日签到后即「到天数那天自动完成兑换→抽奖闭环」。
 func (s *Scheduler) RunCheckinNow() {
+	s.runCheckin(context.Background())
+}
+
+// runCheckin 是 RunCheckinNow 的可取消版本：排程主循环传入 ctx，账号间按
+// accountSpacing 错峰（默认 20–60s），避免 28 个号在同一秒签到。
+func (s *Scheduler) runCheckin(ctx context.Context) {
+	first := true
 	expiringSoon := s.ExpiringSoonWindow()
 	includeDisabled := s.includeDisabledInTasks()
 	for _, st := range s.cfg.Pool.List() {
@@ -480,11 +608,22 @@ func (s *Scheduler) RunCheckinNow() {
 		if a.IsGlobal() {
 			continue
 		}
+		riskUntil, riskHold := s.cfg.Pool.RiskHoldUntil(st.UID)
+		probeOnly := false
+		if riskHold {
+			if time.Now().Before(riskUntil) {
+				continue // 隔离期内不签到，只等下一次只读余额探活
+			}
+			probeOnly = true
+		}
+		if !s.waitAccountGap(ctx, &first) {
+			return
+		}
 		// 企业版无签到体系：上游对 POST /v2/billing/meter/daily-checkin 直接
 		// 400 code 10001「企业账号不支持该操作」。跳过签到，但**不 continue**——
 		// 下方余额查询照常跑（企业额度走 get-enterprise-user-usage 口径，且是
 		// credit_floor 判定与面板额度展示的唯一数据源）。
-		if !a.IsEnterprise() {
+		if !probeOnly && !a.IsEnterprise() {
 			if err := s.cfg.Upstream.DailyCheckin(a); err != nil {
 				// "今天已签到"是幂等成功（上游对重复签到返回 code!=0），不再当失败打 error 行。
 				if upstream.IsAlreadyCheckin(err) {
@@ -506,9 +645,17 @@ func (s *Scheduler) RunCheckinNow() {
 		remain, total, expiring, earliestAt, earliestRemaining, buckets, err := s.cfg.Upstream.UserResourceSnapshot(a, expiringSoon)
 		if err != nil {
 			log.Printf("user-resource %s: %v", logfmt.Label(st.UID, st.Nickname), err)
+			if probeOnly {
+				s.cfg.Pool.DeferRiskProbe(st.UID, 24*time.Hour)
+			}
 			continue
 		}
 		s.cfg.Pool.ReenableIfCredits(st.UID, remain, total)
+		if probeOnly {
+			if _, held := s.cfg.Pool.RiskHoldUntil(st.UID); held {
+				s.cfg.Pool.DeferRiskProbe(st.UID, 24*time.Hour)
+			}
+		}
 		s.cfg.Pool.SetCreditsSnapshot(st.UID, pool.CreditsSnapshot{
 			Remain:            remain,
 			Total:             total,
@@ -555,17 +702,26 @@ func (s *Scheduler) runActivity(ctx context.Context) {
 		if a.IsEnterpriseSession() {
 			continue
 		}
+		if _, held := s.cfg.Pool.RiskHoldUntil(st.UID); held {
+			continue
+		}
 		// global 账号同样上报（PR #45 实测国际版 /v2/report 在 workbuddy.ai 上 code=0 OK，
 		// 点亮连登）；realmBase 路由/头由 upstream.billingJSON/BillingHeaders 按 realm 切，
 		// 无需改动 upstream。此处曾按「D4 门控：global 无活跃体系」跳过 global，实测该
 		// 判断不成立——国际版 /v2/report 可用，跳过即国际版账号永远点不亮连登（上游
 		// a190252 同口径修复）。checkin/travel 的 global 门控不受影响，仍跳过。
-		if !first {
-			if !sleepCtx(ctx, activityAccountDelay) {
-				return // 优雅停机：不等限速睡满，剩余账号下轮再报
+		if gap := s.accountGap(); gap > 0 {
+			if !s.waitAccountGap(ctx, &first) {
+				return
 			}
+		} else {
+			if !first {
+				if !sleepCtx(ctx, activityAccountDelay) {
+					return // 优雅停机：不等限速睡满，剩余账号下轮再报
+				}
+			}
+			first = false
 		}
-		first = false
 		cid := fmt.Sprintf("wb2api-%d", time.Now().UnixMilli())
 		if err := s.cfg.Upstream.ReportChatActivity(a, cid, ""); err != nil {
 			log.Printf("activity %s: %v", logfmt.Label(a.UID, a.Nickname), err)
@@ -604,6 +760,12 @@ func (s *Scheduler) checkActivityStreak(a *auth.Auth) bool {
 // 连续 sessionDeadThreshold 次（3 次）才禁用（P0-1：13 个 disabled 号全是历史误判）。
 // 刷新成功 → ClearSessionDead 清计数（错误判定的账号有复活路径）。
 func (s *Scheduler) RunKeepaliveNow() {
+	s.runKeepalive(context.Background())
+}
+
+// runKeepalive 可取消版本：账号之间按 accountSpacing 错峰。
+func (s *Scheduler) runKeepalive(ctx context.Context) {
+	first := true
 	includeDisabled := s.includeDisabledInTasks()
 	for _, st := range s.cfg.Pool.List() {
 		if st.Disabled && !includeDisabled {
@@ -612,6 +774,12 @@ func (s *Scheduler) RunKeepaliveNow() {
 		a := s.cfg.Pool.AuthByUID(st.UID)
 		if a == nil || a.RefreshTokenValue() == "" {
 			continue
+		}
+		if _, held := s.cfg.Pool.RiskHoldUntil(st.UID); held {
+			continue
+		}
+		if !s.waitAccountGap(ctx, &first) {
+			return
 		}
 		if err := s.cfg.Upstream.RefreshToken(a); err != nil {
 			log.Printf("keepalive %s: %v", logfmt.Label(st.UID, st.Nickname), err)
@@ -658,19 +826,31 @@ func (s *Scheduler) RunBalanceRefreshNow() {
 		if st.Disabled && !includeDisabled {
 			continue
 		}
+		riskUntil, riskHold := s.cfg.Pool.RiskHoldUntil(st.UID)
+		if riskHold && time.Now().Before(riskUntil) {
+			continue // 隔离未到探活时间，后台刷新也不碰
+		}
 		a := s.cfg.Pool.AuthByUID(st.UID)
 		if a == nil {
 			continue
 		}
 		wg.Add(1)
-		go func(a *auth.Auth, uid string) {
+		go func(a *auth.Auth, uid string, riskHold bool, riskUntil time.Time) {
 			defer wg.Done()
 			remain, total, expiring, earliestAt, earliestRemaining, buckets, err := s.cfg.Upstream.UserResourceSnapshot(a, expiringSoon)
 			if err != nil {
 				log.Printf("balance %s: %v", logfmt.Label(uid, a.Nickname), err)
+				if riskHold {
+					s.cfg.Pool.DeferRiskProbe(uid, 24*time.Hour)
+				}
 				return
 			}
 			s.cfg.Pool.ReenableIfCredits(uid, remain, total)
+			if riskHold {
+				if _, held := s.cfg.Pool.RiskHoldUntil(uid); held {
+					s.cfg.Pool.DeferRiskProbe(uid, 24*time.Hour)
+				}
+			}
 			s.cfg.Pool.SetCreditsSnapshot(uid, pool.CreditsSnapshot{
 				Remain:            remain,
 				Total:             total,
@@ -679,7 +859,7 @@ func (s *Scheduler) RunBalanceRefreshNow() {
 				EarliestRemaining: earliestRemaining,
 				ExpiryBuckets:     poolExpiryBuckets(buckets),
 			})
-			}(a, st.UID)
+		}(a, st.UID, riskHold, riskUntil)
 	}
 	wg.Wait()
 	s.lastBalanceRefresh.Store(time.Now().UnixNano())

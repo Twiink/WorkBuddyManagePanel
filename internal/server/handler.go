@@ -85,6 +85,12 @@ type Config struct {
 	// 来自 logging.request_client_info（缺省 true）；关闭时 reqlog 事件的来源字段
 	// 保持为空，归档与面板都不出现来源信息。
 	RecordClientInfo bool
+
+	// RiskQuarantine 11140（账号异常行为限制）的隔离时长，默认 24h。
+	// RiskProbeEnabled=true 时隔离到期后执行只读余额探活，成功才回池；
+	// false 时回到旧的永久禁用语义，必须人工解冻。
+	RiskQuarantine   time.Duration
+	RiskProbeEnabled bool
 }
 
 // loadLive 返回当前运行期快照；Live 为 nil 时用静态字段合成。
@@ -97,6 +103,8 @@ func (h *Handler) loadLive() livecfg.Snapshot {
 		SoftCooldown:     h.cfg.SoftCooldown,
 		RecordClientInfo: h.cfg.RecordClientInfo,
 		HiddenModels:     livecfg.NormalizeHiddenModels(h.cfg.ModelsHidden),
+		RiskQuarantine:   h.cfg.RiskQuarantine,
+		RiskProbeEnabled: h.cfg.RiskProbeEnabled,
 	}
 }
 
@@ -743,9 +751,6 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	// 在途占满，或该域账号对这个模型 11102 后进入模型级负缓存）时，改用另一域再选一次；
 	// 显式 cn:/global: 前缀保持原语义，永不回退。裸名模式下两域重名/目录未知的模型同样回退。
 	crossRealm := !realmExplicit && (h.cfg.Pool.CrossDomainFallback() || bareFallback)
-	// 粘性路由按「已选域 + 裸名」解析（与 realmAwareAvailableForModel 同协议）：
-	// 首选 global 时裸名不会被粘性分配到 cn 号。realm=cn 时与旧口径（裸名 → cn）等价。
-	routeModel := realm + ":" + bareModel
 
 	// 请求级统计：出口即打一行表格日志（任何路径都会走到）。
 	st := newChatStat(time.Now(), body, peek.Stream)
@@ -778,17 +783,15 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	// 会话粘性：从请求体提取会话键并解析绑定号（找不到/无效则 stickyUID 为空，走普通轮换）。
 	// ExtractKey 与粘性开关解耦（issue #35 侧）：关闭粘性时会话头族的聚合主键仍按
 	// 会话级（RequestIDForKey(sessKey)），不悄悄退化成轮级——提取本身与粘性无关。
-	sessKey := session.ExtractKey(body)
+	sessKey, sessionExplicit := session.ExtractKeyWithHeadersAndExplicit(body, r.Header)
 	stickyUID := ""
+	stickyReused := false
 	if h.cfg.Session != nil && sessKey != "" {
-		// 按模型解析：绑定号在**当前模型**被 6004 限额时视为不可用 → 重新分配，
-		// 而不是钉在限额号上反复失败（"限额后换不动号"的正解）。
-		resolve := h.cfg.Session.ResolveForModel
-		if h.cfg.Pool.StrategyForRealm(realm) != pool.WeightedRandom {
-			resolve = h.cfg.Session.LookupForModel
-		}
-		if uid, ok := resolve(sessKey, routeModel); ok {
+		// 只复用已有绑定，新会话交给 Pool 选号。这里必须查「未过期绑定」而非
+		// 「当前模型可用绑定」：原号冷却/隔离/满载时也要原地失败，不能悄悄换号。
+		if uid, ok := h.cfg.Session.LookupBinding(sessKey); ok {
 			stickyUID = uid
+			stickyReused = true
 		}
 	}
 
@@ -817,6 +820,17 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 			heldUID = ""
 		}
 	}
+	// 会话钉死（防「一个会话横跨多账号」）：请求带显式会话身份，或网关已有未过期
+	// 绑定时，整个请求只允许落在一个账号上。换号重发会让同一个
+	// X-Conversation-ID / X-Conversation-Request-ID 从多个账号发出——这是上游
+	// 识别「号池反代」最强的信号，比任何头部指纹都直接。
+	// 只有尚无绑定的内容派生键/匿名请求才允许首次选号失败后换新 ID 路由。
+	pinned := sessionExplicit || stickyReused
+	pinnedUID := ""
+	// attempted 标记本次请求是否已经真正向某个账号发起过上游调用。只有发过之后
+	// 才禁止换号：换号会让同一会话 ID 从两个账号发出。发之前换号（例如粘性号在
+	// 冷却、跨域回退）不会泄漏任何会话信息，仍然允许。
+	attempted := false
 	// unbindSticky 解绑当前会话粘性号（stickyUID 非空时）。供「粘性号不可用/被抢」与 fail 共用。
 	// 幂等：stickyUID 已空则空操作；不会误解绑其他轮的绑定。仅当 Session != nil 时 stickyUID 才会非空。
 	unbindSticky := func() {
@@ -828,7 +842,9 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	// fail 在轮转失败分支统一：释放租约 + 若失败号正是粘性号则解绑（下次请求重新分配）。
 	fail := func(uid string) {
 		releaseHeld()
-		if stickyUID != "" && uid == stickyUID {
+		// 钉死会话的失败不解除绑定：换绑会让下一轮落到另一个账号，等于亲手制造
+		// 「同一会话横跨多账号」。绑定只在人工解冻/自然过期时消失。
+		if !pinned && stickyUID != "" && uid == stickyUID {
 			unbindSticky()
 		}
 	}
@@ -924,11 +940,9 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		body = rewriteModel(body, bareModel)
 	}
 
-	// 会话头族（issue #35）：后台按 X-Conversation-Request-ID（对话轮级）聚合请求，
-	// 官方客户端一次 user send 内所有 tool call/重试/换号复用同一个 ID。此处**轮转
-	// 循环外**生成一次，循环内每次出站原样复用 → 换号/重试/降级全部同 ID，后台不再
-	// 碎片化（此前网关一个都不发，上游按 HTTP 请求逐条记账，同一对话几十上百个
-	// RequestID）。
+	// 会话头族（issue #35）：后台按 X-Conversation-Request-ID（对话轮级）聚合请求。
+	// 同一账号内的降级/重试复用原 ID；只有匿名请求确实换到另一账号时才生成全套新 ID。
+	// 有客户端会话身份的请求在首次出站后禁止换号，避免同一会话横跨账号。
 	//   - conversationID：body 提取（透传客户端原值，缺省空串——不伪造）；
 	//   - conversationRequestID：入站 X-Conversation-Request-ID 透传优先，否则按
 	//     粘性 key 进程内稳定生成；粘性 key 也空时走轮级兜底（TurnKey/TurnRequestID），
@@ -939,7 +953,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	// the upstream prompt_cache_key degrades into one constant per account and
 	// every client on that account ends up sharing a single, constantly evicted
 	// prefix-cache slot.
-	convID := session.ResolveConversationID(body)
+	convID := session.ResolveConversationIDWithHeaders(body, r.Header)
 	if convID == "" {
 		convID = sessKey
 	}
@@ -960,19 +974,33 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		chatMeta.ConversationRequestID = session.TurnRequestID("")
 	}
 	chatMeta.TraceID = r.Header.Get("X-Trace-ID")
+	// 换到另一个账号重发前必须切断上游会话关联：保留客户端粘性键（网关内部仍防跨号），
+	// 但出站 X-Conversation-ID / Request-ID / Trace-ID 全部换新。否则上游会把两次请求
+	// 归并成“同一会话从两个账号发出”，是号池规避的强特征。
+	freshChatMeta := func() upstream.ChatMeta {
+		id := session.NewMessageID()
+		return upstream.ChatMeta{
+			ConversationID:        id,
+			ConversationRequestID: id,
+			TraceID:               id,
+		}
+	}
 
 	for i := 0; i < h.cfg.MaxRotate; i++ {
 		// 选号：粘性号优先（PickByUIDForModel 已校验该模型可用性 + 在途未满），否则普通轮换。
 		var acct *auth.Auth
-		if stickyUID != "" {
+		if pinnedUID != "" {
+			// 已钉死的会话：只用原账号重试（含传输层重试），绝不换号。
+			acct = h.cfg.Pool.PickByUIDForModel(pinnedUID, bareModel)
+			if acct == nil {
+				break
+			}
+		} else if stickyUID != "" {
 			acct = h.cfg.Pool.PickByUIDForModel(stickyUID, bareModel)
-			// 跨域回退开启且请求为裸名时，粘性号可以落在任一域（回退成功后绑定的是另一域
-			// 的账号，下一轮不该被 realm 校验立刻解绑）。
 			if acct == nil || (realm != "" && acct.Realm() != realm && !crossRealm) {
-				// 粘性号在当前模型不可用（冷却/占满/该模型被 6004 限额）或 realm 不符 → 解绑，
-				// 本次回落普通轮换。
-				unbindSticky()
-				acct = nil
+				// 已绑定会话的原号暂时不可用：不换号、不解绑，等原号恢复后客户端
+				// 重试仍落回同一账号。
+				break
 			}
 		}
 		if acct == nil {
@@ -1016,10 +1044,9 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 
 		// 占用在途名额：Pick 已跳过满额账号，此处 CAS 兜底并发抢名额的竞态。
 		if !h.cfg.Pool.Acquire(acct.UID) {
-			// 若被抢的正是粘性号，立即解绑并回落普通轮换，避免下一轮仍撞同一个
-			// 满载粘性号再浪费一次 PickByUID 往返（语义与 fail()/PickByUID-nil 的解绑一致）。
 			if stickyUID != "" && acct.UID == stickyUID {
-				unbindSticky()
+				// 已绑定会话在原号抢租约失败时也只原地失败，不换号。
+				break
 			}
 			if !rotateBackoff(i, r.Context()) {
 				// 客户端已断连：换号重试无意义，终止轮转走末端错误透传。
@@ -1028,6 +1055,14 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 			continue // 最后一个名额被并发抢走 → 换号
 		}
 		heldUID = acct.UID
+		if pinned {
+			// 显式会话从第一次选中账号起就落绑定；后续 refresh/chat 失败都只回此号。
+			// 内容派生的新会话仍等成功后再绑定，以便首次 11102/11-128 可换新 ID 回退。
+			pinnedUID = acct.UID
+			if sessKey != "" && h.cfg.Session != nil {
+				h.cfg.Session.Bind(sessKey, acct.UID)
+			}
+		}
 
 		// token 临近过期 → 先 refresh（失败冷却换号）
 		if acct.NeedsRefresh(h.cfg.RefreshSkew) {
@@ -1054,6 +1089,8 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 
 		// 客户端 IP 按请求传递（PassthroughIP 开启时注入；消除共享字段竞态）。
 		attemptStarted := time.Now()
+		// 从这里开始，请求可能已经到达上游：钉死该会话到本账号。
+		attempted = true
 		rc, status, respBody, terr := h.cfg.Upstream.ChatStreamContext(r.Context(), acct, body, clientIP, chatMeta)
 		// 分类信封一次成型：upstream 已在错误路径返回 *upstream.Error（Kind +
 		// Retry-After 头解析）。传输层错误（非 *Error）走抖动换号分支；防御分支
@@ -1093,6 +1130,9 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 			h.cfg.Pool.NoteFailures(acct.UID)
 			h.cfg.Health.Failure(acct.UID, health.KindTransport, 0, bareModel, terr.Error())
 			fail(acct.UID)
+			if !pinned {
+				chatMeta = freshChatMeta()
+			}
 			if !rotateBackoff(i, r.Context()) {
 				break // ctx 取消：终止轮转（传输层错误换号退避）
 			}
@@ -1216,6 +1256,28 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 			// 则立即终止轮转——继续换号只会把请求放大 MaxRotate 倍打同一出口 IP，
 			// 加重风控。账号级软冷却已在上方 applyErrorPolicy 照常记账。
 			if kind == upstream.ErrWafBlock && h.wafIP.noteWaf(acct.UID) {
+				break
+			}
+			// 会话钉死 + 账号级错误不再换号：429（限流）、11140（账号限制）、5xx
+			// 都是「这个号/这条通道此刻不行」，换号重发等于用另一个账号重放同一
+			// 会话——上游按会话聚合时看到的就是一个会话横跨多号，属于号池规避特征。
+			// 正确做法是把错误如实返回，由客户端在同一会话上退避重试。
+			// 例外：11102/11158（该账号没有这个模型）与 11-128（通道校验）属模型/通道
+			// 路由错误，换号是唯一解法；它们不改变「账号额度被消耗」这一事实，
+			// 也与账号强度无关，保留既有回退语义。
+			modelRouteErr := kind == upstream.ErrModelBlocked || kind == upstream.ErrChannelRefused
+			if modelRouteErr {
+				// 有客户端会话身份的请求已经发到上游后绝不换号；模型/通道错误也
+				// 原样返回，让客户端在同一会话上改模型或重试。
+				if pinned {
+					break
+				}
+				// 匿名的一次性调用允许换成模型/通道路由错误继续尝试，但必须换一套
+				// 上游会话 ID，禁止使用同一 conversation_id 横跨账号。
+				unbindSticky()
+				chatMeta = freshChatMeta()
+			}
+			if !modelRouteErr && ((pinned && attempted) || kind == upstream.ErrSoftRate || kind == upstream.ErrAccountFault || status >= 500) {
 				break
 			}
 			if !rotateBackoff(i, r.Context()) {
@@ -1577,6 +1639,21 @@ func isUpstreamTimeout(err error, clientGone bool) bool {
 	return !clientGone && errors.Is(err, context.Canceled)
 }
 
+// quarantineAccount 处置 11140（账号被上游限制）。
+//
+// 旧行为是 Pool.Disable（永久禁用、必须人工解冻）。实际 11140 里既有真封禁，
+// 也有短时风控标记；永久禁用会让号池在一次误判后持续缩水，而人工解冻又等于
+// 立刻再撞一次。改成「隔离 + 探活」：隔离期内退出选号但照常签到/查余额（只读
+// 探活），成功探活后才回池；RiskProbeEnabled=false 时保留旧的永久禁用语义。
+func (h *Handler) quarantineAccount(uid, reason string) {
+	live := h.loadLive()
+	if live.RiskProbeEnabled && live.RiskQuarantine > 0 {
+		h.cfg.Pool.Quarantine(uid, live.RiskQuarantine, reason)
+		return
+	}
+	h.cfg.Pool.Disable(uid, reason)
+}
+
 // applyErrorPolicy 按错误分类对账号施加冷却/禁用/熔断策略（最终版状态机）。
 // kind 是唯一权威分类（来自 upstream.Classify / ChatStreamContext 的 *Error 信封），
 // 此处不再按原始 status 二次判断。仅在 chatCompletions 轮转循环内调用：内容拦截
@@ -1615,7 +1692,12 @@ func (h *Handler) applyErrorPolicy(uid string, kind upstream.ErrKind, body, mode
 	if uerr != nil {
 		status = uerr.Status
 	}
-	h.cfg.Health.Failure(uid, kind.String(), status, model, body)
+	healthKind := kind.String()
+	if kind == upstream.ErrAccountFault && upstream.IsAccountRestricted(body) {
+		// account_fault 还包含 14017 等可自愈业务码；风控面板需要精确统计 11140。
+		healthKind = "account_restricted"
+	}
+	h.cfg.Health.Failure(uid, healthKind, status, model, body)
 	switch kind {
 	case upstream.ErrHardCredit:
 		// 402 + 余额关键词即积分耗尽：同步冷却到次日 04:00（签到任务 09/21 点恢复），
@@ -1669,14 +1751,15 @@ func (h *Handler) applyErrorPolicy(uid string, kind upstream.ErrKind, body, mode
 		h.cfg.Pool.Cooldown(uid, pool.CoolSoft, notFoundCooldown, "upstream 404")
 	case upstream.ErrAccountFault:
 		// 账号级授权/配额故障按业务码分野（口径与 Classify 一致）：
-		//   - 11140 + "request illegal" → 账号被上游限制（异常行为/风控）：硬禁用。
-		//     解除只能由用户在 WorkBuddy 官方渠道申诉，重登无效（issue 1849 结论）。
+		//   - 11140 + "request illegal" → 账号被上游限制（异常行为/风控）：隔离而非
+		//     永久禁用（见 quarantineAccount）。隔离期内不跑聊天/自动任务，到期后
+		//     只读余额探活成功才回池；人工仍可申诉后提前解冻。
 		//   - 14017（trial not activated）→ register 未完成，补完 register 后可能自愈，
 		//     **保持软冷却**（禁用会让用户补完 register 后仍无法用）。
 		// 注意 11128 的 msg 同为 "request illegal"，但那是通道校验失败，已在
 		// Classify 分流到 ErrChannelRefused，走不到这里。
 		if upstream.IsAccountRestricted(body) {
-			h.cfg.Pool.Disable(uid, "account restricted by upstream (11140 request illegal); appeal in WorkBuddy (submit feedback) to lift the restriction")
+			h.quarantineAccount(uid, "account restricted by upstream (11140 request illegal); quarantined, will re-probe after cooldown")
 			return
 		}
 		h.cfg.Pool.Cooldown(uid, pool.CoolSoft, h.softCooldown(), "account fault (14017)")

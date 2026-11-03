@@ -1774,8 +1774,9 @@ func TestPickPrefersExpiringHard(t *testing.T) {
 	p.SetCreditsDetailed("soon", 100, 100, 100, now.Add(2*time.Hour), 100)
 	p.SetCreditsDetailed("none", 1000, 1000, 0, time.Time{}, 0)
 
-	// 硬优先：只要有可用的快过期账号，普通账号（即使积分更多）一次都不选；
-	// 快过期账号之间仍按原权重随机分摊。
+	// 软优先：快过期账号按虚拟实例数加权（3×），普通账号仍可被选中但份额明显更低。
+	// 旧实现是硬过滤（普通账号一次都不选），会把全部新会话压到少数快过期号上，
+	// 正是单号 55% 流量的来源；这里断言「优先但不垄断」。
 	rng := rand.New(rand.NewPCG(1, 2))
 	p.SetRandomSource(func(n int64) int64 { return rng.Int64N(n) })
 	counts := map[string]int{}
@@ -1786,8 +1787,12 @@ func TestPickPrefersExpiringHard(t *testing.T) {
 		}
 		counts[got.UID]++
 	}
-	if counts["none"] != 0 || counts["soon"] == 0 || counts["later"] == 0 {
-		t.Fatalf("distribution=%v, want only expiring accounts, both used", counts)
+	if counts["soon"] == 0 || counts["later"] == 0 {
+		t.Fatalf("distribution=%v, want both expiring accounts used", counts)
+	}
+	expiring := counts["soon"] + counts["later"]
+	if expiring <= counts["none"] {
+		t.Fatalf("distribution=%v, want expiring accounts preferred over none", counts)
 	}
 }
 

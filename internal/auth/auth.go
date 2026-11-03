@@ -44,6 +44,12 @@ type Auth struct {
 	// 手写扁平形 auth 文件可直接写 "device_token": "..."；插件 OAuth 嵌套形
 	// 顶层 device_token 也会被解析（与桌面端共用状态文件的部署方式）。
 	DeviceToken string
+
+	// Proxy 是该账号专用出站代理 URL（http/https/socks5/socks5h）。
+	// 来源 auth 文件的顶层 proxy 键；空 = 沿用进程默认 Transport（环境变量代理）。
+	// 代理属于账号级网络身份，不能写成全局 pool 配置——同一台机器上的不同账号
+	// 应尽可能对应不同的稳定出口。凭据只保存在 auth 文件，不写 config/state/日志。
+	Proxy string
 }
 
 // Lock 供同进程内其他包（upstream.RefreshToken）在改写 Auth 字段期间加锁。
@@ -90,6 +96,17 @@ func (a *Auth) RefreshTokenValue() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.RefreshToken
+}
+
+// ProxyValue 加锁读取账号代理 URL。代理在启动解析后不再改写，但保存/刷新与
+// 出站并发读取仍走同一把锁，避免将来热更新时引入数据竞争。
+func (a *Auth) ProxyValue() string {
+	if a == nil {
+		return ""
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.Proxy
 }
 
 // globalEnabled 全局开关：global realm 是否路由（D5 双保险）。
@@ -295,14 +312,18 @@ func Parse(raw []byte) (*Auth, error) {
 				ExpiresAt    int64  `json:"expiresAt"`
 				Domain       string `json:"domain"`
 				Realm        string `json:"realm"`
+				Proxy        string `json:"proxy"`
 			} `json:"auth"`
 			Account struct {
 				UID          string `json:"uid"`
 				EnterpriseID string `json:"enterpriseId"`
 				Nickname     string `json:"nickname"`
+				Proxy        string `json:"proxy"`
 			} `json:"account"`
 			// DeviceToken 顶层 device_token（嵌套形与扁平形共用；手写时无需嵌进 auth 对象）。
 			DeviceToken string `json:"device_token"`
+			// Proxy 顶层 proxy 优先；同时兼容历史手写文件把 proxy 放进 auth/account。
+			Proxy string `json:"proxy"`
 		}
 		if err := json.Unmarshal(raw, &n); err != nil {
 			return nil, fmt.Errorf("storage_parse_error: %w", err)
@@ -317,6 +338,7 @@ func Parse(raw []byte) (*Auth, error) {
 			EnterpriseID: n.Account.EnterpriseID,
 			Nickname:     n.Account.Nickname,
 			DeviceToken:  n.DeviceToken,
+			Proxy:        firstNonEmpty(n.Proxy, n.Auth.Proxy, n.Account.Proxy),
 		}
 	} else {
 		var f struct {
@@ -329,6 +351,7 @@ func Parse(raw []byte) (*Auth, error) {
 			EnterpriseID string `json:"enterpriseId"`
 			Nickname     string `json:"nickname"`
 			DeviceToken  string `json:"device_token"`
+			Proxy        string `json:"proxy"`
 		}
 		if err := json.Unmarshal(raw, &f); err != nil {
 			return nil, fmt.Errorf("storage_parse_error: %w", err)
@@ -343,6 +366,7 @@ func Parse(raw []byte) (*Auth, error) {
 			EnterpriseID: f.EnterpriseID,
 			Nickname:     f.Nickname,
 			DeviceToken:  f.DeviceToken,
+			Proxy:        f.Proxy,
 		}
 	}
 	if strings.TrimSpace(a.AccessToken) == "" {
@@ -382,6 +406,10 @@ func (a *Auth) SaveAtomic() error {
 	if a.DeviceToken != "" {
 		doc["device_token"] = a.DeviceToken
 	}
+	// Proxy 同样仅在非空时写回；已有扁平/嵌套别名在首次 SaveAtomic 后统一为顶层键。
+	if a.Proxy != "" {
+		doc["proxy"] = a.Proxy
+	}
 	raw, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return err
@@ -400,6 +428,15 @@ func (a *Auth) SaveAtomic() error {
 		return errors.New(msg)
 	}
 	return os.Rename(tmp, a.FilePath)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 // LoadDir 扫描并解析 dir 下 workbuddy*.json；解析失败的文件静默跳过（启动日志由调用方统计）。

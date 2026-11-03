@@ -371,6 +371,8 @@ func finishStart(
 	p.SetCostExploreInterval(cfg.CostExploreIntervalDur) // costTier 探索窗口（issue #136，默认 30m；0 关停）
 	p.SetCreditFloor(cfg.Pool.CreditFloor)               // 积分保底（默认 0 = 关闭）
 	p.SetDailyLimits(dailyLimitsOf(cfg))                 // 账号级每日护栏（默认全关）
+	p.SetAccountShareCap(cfg.Pool.AccountShareCap)       // 单号请求份额上限（默认 2× 公平份额）
+	p.SetDailyRequestLimit(cfg.Pool.DailyRequestLimit)   // 单号每日请求数上限（默认 0 = 关闭）
 	p.SetWeights(cfg.Pool.IdleWeightPerHour, cfg.Pool.IdleWeightMax)
 	p.SetPreferExpiring(cfg.Pool.PreferExpiring)
 	p.SetCrossDomainFallback(cfg.Pool.CrossDomainFallback) // 裸名跨域回退（issue #135，默认关闭）
@@ -391,7 +393,6 @@ func finishStart(
 			// realm 感知闭包：带前缀模型名按 realm 过滤可用账号（跨 realm 不泄漏）；
 			// 裸名走 cn（现状零回归）。闭包内部 resolveModel 剥前缀，再按 realm 过滤。
 			AvailableForModel: realmAwareAvailableForModel(p),
-			PreferredForModel: realmAwareExpiringForModel(p),
 		})
 		sessRouter.LoadFromStore() // 启动时从 Redis 恢复粘性（读操作仅此处）
 		sessRouter.StartGC()
@@ -400,6 +401,12 @@ func finishStart(
 	sessCount := func() int {
 		if sessRouter != nil {
 			return sessRouter.Count()
+		}
+		return 0
+	}
+	sessRebinds := func() int64 {
+		if sessRouter != nil {
+			return sessRouter.RebindCount()
 		}
 		return 0
 	}
@@ -432,6 +439,8 @@ func finishStart(
 	up.DeviceToken = cfg.Upstream.DeviceToken
 	up.DeviceTokenFile = cfg.Upstream.DeviceTokenFile
 	up.PassthroughIP = cfg.Upstream.PassthroughIP
+	// 账号级出站节流：默认 1s + 500ms 以内抖动，把机械等间隔打散。
+	up.SetPacing(cfg.PacingMinDur, cfg.PacingJitterDur)
 	// global realm 路由（config global 段）：上游侧开关（第一道闸）+ base 覆盖；
 	// auth 侧开关（auth.SetGlobalEnabled）是第二道闸，两者同 config global.enabled。
 	up.GlobalEnabled = cfg.Global.Enabled
@@ -465,6 +474,8 @@ func finishStart(
 		KeepaliveHours: cfg.Schedule.KeepaliveHours,
 		BlackcatHours:  cfg.Schedule.BlackcatHours,
 		GrowthHours:    cfg.Schedule.GrowthHours,
+		JitterMinutes:  cfg.Schedule.JitterMinutes,
+		AccountSpacing: time.Duration(cfg.Schedule.AccountSpacingSeconds) * time.Second,
 		// 快过期积分优先消耗：签到/余额刷新按此窗口分桶（issue:积分过期）。
 		ExpiringSoonWindow: cfg.ExpiringSoonDur,
 		CheckinDisabled:    !cfg.Schedule.CheckinEnabled,
@@ -532,6 +543,8 @@ func finishStart(
 		HiddenModels:         livecfg.NormalizeHiddenModels(cfg.Models.Hidden),
 		BareModelNames:       cfg.Models.BareNames,
 		PreferredRealm:       cfg.Models.PreferredRealm,
+		RiskQuarantine:       cfg.RiskQuarantineDur,
+		RiskProbeEnabled:     cfg.Risk.ProbeEnabled,
 	})
 	// 用量记录器：与 state 文件同目录，随 state_file 配置一起搬移。
 	// datapath 由 state 文件路径推出，避免再加一个配置项。
@@ -598,19 +611,20 @@ func finishStart(
 	up.SetBalanceResultObserver(healthTracker.Balance)
 
 	pn := panel.New(panel.Config{
-		Pool:        p,
-		Usage:       rec,
-		RequestLog:  requestLog,
-		Health:      healthTracker,
-		Prices:      priceRef,
-		Upstream:    up,
-		Scheduler:   sch,
-		AuthDir:     cfg.AuthDir,
-		APIKey:      cfg.APIKey,
-		DesktopMode: requireLoopback,
-		RedisMode:   redisMode,
-		StickyCount: sessCount,
-		Version:     version,
+		Pool:          p,
+		Usage:         rec,
+		RequestLog:    requestLog,
+		Health:        healthTracker,
+		Prices:        priceRef,
+		Upstream:      up,
+		Scheduler:     sch,
+		AuthDir:       cfg.AuthDir,
+		APIKey:        cfg.APIKey,
+		DesktopMode:   requireLoopback,
+		RedisMode:     redisMode,
+		StickyCount:   sessCount,
+		StickyRebinds: sessRebinds,
+		Version:       version,
 		Listen: panel.ListenInfo{
 			Configured: i.ConfiguredListen,
 			Actual:     i.Listen,
@@ -677,7 +691,9 @@ func finishStart(
 		GlobalEnabled: cfg.Global.Enabled,
 		// 模型黑名单原始条目；运行期以 livecfg 快照为准（热生效），此处供
 		// Live 为 nil 的裸用/测试路径。
-		ModelsHidden: cfg.Models.Hidden,
+		ModelsHidden:     cfg.Models.Hidden,
+		RiskQuarantine:   cfg.RiskQuarantineDur,
+		RiskProbeEnabled: cfg.Risk.ProbeEnabled,
 	})
 
 	i.wg.Add(1)
@@ -906,6 +922,8 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 		HiddenModels:         livecfg.NormalizeHiddenModels(newCfg.Models.Hidden),
 		BareModelNames:       newCfg.Models.BareNames,
 		PreferredRealm:       newCfg.Models.PreferredRealm,
+		RiskQuarantine:       newCfg.RiskQuarantineDur,
+		RiskProbeEnabled:     newCfg.Risk.ProbeEnabled,
 	})
 	up.SanitizeFingerprints.Store(newCfg.Features.SanitizeBlacklistFingerprints)
 	p.SetBreaker(newCfg.Pool.BreakerThreshold, newCfg.BreakerCooldownDur, newCfg.BreakerCooldownMaxD)
@@ -916,6 +934,8 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	p.SetCostExploreInterval(newCfg.CostExploreIntervalDur) // costTier 探索窗口热生效（0 关停）
 	p.SetCreditFloor(newCfg.Pool.CreditFloor)               // 积分保底热生效（0 = 关闭）
 	p.SetDailyLimits(dailyLimitsOf(newCfg))                 // 每日护栏热生效
+	p.SetAccountShareCap(newCfg.Pool.AccountShareCap)       // 份额上限热生效
+	p.SetDailyRequestLimit(newCfg.Pool.DailyRequestLimit)   // 每日请求上限热生效
 	p.SetWeights(newCfg.Pool.IdleWeightPerHour, newCfg.Pool.IdleWeightMax)
 	p.SetPreferExpiring(newCfg.Pool.PreferExpiring)
 	p.SetCrossDomainFallback(newCfg.Pool.CrossDomainFallback) // 裸名跨域回退热生效（issue #135）
@@ -931,6 +951,9 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	sch.SetBalanceInterval(newCfg.BalanceRefreshInterval)
 	sch.SetTaskSweepInterval(newCfg.TaskSweepInterval)
 	sch.SetIncludeDisabledInTasks(newCfg.Schedule.IncludeDisabledInTasks)
+	sch.SetTaskPacing(newCfg.Schedule.JitterMinutes,
+		time.Duration(newCfg.Schedule.AccountSpacingSeconds)*time.Second)
+	up.SetPacing(newCfg.PacingMinDur, newCfg.PacingJitterDur)
 
 	return restartRequiredFields(newCfg), nil
 }

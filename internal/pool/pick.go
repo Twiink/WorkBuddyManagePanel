@@ -1,4 +1,4 @@
-// 选号：Pick 簇（healthy 成本分层 + 快过期硬优先 + 全冷却兜底 + 在途占满过滤）。
+// 选号：Pick 簇（healthy 成本分层 + 快过期软权重 + 全冷却兜底 + 在途/份额过滤）。
 package pool
 
 import (
@@ -71,6 +71,9 @@ func (p *Pool) pick(tried map[string]bool, reqModel, realm string) *auth.Auth {
 		}
 		if p.inFlightFull(e) {
 			continue // 在途占满：跳过（max=0 不限时不触发）
+		}
+		if p.shareBlockedLocked(e, now) {
+			continue // 份额/日请求上限：让流量摊到池内其他号
 		}
 		cands = append(cands, e)
 	}
@@ -168,25 +171,15 @@ func (p *Pool) pick(tried map[string]bool, reqModel, realm string) *auth.Auth {
 		e.lastUsed = now
 		p.pickSeq++
 		e.usedSeq = p.pickSeq
+		p.notePickedLocked(e, now)
 		if explored {
 			log.Printf("[pool] cost explore model=%s realm=%q acct=%s window=%s", reqModel, realm, logfmt.Label(e.a.UID, e.a.Nickname), p.costExploreInterval)
 		}
 		return e.a
 	}
-	// 快过期硬优先：成本最优层内只要有可接单的快过期账号，就只在它们之间选；
-	// 都不可用（冷却/占满/触底/不在最优层）时 ws 不变，选号与原来完全一致。
-	// 放在成本分层之后：已实测免费的号不花积分，比花掉快过期积分更省。
-	if p.preferExpiring {
-		expiring := ws[:0:0]
-		for _, w := range ws {
-			if expiringNow(w.e, now) {
-				expiring = append(expiring, w)
-			}
-		}
-		if len(expiring) > 0 {
-			ws = expiring
-		}
-	}
+	// 快过期积分从「硬过滤」改为「软权重」：硬过滤会把全部新会话压到少数几个
+	// 快过期号上（本机实测单号 55% 流量），上游看到的是重度异常账号；软权重
+	// 在 routingWeightOf 里乘以虚拟实例数，既优先消耗快过期积分，又不会垄断。
 	// 等权重洗牌：仅当存在权重相等且候选数超过 top5 时，才对 ws 做 Fisher-Yates
 	// 洗牌（且**不消耗 p.randInt64N 注入源**，避免改变 pickWeighted 的确定性语义，
 	// 见 TestPickDeterministicViaSetRandomSource）。权重全等或存在并列时，按字典序
@@ -262,6 +255,7 @@ func (p *Pool) pick(tried map[string]bool, reqModel, realm string) *auth.Auth {
 	e.lastUsed = now // 锁内即时标记：下一个进入 pick 的 goroutine 立即看到本号已用
 	p.pickSeq++
 	e.usedSeq = p.pickSeq // 单调序号：保证 usedSeq 严格全序（防惊群/LRU 的权威依据）
+	p.notePickedLocked(e, now)
 	return e.a
 }
 
@@ -356,6 +350,9 @@ func (p *Pool) pickEarliestExpiryLocked(tried map[string]bool, now time.Time, re
 		if e.disabled || e.paused {
 			continue // 禁用/暂停选号的账号永不参与兜底
 		}
+		if e.riskHold {
+			continue // 11140 风控隔离：只允许余额探活，探活成功或人工解冻才回池
+		}
 		if e.coolKind == CoolHard && !e.until.IsZero() && now.Before(e.until) {
 			continue // 余额耗尽号（处于有效 hard 冷却期）不参与兜底：等签到恢复，调了必 402
 		}
@@ -384,6 +381,7 @@ func (p *Pool) pickEarliestExpiryLocked(tried map[string]bool, now time.Time, re
 	// 防集中/防惊群失效（entry.usedSeq 契约：每次被选中时取 p.pickSeq 自增值）。
 	p.pickSeq++
 	best.usedSeq = p.pickSeq
+	p.notePickedLocked(best, now)
 	return best.a
 }
 

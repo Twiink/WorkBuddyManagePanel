@@ -1123,6 +1123,9 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
       <li><a href="#health" data-view="health">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.8 8.5h3l1.6-4 3 7.5 1.8-3.5h3"/></svg>
         健康</a></li>
+      <li><a href="#risk" data-view="risk">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 1.8 13.4 4v4.2c0 3-2.2 5.2-5.4 6-3.2-.8-5.4-3-5.4-6V4z"/><path d="M8 5.2v3.2M8 10.6v.2"/></svg>
+        风控</a></li>
       <li><a href="#packages" data-view="packages">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.2 5.4 8 2.5l5.8 2.9v5.2L8 13.5l-5.8-2.9z"/><path d="M2.2 5.4 8 8.3l5.8-2.9M8 8.3v5.2"/></svg>
         积分构成</a></li>
@@ -1638,6 +1641,15 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
               <label class="fld"><span class="lb">清扫间隔（分钟）</span>
                 <input name="task_sweep_minutes" type="number" min="1" placeholder="15"></label>
             </div>
+            <div class="hr"></div>
+            <div class="grid2">
+              <label class="fld"><span class="lb">任务时点抖动（±分钟）</span>
+                <input name="jitter_minutes" type="number" min="0" max="60" placeholder="25">
+                <span class="hint">各任务按日期/任务类型确定性错峰；0 关闭</span></label>
+              <label class="fld"><span class="lb">任务账号间隔（秒）</span>
+                <input name="account_spacing_seconds" type="number" min="0" max="600" placeholder="30">
+                <span class="hint">账号间实际等待为配置值的 2/3–2 倍；默认 20–60s</span></label>
+            </div>
             <div class="hint">周期扫描全部账号，把「进度已达标但尚未领奖」的成长任务补领掉（不含自动动作的口令任务也能领），并顺带接受未接受的任务。只发 accept / claim 两条<b>幂等</b>请求，不跑任何对话或上报行为，开销可忽略。<br>用途：真实对话点亮的任务不在自动动作白名单里，成长队列与「一键完成」都不会去领它——积分因此卡在半路上不去（#174）。</div>
             <div class="hr"></div>
             <div class="switch"><span class="lb">保号任务覆盖已禁用账号</span>
@@ -1673,10 +1685,10 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
             <div class="grid3">
               <label class="fld"><span class="lb">单账号最大在途</span>
                 <input name="max_in_flight" type="number" min="0" placeholder="3">
-                <span class="hint">0 = 不限制</span></label>
+                <span class="hint">默认 3；0 = 不限制，可在线调整</span></label>
               <label class="fld"><span class="lb">国际版在途上限</span>
                 <input name="max_in_flight_global" type="number" min="1" placeholder="2">
-                <span class="hint">global 域风控更紧，默认 2</span></label>
+                <span class="hint">global 域单独配置，默认 2</span></label>
               <label class="fld"><span class="lb">连续失败熔断阈值</span>
                 <input name="breaker_threshold" type="number" min="1" placeholder="3"></label>
             </div>
@@ -1715,6 +1727,12 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
               <label class="fld"><span class="lb">每日 Token 上限</span>
                 <input name="daily_token_limit" type="number" min="0" placeholder="0">
                 <span class="hint">单账号当日 token 达到后整号停用，次日零点恢复；0 关闭</span></label>
+              <label class="fld"><span class="lb">单号每日请求上限</span>
+                <input name="daily_request_limit" type="number" min="0" placeholder="0">
+                <span class="hint">仅约束新会话选号；粘性会话不因上限被换号；0 关闭</span></label>
+              <label class="fld"><span class="lb">单号份额上限（倍）</span>
+                <input name="account_share_cap" type="number" min="0" step="0.1" placeholder="2">
+                <span class="hint">相对公平份额的小时/日上限；默认 2 倍，0 关闭</span></label>
               <label class="fld"><span class="lb">每日积分上限</span>
                 <input name="daily_credit_limit" type="number" min="0" placeholder="0">
                 <span class="hint">单账号当日实扣积分达到后只停收费模型，免费模型照常；0 关闭</span></label>
@@ -1725,7 +1743,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
                 <input name="expiring_soon" placeholder="168h">
                 <span class="hint">窗口内有快过期批次的账号优先接单，都不可用才用其他账号；0 关闭</span></label>
               <label class="fld"><span class="lb">会话粘性 TTL</span>
-                <input name="ttl" placeholder="30m">
+                <input name="ttl" placeholder="12h">
                 <span class="hint">改动需重启进程</span></label>
             </div>
             <div class="switch"><span class="lb">快过期积分优先</span>
@@ -1765,9 +1783,24 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
             <div class="hr"></div>
             <div class="grid2">
               <label class="fld"><span class="lb">出站 User-Agent</span>
-                <input name="user_agent" placeholder="留空 = CLI/2.63.2 CodeBuddy/2.63.2">
+                <input name="user_agent" placeholder="留空 = 官方 WorkBuddy 5.9.3 / CLI 2.165.0 三段式">
                 <span class="hint">影响官网积分记录「使用端」显示；需重启</span></label>
             </div>
+            <div class="hr"></div>
+            <div class="grid3">
+              <label class="fld"><span class="lb">单号出站最小间隔</span>
+                <input name="pacing_min_interval" placeholder="1s">
+                <span class="hint">同一账号所有上游请求统一节流；0 关闭</span></label>
+              <label class="fld"><span class="lb">出站随机抖动</span>
+                <input name="pacing_jitter" placeholder="500ms">
+                <span class="hint">默认在 0–500ms 内随机追加，可配置</span></label>
+              <label class="fld"><span class="lb">11140 隔离时长</span>
+                <input name="risk_quarantine" placeholder="24h">
+                <span class="hint">到期后仍需一次成功只读探活才回池</span></label>
+            </div>
+            <div class="switch"><span class="lb">允许成功探活解除 11140 隔离</span>
+              <input type="checkbox" name="risk_probe_enabled"></div>
+            <div class="hint">关闭后 11140 回到永久禁用语义，只能人工解冻。隔离期间聊天、签到、旅行、成长、保活等自动任务全部跳过，仅到期执行余额探活。</div>
             <div class="hr"></div>
             <div class="grid2">
               <label class="fld"><span class="lb">系统提示词模式</span>
@@ -1811,6 +1844,44 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
     </section>
 
     <!-- 健康 -->
+    <section class="view" id="view-risk" hidden>
+      <div class="stats hl-stats">
+        <div class="stat"><div class="v" id="rkHour">-</div><div class="k">本小时请求</div></div>
+        <div class="stat"><div class="v" id="rkDay">-</div><div class="k">今日请求</div></div>
+        <div class="stat"><div class="v" id="rkRebind">-</div><div class="k">会话换绑</div></div>
+        <div class="stat"><div class="v" id="rkHeaders">-</div><div class="k">缺失协议头</div></div>
+        <div class="stat"><div class="v" id="rkHold">-</div><div class="k">风控隔离</div></div>
+        <div class="stat"><div class="v" id="rk429">-</div><div class="k">24h 软限流</div></div>
+        <div class="stat"><div class="v" id="rk11140">-</div><div class="k">24h 11140</div></div>
+        <div class="stat"><div class="v" id="rk11-128">-</div><div class="k">24h 11-128</div></div>
+      </div>
+
+      <div class="box">
+        <header>
+          <h3>风控告警 <span class="hint">份额集中 / 并发 / 间隔 / 任务齐发 / 连续 429 / 会话换绑 / 协议头</span></h3>
+          <span class="grow"></span>
+          <span class="note" id="rkNote">—</span>
+          <button class="xs" id="btnRisk">刷新</button>
+        </header>
+        <div class="pad"><div id="rkAlerts" class="hint">—</div></div>
+      </div>
+
+      <div class="box">
+        <header><h3>账号请求份额 <span class="hint">小时/日窗口内被选中次数、实际并发、请求间隔与近 24h 风险错误</span></h3></header>
+        <div class="tbl-wrap">
+          <table class="acc hl">
+            <thead><tr>
+              <th>账号</th><th class="num">本小时</th><th class="num">今日</th>
+              <th class="num">小时份额</th><th class="num">日份额</th>
+              <th class="num">并发</th><th class="num">间隔 P50/P90</th>
+              <th class="num">429</th><th class="num">11140</th><th class="num">11-128</th><th>状态</th>
+            </tr></thead>
+            <tbody id="rkBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section class="view" id="view-health" hidden>
       <div class="stats hl-stats">
         <div class="stat"><div class="v" id="hlRate">-</div><div class="k">近 24h 成功率</div></div>

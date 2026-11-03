@@ -48,8 +48,8 @@ func (p *Panel) RunTaskSweepOnce() TaskSweepStats {
 	var wg sync.WaitGroup
 
 	for _, ps := range p.cfg.Pool.List() {
-		if ps.Disabled {
-			continue // 禁用账号不参与（与任务中心扫描同口径）
+		if ps.Disabled || ps.RiskHold {
+			continue // 禁用/11140 隔离账号不参与自动任务（与任务中心扫描同口径）
 		}
 		a := p.cfg.Pool.AuthByUID(ps.UID)
 		if a == nil || a.IsGlobal() || a.IsEnterprise() {

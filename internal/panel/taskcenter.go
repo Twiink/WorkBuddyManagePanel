@@ -61,7 +61,7 @@ func (p *Panel) tasksScanAll(w http.ResponseWriter, r *http.Request) {
 	items := make([]scanAccountItem, len(states))
 	var wg sync.WaitGroup
 	for i, st := range states {
-		if st.Disabled {
+		if st.Disabled || st.RiskHold {
 			continue
 		}
 		wg.Add(1)
@@ -207,7 +207,7 @@ func (p *Panel) startGrowthQueue(concurrency int, growth bool) (started bool, to
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	for _, st := range states {
-		if st.Disabled {
+		if st.Disabled || st.RiskHold {
 			continue
 		}
 		a := p.cfg.Pool.AuthByUID(st.UID)

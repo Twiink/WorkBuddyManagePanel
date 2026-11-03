@@ -14,8 +14,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/redisstore"
@@ -53,16 +55,18 @@ type Router struct {
 	entries map[string]entry
 	cfg     Config
 	stop    chan struct{}
+	// rebinds 绑定从 A 号切到 B 号的次数（风控观测：非零即说明同一会话跨过账号）。
+	rebinds atomic.Int64
 }
 
 // New 构建路由器。若 cfg.Store 为 nil 则用 Noop（纯内存）；cfg.Available 为 nil 视为空池。
-// TTL/GCInterval 非正取默认（30m / 5m）——main 从 config 解析后传入，这里兜底。
+// TTL/GCInterval 非正取默认（12h / 5m）——main 从 config 解析后传入，这里兜底。
 func New(cfg Config) *Router {
 	if cfg.Store == nil {
 		cfg.Store = redisstore.Noop{}
 	}
 	if cfg.TTL <= 0 {
-		cfg.TTL = 30 * time.Minute
+		cfg.TTL = 12 * time.Hour
 	}
 	if cfg.GCInterval <= 0 {
 		cfg.GCInterval = 5 * time.Minute
@@ -157,6 +161,26 @@ func (r *Router) LookupForModel(key, model string) (string, bool) {
 	return e.uid, true
 }
 
+// LookupBinding 只检查会话是否存在未过期绑定并滚动续期，不校验账号当前是否可用。
+// 防封路由用它区分两种情况：从未绑定 → 可以选新号；已经绑定 → 即使原号暂时
+// 冷却/隔离/满载也必须原地失败，绝不能悄悄换到另一个账号。
+func (r *Router) LookupBinding(key string) (string, bool) {
+	if r == nil || key == "" {
+		return "", false
+	}
+	now := time.Now()
+	r.mu.Lock()
+	e, ok := r.entries[key]
+	if !ok || expired(e, now, r.cfg.TTL) {
+		r.mu.Unlock()
+		return "", false
+	}
+	r.entries[key] = entry{uid: e.uid, lastActive: now}
+	r.mu.Unlock()
+	r.cfg.Store.SetBind(key, e.uid, r.cfg.TTL)
+	return e.uid, true
+}
+
 // ResolveForModel 返回会话 key 在该模型上应绑定的账号 uid。
 // 命中且账号在该模型可用 → 滚动 lastActive 并直接返回；否则（绑定号已冷却/占满/
 // 被该模型限流）走重新分配。
@@ -247,6 +271,9 @@ func (r *Router) Bind(key, uid string) {
 	}
 	now := time.Now()
 	r.mu.Lock()
+	if prev, ok := r.entries[key]; ok && prev.uid != uid && !expired(prev, now, r.cfg.TTL) {
+		r.rebinds.Add(1)
+	}
 	r.entries[key] = entry{uid: uid, lastActive: now}
 	r.mu.Unlock()
 	r.cfg.Store.SetBind(key, uid, r.cfg.TTL)
@@ -271,6 +298,15 @@ func (r *Router) Count() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return len(r.entries)
+}
+
+// RebindCount 返回同一会话换绑到不同账号的累计次数（进程内）。
+// 防封验收要求该值保持为 0：任何非零都意味着一个会话横跨多个账号。
+func (r *Router) RebindCount() int64 {
+	if r == nil {
+		return 0
+	}
+	return r.rebinds.Load()
 }
 
 // gcOnce 清理 TTL 过期的绑定，并镜像删除。
@@ -333,8 +369,9 @@ func hashIndex(key string, n int) int {
 //  2. metadata.conversationId
 //  3. conversation_id
 //  4. conversationId
-//  5. prompt_cache_key（OpenAI 前缀缓存键，见下）
-//  6. 派生键：system 提示词 + 首条用户消息的哈希（客户端不发会话 id 时的回退，
+//  5. session_id（Responses 形态的会话标识）
+//  6. prompt_cache_key（OpenAI 前缀缓存键，见下）
+//  7. 派生键：system 提示词 + 首条用户消息的哈希（客户端不发会话 id 时的回退，
 //     带 user_id 的请求不派生——见下方契约说明）
 //
 // 前 5 项均为 conversation 维度（对话级）。metadata.user_id 不再作为粘性键
@@ -366,6 +403,20 @@ func ExtractKey(body []byte) string {
 	if err := json.Unmarshal(body, &obj); err != nil {
 		return ""
 	}
+	if v := explicitKey(obj); v != "" {
+		return v
+	}
+	// 派生回退闸：带 user 维度标识的请求不派生（契约见上）。
+	if hasUserIDKey(obj) {
+		return ""
+	}
+	return deriveKey(obj)
+}
+
+// explicitKey 返回客户端显式声明的会话键（不含内容派生兜底）。
+// 显式键代表客户端真实会话边界；派生键只用于尽量维持粘性，不能据此声称
+// 调用方已经提供了稳定的会话身份。
+func explicitKey(obj map[string]any) string {
 	if meta, ok := obj["metadata"].(map[string]any); ok {
 		if v := strOrEmpty(meta["conversation_id"]); v != "" {
 			return v
@@ -380,16 +431,63 @@ func ExtractKey(body []byte) string {
 	if v := strOrEmpty(obj["conversationId"]); v != "" {
 		return v
 	}
-	// 5. prompt_cache_key：OpenAI 系的会话级前缀缓存键，语义就是"同一会话复用同一
+	// 5. session_id：Responses 形态把会话标识放在顶层 session_id（而非
+	// conversation_id）。不识别它会让这类客户端每一轮都退化成内容派生键。
+	if v := strOrEmpty(obj["session_id"]); v != "" {
+		return v
+	}
+	// 6. prompt_cache_key：OpenAI 系的会话级前缀缓存键，语义就是"同一会话复用同一
 	//    前缀"，与粘性诉求同源。放显式会话键之后、派生键之前，不抢占优先级。
 	if v := strOrEmpty(obj["prompt_cache_key"]); v != "" {
 		return v
 	}
-	// 派生回退闸：带 user 维度标识的请求不派生（契约见上）。
-	if hasUserIDKey(obj) {
-		return ""
+	return ""
+}
+
+// sessionHeaderKeys 入站会话标识头，按优先级排列。
+//
+// 为什么需要读请求头：Codex/Claude Code 这类客户端把会话标识放在请求头
+// （X-Session-ID / X-Conversation-ID / X-Claude-Code-Session-ID），body 里
+// 没有任何 conversation_id。只读 body 会让它们退化成内容派生键——system 提示词
+// 每轮微调就换键，同一会话被打散到多个账号，正是上游最容易识别的关联信号。
+var sessionHeaderKeys = []string{
+	"x-conversation-id",
+	"x-session-id",
+	"x-claude-code-session-id",
+}
+
+// ExtractKeyWithHeaders 先按请求头取会话标识，再回落到 body 提取。
+// 头优先于 body：显式会话头是客户端最权威的会话边界声明。
+func ExtractKeyWithHeaders(body []byte, h http.Header) string {
+	key, _ := ExtractKeyWithHeadersAndExplicit(body, h)
+	return key
+}
+
+// ExtractKeyWithHeadersAndExplicit 同时返回会话键，以及该键是否来自客户端的
+// 显式声明（请求头或 body 中的 conversation/session/cache 键）。内容派生键返回
+// explicit=false：它可用于内部粘性，但首次请求仍属于「尚未绑定会话」的匿名调用。
+func ExtractKeyWithHeadersAndExplicit(body []byte, h http.Header) (key string, explicit bool) {
+	if h != nil {
+		for _, k := range sessionHeaderKeys {
+			if v := strings.TrimSpace(h.Get(k)); v != "" {
+				return v, true
+			}
+		}
 	}
-	return deriveKey(obj)
+	if len(body) == 0 {
+		return "", false
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return "", false
+	}
+	if v := explicitKey(obj); v != "" {
+		return v, true
+	}
+	if hasUserIDKey(obj) {
+		return "", false
+	}
+	return deriveKey(obj), false
 }
 
 // hasUserIDKey 报告已解析 body 是否携带 user 维度标识（metadata.user_id 或顶层

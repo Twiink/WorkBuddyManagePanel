@@ -528,7 +528,11 @@ Magpie 的余额卡片默认读取 `$remaining`；智能路由则可结合 `rese
 | `upstream.timeout_seconds` | `120` | 短 RPC（刷新 / 签到 / 余额 / 模型列表）总时长上限 |
 | `upstream.header_timeout_seconds` | 回落 `timeout_seconds` | 聊天首字节前（响应头）上限 |
 | `upstream.idle_timeout_seconds` | `300` | 聊天流中空闲上限（活跃续命，静默断流） |
-| `upstream.user_agent` | 空 | 出站 User-Agent 覆盖。空 = 按账号域发送官方 WorkBuddy 三段式（默认 CN 为 `WorkBuddy/5.5.4 WorkBuddy/5.5.4 CLI/2.137.1`，Global 的平台段为 `WorkBuddy AI`）；官网「使用端」列按出站 UA 服务端归因 |
+| `upstream.user_agent` | 空 | 出站 User-Agent 覆盖。空 = 按账号域发送官方 WorkBuddy 三段式（默认 CN 为 `WorkBuddy/5.9.3 WorkBuddy/5.9.3 CLI/2.165.0`，Global 的平台段为 `WorkBuddy AI`）；官网「使用端」列按出站 UA 服务端归因 |
+| `upstream.pacing.min_interval` | `1s` | 同一账号两次上游请求的最小间隔；`0` = 关闭 |
+| `upstream.pacing.jitter` | `500ms` | 在 0–500ms 内追加随机等待，打散机械等间隔 |
+| `risk.quarantine` | `24h` | 11140 账号限制的隔离时长；到期后仍隔离，必须一次成功只读探活才回池 |
+| `risk.probe_enabled` | `true` | 允许成功探活解除隔离；`false` = 旧永久禁用语义（只能人工解冻） |
 | `features.sanitize_blacklist_fingerprints` | `true` | 出站请求体黑名单指纹脱敏 |
 | `models.hidden` | `[]` | 模型黑名单：不对外暴露的模型。裸名=两域都藏；`"cn:xxx"`/`"global:xxx"`=只藏该域。`GET /v1/models` 列表过滤 + `POST /v1/chat/completions` 点名拒绝（400 `model_unavailable`）。面板保存后热生效 |
 | `models.bare_names` | `false` | **裸名模型列表**：开启后 `GET /v1/models` 按大小写不敏感合并两域同名模型并去重，只输出裸名（如 `deepseek-v4.1-flash`）；条目带去重后的 `realms`（首选域在前）和 `[CN]` / `[Global]` / `[CN+Global]` 描述标记。裸名请求按已缓存目录选域：仅一域提供 → 直达该域；两域重名或目录未知 → 先走 `models.preferred_realm`，选不到可用号时回退另一域。显式 `cn:` / `global:` 前缀仍固定该域。面板保存后热生效 |
@@ -536,8 +540,10 @@ Magpie 的余额卡片默认读取 `$remaining`；智能路由则可结合 `rese
 | `prompt.mode` | `passthrough` | 系统提示词模式：`passthrough` = 透传客户端原始 system（降级重试仍切中性提示词）；`custom` = 网关用自有提示词替换客户端 system；`append` = 开头连续 system/developer 块后插网关提示词（既有消息逐字不动） |
 | `prompt.file` | 空 | 提示词文件路径；空 = 内置默认（约 2KB）；路径非空但不可读 → 启动报错 |
 | `upstash.url` / `upstash.token` | 空 | 空 = 纯内存模式（Noop 降级，功能照常） |
-| `pool.max_in_flight` | `3` | 单账号最大在途请求数（`0` = 不限） |
-| `pool.max_in_flight_global` | `2` | global 域单账号在途上限（国际版 WAF 风控更紧，压低并发） |
+| `pool.max_in_flight` | `3` | 单账号最大在途请求数（`0` = 不限，可按机器性能与风控表现调整） |
+| `pool.max_in_flight_global` | `2` | global 域单账号在途上限（国际版单独配置） |
+| `pool.account_share_cap` | `2.0` | 单号小时/日请求份额上限（公平份额的倍数）；`0` = 关闭，仅约束新会话选号 |
+| `pool.daily_request_limit` | `0` | 单号每日请求数上限；`0` = 关闭 |
 | `pool.degrade_threshold` | `5` | 连败降权阈值：未知错误（ErrClient/传输层）连败 N 次临时出池 |
 | `pool.degrade_cooldown` / `pool.degrade_cooldown_max` | `10m` / `2h` | 连败降权时长与上限钳制 |
 | `pool.cost_explore_interval` | `30m` | costTier 条件探索窗口：免费层垄断且存在未知号时，每窗口把一个真实请求搭车改道给未知号（零新增上游请求；成功即毕业，失败走既有错误策略）。`0` = 关停 |
@@ -554,11 +560,13 @@ Magpie 的余额卡片默认读取 `$remaining`；智能路由则可结合 `rese
 | `pool.strategy.domestic` | `weighted_random` | 国内版账号池调度：`weighted_random` / `round_robin` / `sequential_exhaust`，支持热更新 |
 | `pool.strategy.international` | `weighted_random` | 国际版账号池独立调度策略，同上；不改变既有地区路由 |
 | `pool.account_order.domestic` / `international` | `[]` | 对应地区的 UID 优先顺序；未列出账号按 UID 排序追加；只用于轮询和顺序耗尽 |
-| `pool.prefer_expiring` | `true` | 快过期积分优先：成本最优层内有可接单的快过期账号时只在它们之间选，都不可用才用其余账号；新会话粘性分配同口径。弱于会话已有绑定与模型成本分层（#101） |
+| `pool.prefer_expiring` | `true` | 快过期积分软优先：在成本最优层内提高快过期账号的虚拟实例权重，不再硬过滤普通账号；弱于已有会话绑定与模型成本分层 |
 | `pool.expiring_soon` | `168h` | 快过期窗口：仅窗口内仍有有效批次的账号算快过期；窗口开大 → 命中账号变多、优先范围变宽；留空或 `0` 关闭 |
 | `session_sticky.enabled` | `true` | 会话粘性路由开关 |
-| `session_sticky.ttl` | `30m` | 会话绑定 TTL（滚动续期） |
+| `session_sticky.ttl` | `12h` | 会话绑定 TTL（滚动续期）。绑定后同会话不换号 |
 | `session_sticky.gc_interval` | `5m` | 过期绑定 GC 周期 |
+| `schedule.jitter_minutes` | `25` | 任务时点抖动 ±N 分钟，避免整池账号同一秒执行 |
+| `schedule.account_spacing_seconds` | `30` | 同批任务账号之间的基础间隔（实际取 2/3–2 倍，默认 20–60s） |
 
 ### 上游超时语义（三段各归其位）
 
@@ -660,11 +668,11 @@ WARN: [server] stream ...: saw M native tool call block(s) but repaired none (to
 
 1. 过滤：禁用 / 暂停 / 冷却 / 熔断 / 在途占满 / 当日护栏命中账号不参与对应模型
 2. 按模型实测成本分层，只保留当前最优层
-3. 默认开启快过期积分优先（硬优先）：
+3. 默认开启快过期积分软优先：
 
-   - 在模型成本最优层内，只要有可接单的账号在 `expiring_soon` 窗口内有有效快过期批次，就只在这些账号之间选；它们都不可用（冷却 / 熔断 / 在途占满 / 积分保底拦截）时，按原规则在其余账号中选。
-   - 快过期账号之间不按到期时间排序、与批次金额无关，仍按下面的权重加权随机分摊。
-   - 会话粘性同口径：新会话优先分配给快过期账号；已有绑定号健康则继续使用，不迁移。成本分层仍在它之前（已实测免费的号不花积分）。已过期、零余额、无有效到期时间的账号不算快过期。
+   - 在模型成本最优层内，快过期账号获得更高的加权随机权重，但不会把普通账号完全排除；这样既能消耗临期积分，又避免少数快过期号吞掉全池流量。
+   - 新会话统一交给 Pool 选号，份额上限、每日请求上限、在途租约和模型冷却都在同一处生效；已有绑定号健康则继续使用，不迁移。
+   - 成本分层仍优先于快过期偏好（已实测免费的号不花积分）。已过期、零余额、无有效到期时间的账号不算快过期。
 4. 同一候选池内加权随机：
 
    `weight = credits 比例 ×10 + idleWeight`
@@ -685,13 +693,16 @@ WARN: [server] stream ...: saw M native tool call block(s) but repaired none (to
 
 账号池会显示当日用量 / 上限；健康页会把触发账号标为“今日额度已满”。触发后无需手工解冻，次日自动恢复。
 
+`pool.account_share_cap` 按“公平份额 × 倍数”约束单个账号的小时/日请求量，默认 2 倍；`pool.daily_request_limit` 可再加一道固定日上限。两者只约束新会话选号，已绑定会话不会因份额被换号。
+
 ### 会话粘性
 
 同一会话尽量复用同一账号，多轮对话不跳号：
 
-- 会话键提取顺序：`metadata.conversation_id` → `metadata.conversationId` → `metadata.user_id` → 顶层 `conversation_id` → 顶层 `conversationId`（snake_case 优先于 camelCase）
-- TTL 滚动续期（默认 30m），GC 周期 5m；绑定可镜像到 Redis（7 天 TTL）防重启丢失
-- 请求失败自动解绑；成功后绑定跟随最终成功账号
+- 会话键提取顺序：显式会话头（`X-Conversation-ID` / `X-Session-ID` / `X-Claude-Code-Session-ID`）→ `metadata.conversation_id` → `metadata.conversationId` → 顶层 `conversation_id` → `conversationId` → `session_id` → `prompt_cache_key` → 内容派生键
+- TTL 滚动续期（默认 12h），GC 周期 5m；绑定可镜像到 Redis（7 天 TTL）防重启丢失
+- 已有绑定后整个请求只允许使用原账号：429、11140、5xx、超时和已出站后的模型/通道错误都不换号重发；绑定保持原账号，由客户端同号退避重试
+- 仅尚未被上游接受的连接/DNS/TLS 失败允许在同一会话内回到原账号重试；匿名新请求确需切换账号时，会同时更换 `X-Conversation-ID`、轮 ID 与 Trace ID
 
 ### 定时任务
 
@@ -704,6 +715,8 @@ WARN: [server] stream ...: saw M native tool call block(s) but repaired none (to
 | 猫猫旅行 | `schedule.travel_enabled` | `travel_hours` `[9, 21]` 整点 | 独立排程：无猫领养 / `idle` 派出 / `arrived` 领奖 |
 | 保活 | `schedule.keepalive_enabled` | `keepalive_hours` `[22]` 整点 | 全账号刷新 token；session 失效**连续 3 次**才自动禁用 |
 | 夜猫子 | `schedule.blackcat_enabled` | `blackcat_hours` `[23]` 整点 | **先查任务进度再决定**：`black_cat` 未达标才在 23:00–08:00 计数窗口内补足 glm-5.2 短对话（每天 1 次累计 3 天，漏跑次日窗口自动补） |
+
+每个任务的实际触发时点默认增加 ±25 分钟确定性抖动；同一批账号之间默认再间隔 20–60 秒。签到、旅行、成长、活跃、夜猫子、连登和 keepalive 都受此约束，避免整池账号在整点同一秒打上游。
 
 #### 禁用账号与保号任务（`schedule.include_disabled_in_tasks`）
 
@@ -1112,6 +1125,7 @@ python3 scripts/probe_max_tokens.py   --base http://127.0.0.1:7863/v1 --key sk-x
 
 - **位置**：`./auths`（`auth_dir` 可配），文件名 `workbuddy-<uid>.json`
 - **内容**：明文 `accessToken` / `refreshToken` + 账号元信息（`account.uid` / `enterpriseId` / `nickname`）
+- **可选出站代理**：在 auth JSON 顶层增加 `"proxy": "socks5://host:port"`（支持 `http` / `https` / `socks5` / `socks5h`）。该账号全部上游请求（chat / 签到 / 余额 / 刷新）统一走此代理；无效代理 fail-closed，不会静默回落本机 IP。代理 URL 含凭据时不会写入 state、config 或日志。
 - **权限**：容器内以 `app` 用户（uid 10001）运行；token 刷新由 `SaveAtomic` 以 `0600` 原子写回（tmp + rename）；`login.sh` 首次落盘遵循登录 umask，建议手动 `chmod 600 auths/*.json`
 - **切勿提交 git**：`.gitignore` 已排除 `auths/`、`data/`、`backups/`、`config.json`、`*.key`、`*.pem`、`*.env`、`docs/` 及除 README 外的全部 `*.md` 工作文档
 

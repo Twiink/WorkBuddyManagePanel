@@ -399,7 +399,7 @@ function packageCacheMatchesAccounts(overview) {
   return true;
 }
 
-const TITLES = { accounts: '账号池', health: '健康', store: '数据检索', usage: '用量', packages: '积分构成', taskscenter: '任务中心', models: '模型与档位', config: '配置', logs: '运行日志' };
+const TITLES = { accounts: '账号池', health: '健康', risk: '风控', store: '数据检索', usage: '用量', packages: '积分构成', taskscenter: '任务中心', models: '模型与档位', config: '配置', logs: '运行日志' };
 function go(v) {
   view = v;
   document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== 'view-' + v);
@@ -411,6 +411,7 @@ function go(v) {
   if (v === 'logs') loadLogs();
   if (v === 'usage') { loadUsage(); loadRequests(); }
   if (v === 'health') loadHealth();
+  if (v === 'risk') loadRisk();
   if (v === 'store') loadStore();
   if (v === 'packages') { loadPackages(); loadCreditHistory(); }
   // 到期提醒卡片：默认可见，进页面即用 overview 快照渲染（零上游请求，随首页统计
@@ -1332,6 +1333,7 @@ const CFG_MAP = {
   balance_refresh_enabled: ['schedule', 'balance_refresh_enabled'], balance_refresh_minutes: ['schedule', 'balance_refresh_minutes'],
   task_sweep_enabled: ['schedule', 'task_sweep_enabled'], task_sweep_minutes: ['schedule', 'task_sweep_minutes'],
   include_disabled_in_tasks: ['schedule', 'include_disabled_in_tasks'],
+  jitter_minutes: ['schedule', 'jitter_minutes'], account_spacing_seconds: ['schedule', 'account_spacing_seconds'],
   max_in_flight: ['pool', 'max_in_flight'], max_in_flight_global: ['pool', 'max_in_flight_global'],
   breaker_threshold: ['pool', 'breaker_threshold'],
   degrade_threshold: ['pool', 'degrade_threshold'], degrade_cooldown: ['pool', 'degrade_cooldown'],
@@ -1340,6 +1342,7 @@ const CFG_MAP = {
   credit_floor: ['pool', 'credit_floor'],
   daily_token_limit: ['pool', 'daily_token_limit'], daily_credit_limit: ['pool', 'daily_credit_limit'],
   model_daily_token_limit: ['pool', 'model_daily_token_limit'],
+  daily_request_limit: ['pool', 'daily_request_limit'], account_share_cap: ['pool', 'account_share_cap'],
   prefer_expiring: ['pool', 'prefer_expiring'], expiring_soon: ['pool', 'expiring_soon'],
   bare_model_names: ['models', 'bare_names'], preferred_realm: ['models', 'preferred_realm'],
   soft_rate: ['cooldown', 'soft_rate'], soft_rate_max: ['cooldown', 'soft_rate_max'],
@@ -1348,6 +1351,8 @@ const CFG_MAP = {
   ttl: ['session_sticky', 'ttl'],
   timeout_seconds: ['upstream', 'timeout_seconds'], header_timeout_seconds: ['upstream', 'header_timeout_seconds'],
   idle_timeout_seconds: ['upstream', 'idle_timeout_seconds'], user_agent: ['upstream', 'user_agent'],
+  pacing_min_interval: ['upstream', 'pacing', 'min_interval'], pacing_jitter: ['upstream', 'pacing', 'jitter'],
+  risk_quarantine: ['risk', 'quarantine'], risk_probe_enabled: ['risk', 'probe_enabled'],
   prompt_mode: ['prompt', 'mode'], prompt_file: ['prompt', 'file'],
   sanitize_blacklist_fingerprints: ['features', 'sanitize_blacklist_fingerprints'],
   session_sticky_enabled: ['session_sticky', 'enabled'],
@@ -1419,7 +1424,8 @@ function collectConfig() {
    不再等到保存被拒。 */
 const DURATION_RE = /^(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+$/;
 const DURATION_FIELDS = ['soft_rate', 'soft_rate_max', 'breaker_cooldown', 'breaker_cooldown_max',
-  'degrade_cooldown', 'degrade_cooldown_max', 'cost_explore_interval', 'expiring_soon', 'ttl'];
+  'degrade_cooldown', 'degrade_cooldown_max', 'cost_explore_interval', 'expiring_soon', 'ttl',
+  'pacing_min_interval', 'pacing_jitter', 'risk_quarantine'];
 const DURATION_TIP = '格式应为 Go 时长：30m / 2h / 600s / 1h30m';
 function durationBad(name) {
   const el = $('cfgForm').elements[name];
@@ -2287,7 +2293,7 @@ const HL_KIND = {
   soft_rate: '限流', hard_credit: '余额不足', session_dead: '会话失效', not_found: '404',
   server: '上游 5xx', content_blocked: '内容拦截', bad_params: '参数错误', model_blocked: '模型不可用',
   waf_block: 'WAF 拦截', prompt_too_long: '上下文超限', image_invalid: '图片无效', upstream_busy: '上游满载',
-  account_fault: '账号故障', channel_refused: '通道校验', client: '其他 4xx',
+  account_fault: '账号故障', account_restricted: '11140 风控', channel_refused: '通道校验', client: '其他 4xx',
   transport: '网络错误', timeout: '上游超时', refresh: '刷新失败', none: '未分类',
 };
 const hlKind = k => HL_KIND[k] || k;
@@ -2386,6 +2392,61 @@ async function loadHealth() {
 }
 $('btnHealth').onclick = loadHealth;
 $('hlOnlyBad').onchange = () => { if (healthData) renderHealth(healthData); };
+
+/* ── 风控 ─────────────────────────────────────────────────────────── */
+async function loadRisk() {
+  try { renderRisk(await api('risk')); }
+  catch (e) { $('rkBody').innerHTML = '<tr><td colspan="11"><div class="empty">读取失败：' + esc(e.message) + '</div></td></tr>'; }
+}
+$('btnRisk').onclick = loadRisk;
+
+function renderRisk(d) {
+  const accounts = d.accounts || [];
+  const alerts = d.alerts || [];
+  $('rkHour').textContent = d.hour_total || 0;
+  $('rkDay').textContent = d.day_total || 0;
+  $('rkRebind').textContent = d.session_rebinds || 0;
+  $('rkHeaders').textContent = (d.missing_headers || []).length;
+  $('rkHold').textContent = accounts.filter(a => a.risk_hold).length;
+  $('rk429').textContent = (d.error_counts && d.error_counts.soft_rate_24h) || 0;
+  $('rk11140').textContent = (d.error_counts && d.error_counts.account_restricted_24h) || 0;
+  $('rk11-128').textContent = (d.error_counts && d.error_counts.channel_refused_24h) || 0;
+  $('rkNote').textContent = d.checked_at
+    ? ('更新于 ' + new Date(d.checked_at).toLocaleTimeString() + ' · 任务抖动 ±' + (d.schedule_jitter_minutes || 0) + 'm / 账号间隔 ' + (d.schedule_account_spacing_sec || 0) + 's')
+    : '—';
+  $('rkAlerts').innerHTML = alerts.length
+    ? alerts.map(a => '<div style="margin:3px 0"><span class="tag ' + (a.level === 'crit' ? 'bad' : 'warn') + '">' + esc(a.code) + '</span> ' + esc(a.message) + '</div>').join('')
+    : '<span class="tag ok">正常</span> 未发现份额集中、连续限流、会话换绑或协议头缺失';
+  if (!accounts.length) {
+    $('rkBody').innerHTML = '<tr><td colspan="11"><div class="empty">账号池是空的</div></td></tr>';
+    return;
+  }
+  $('rkBody').innerHTML = accounts.map(a => {
+    let tag;
+    if (a.risk_hold) {
+      const left = Math.max(0, (new Date(a.risk_until || 0) - Date.now()) / 1000);
+      tag = '<span class="tag bad">风控隔离 · ' + (left > 0 ? dur(left) : '待探活') + '</span>';
+    } else if (a.disabled) tag = '<span class="tag bad">已禁用</span>';
+    else if (a.cooling) tag = '<span class="tag warn">冷却中</span>';
+    else tag = '<span class="tag ok">可用</span>';
+    const name = esc(a.nickname || '') + '<div class="hint" style="font-size:11px">' + esc(String(a.uid || '').slice(0, 12)) + '</div>';
+    const inflight = (a.in_flight || 0) + '/' + (a.in_flight_limit || 0);
+    const interval = a.interval_samples
+      ? (a.interval_p50_ms || 0) + '/' + (a.interval_p90_ms || 0) + 'ms'
+      : '—';
+    return '<tr><td>' + name + '</td>'
+      + '<td class="num">' + (a.hour_requests || 0) + '</td>'
+      + '<td class="num">' + (a.day_requests || 0) + '</td>'
+      + '<td class="num">' + ((a.hour_share || 0) * 100).toFixed(1) + '%</td>'
+      + '<td class="num">' + ((a.day_share || 0) * 100).toFixed(1) + '%</td>'
+      + '<td class="num">' + inflight + '</td>'
+      + '<td class="num">' + interval + '</td>'
+      + '<td class="num">' + (a.soft_rate_24h || 0) + '</td>'
+      + '<td class="num">' + (a.account_restricted_24h || 0) + '</td>'
+      + '<td class="num">' + (a.channel_refused_24h || 0) + '</td>'
+      + '<td>' + tag + '</td></tr>';
+  }).join('');
+}
 
 /* ── 积分任务 ─────────────────────────────────────────────────────── */
 let taskUID = null;

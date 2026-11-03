@@ -45,6 +45,11 @@ func (c *Client) SetDNSDialer(d *net.Dialer) {
 	if d == nil {
 		return
 	}
+	// 账号代理客户端会克隆当前 Transport；DNS 变更后清空缓存，保证下次代理请求
+	// 使用新 Dialer，而不是继续复用旧解析器。
+	c.accountProxyMu.Lock()
+	c.accountProxyClients = nil
+	c.accountProxyMu.Unlock()
 	for _, cl := range []*http.Client{c.HTTP, c.ChatHTTP} {
 		if cl == nil {
 			continue

@@ -66,6 +66,8 @@ func (p *Pool) ReviveDisabled(uid string) {
 		e.disabled = false
 		e.reason = ""
 		e.sessionDeadFails = 0
+		e.riskHold = false
+		e.riskUntil = time.Time{}
 		p.dirty.Store(true)
 	}
 }
@@ -86,6 +88,8 @@ func (p *Pool) Revive(uid string) bool {
 	e.until = time.Time{}
 	e.coolKind = 0
 	e.reason = ""
+	e.riskHold = false
+	e.riskUntil = time.Time{}
 	e.softStreak = 0
 	e.modelCooldowns = nil // 模型级限流豁免随冷却一并清（防泄漏到后续账号级限流）
 	e.sessionDeadFails = 0
@@ -133,7 +137,20 @@ func (p *Pool) ReenableIfCredits(uid string, remain, total int64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if e, ok := p.byUID[uid]; ok {
-		if remain > 0 && !e.disabled {
+		if e.riskHold {
+			// 隔离账号的余额查询只有在到期后且成功才构成有效探活。提前查询仅更新
+			// 余额快照，不解除隔离；失败路径不会调用本方法。
+			if remain > 0 && !e.disabled && !time.Now().Before(e.riskUntil) {
+				e.riskHold = false
+				e.riskUntil = time.Time{}
+				e.until = time.Time{}
+				e.coolKind = 0
+				e.reason = ""
+			} else {
+				e.credits = remain
+				e.creditsTotal = total
+			}
+		} else if remain > 0 && !e.disabled {
 			p.reviveCoolingLocked(e, remain, total)
 		} else {
 			e.credits = remain
@@ -453,6 +470,9 @@ func (p *Pool) PickByUIDForModel(uid, model string) *auth.Auth {
 	e.lastUsed = now
 	p.pickSeq++
 	e.usedSeq = p.pickSeq
+	// 粘性命中同样计入份额统计（但不做份额拦截）：已绑定的会话不能因为份额
+	// 被换号，否则又回到「一个会话横跨多账号」。
+	p.notePickedLocked(e, now)
 	return e.a
 }
 
@@ -608,31 +628,33 @@ func (p *Pool) statusOf(uid string, e *entry) Status {
 		// 拷贝一份：List 返回后 JSON 序列化在锁外进行，不能与 NoteModelCost 的
 		// 原地扣减共享底层数组（数据竞争）。
 		CreditsExpiryBuckets: append([]ExpiryBucket(nil), e.expiryBuckets...),
-		Cooling:                  now.Before(e.until) || now.Before(e.breakerUntil),
-		Disabled:                 e.disabled,
-		Paused:                   e.paused,
-		SuccessCount:             e.successCount,
-		ErrTotal:                 e.errTotal,
-		CheckinDone:              e.lastCheckinDay == now.Format("2006-01-02"),
-		TokenUsage:               e.tokenUsage,
-		LastSuccessTime:          e.lastSuccess,
-		LastErrTime:              e.lastErr,
-		Until:                    e.until,
-		SoftStreak:               e.softStreak,
-		ModelCosts:               p.modelCostsStatusLocked(e, now),
-		ConsecutiveFails:         e.consecutiveFails,
-		DegradeUntil:             e.degradeUntil,
-		Daily:                    p.dailyStatusLocked(e, now),
-		InFlight:                 int(e.inFlight.Load()),
-		BreakerFails:             e.fails,
-		BreakerUntil:             e.breakerUntil,
+		Cooling:              now.Before(e.until) || now.Before(e.breakerUntil),
+		Disabled:             e.disabled,
+		Paused:               e.paused,
+		RiskHold:             e.riskHold,
+		RiskUntil:            e.riskUntil,
+		SuccessCount:         e.successCount,
+		ErrTotal:             e.errTotal,
+		CheckinDone:          e.lastCheckinDay == now.Format("2006-01-02"),
+		TokenUsage:           e.tokenUsage,
+		LastSuccessTime:      e.lastSuccess,
+		LastErrTime:          e.lastErr,
+		Until:                e.until,
+		SoftStreak:           e.softStreak,
+		ModelCosts:           p.modelCostsStatusLocked(e, now),
+		ConsecutiveFails:     e.consecutiveFails,
+		DegradeUntil:         e.degradeUntil,
+		Daily:                p.dailyStatusLocked(e, now),
+		InFlight:             int(e.inFlight.Load()),
+		BreakerFails:         e.fails,
+		BreakerUntil:         e.breakerUntil,
 	}
 	// reason 仅在冷却/禁用中透出（issue #171）：软冷却按 until 到期恢复，
 	// 但 until/coolKind/reason 字段按设计不主动清理（NoteSuccess 注释：
 	// 「不碰 until/coolKind，那些是即时冷却，各自到期」）。无条件透出会让
 	// 面板把过期数天的「429 rate limit」与「可用」并排展示，运维无法判断
 	// 是历史残留还是当前限流。禁用原因仍由 DisabledReason 透出。
-	if st.Cooling || st.Disabled {
+	if st.Cooling || st.Disabled || st.RiskHold {
 		st.Reason = e.reason
 	}
 	if st.Disabled {

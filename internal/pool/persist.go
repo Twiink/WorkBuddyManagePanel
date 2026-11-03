@@ -150,6 +150,7 @@ func (p *Pool) applyAccountsLocked(accounts map[string]stateAccount) {
 			creditsEarliestRemaining: s.CreditsEarliestRemaining,
 			disabled:                 s.Disabled,
 			paused:                   s.Paused,
+			riskHold:                 s.RiskHold,
 			reason:                   s.Reason,
 			until:                    s.Until,
 			coolKind:                 s.CoolKind,
@@ -193,6 +194,16 @@ func (p *Pool) applyAccountsLocked(accounts map[string]stateAccount) {
 		// 连败降权：未过期才恢复（过期/零值不写不复活）。
 		if s.DegradeUntil != nil && now.Before(*s.DegradeUntil) {
 			e.degradeUntil = *s.DegradeUntil
+		}
+		if s.RiskHold {
+			e.riskHold = true
+			if s.RiskUntil != nil && !s.RiskUntil.IsZero() {
+				e.riskUntil = *s.RiskUntil
+			} else {
+				// 旧文件可能只有 risk_hold 标记；按全新 24h 隔离处理，不能因缺时间
+				// 就在重启后立刻探活。
+				e.riskUntil = now.Add(24 * time.Hour)
+			}
 		}
 		// 模型级独立冷却（6004 重置墙钟 / 11102 负缓存）：惰性过滤已过期条目。
 		if len(s.ModelCooldowns) > 0 {
@@ -297,6 +308,7 @@ func (p *Pool) stateOverviewLocked() stateFile {
 			CreditsTotal:             e.creditsTotal,
 			Disabled:                 e.disabled,
 			Paused:                   e.paused,
+			RiskHold:                 e.riskHold,
 			Reason:                   e.reason,
 			Until:                    e.until,
 			CoolKind:                 e.coolKind,
@@ -324,6 +336,10 @@ func (p *Pool) stateOverviewLocked() stateFile {
 		if !e.degradeUntil.IsZero() && now.Before(e.degradeUntil) {
 			u := e.degradeUntil
 			s.DegradeUntil = &u
+		}
+		if e.riskHold {
+			u := e.riskUntil
+			s.RiskUntil = &u
 		}
 		// 模型级独立冷却：惰性过滤已过期条目（Hits 不落盘，重启后 11102 退避从基数重学）。
 		if len(e.modelCooldowns) > 0 {

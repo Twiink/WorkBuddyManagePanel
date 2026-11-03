@@ -118,7 +118,7 @@ try {
 		t.Fatal(err)
 	}
 	hf.Close()
-	for _, hash := range []string{"#taskscenter", "#accounts", "#usage", "#models", "#config", "#logs", "#packages", "#desktop=smoke-token"} {
+	for _, hash := range []string{"#taskscenter", "#accounts", "#health", "#risk", "#usage", "#models", "#config", "#logs", "#packages", "#desktop=smoke-token"} {
 		cmd := exec.Command(node, hf.Name(), "app.js")
 		cmd.Dir = "." // 测试工作目录 = internal/panel
 		cmd.Env = append(os.Environ(), "SMOKE_HASH="+hash)

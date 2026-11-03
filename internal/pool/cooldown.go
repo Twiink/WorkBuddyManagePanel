@@ -201,6 +201,64 @@ func (p *Pool) Cooldown(uid string, kind CoolKind, d time.Duration, reason strin
 	}
 }
 
+// Quarantine 11140（账号异常行为限制）的隔离入口。
+//
+// riskUntil 只是「最早允许探活」的时刻，不是自动回池时刻。到点后账号仍保持隔离，
+// 必须由一次成功的只读余额查询显式清除 riskHold；探活失败会由 DeferRiskProbe
+// 把下一次探活顺延一个隔离周期。人工「解冻」仍可提前结束。
+func (p *Pool) Quarantine(uid string, d time.Duration, reason string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	e, ok := p.byUID[uid]
+	if !ok {
+		return
+	}
+	if d <= 0 {
+		d = 24 * time.Hour
+	}
+	e.reason = reason
+	e.riskHold = true
+	e.riskUntil = time.Now().Add(d)
+	clearRoutingModelCooldownsLocked(e)
+	p.dirty.Store(true)
+}
+
+// RiskHoldUntil 返回账号当前是否处于 11140 风控隔离，以及下一次允许探活的时间。
+// 纯观测接口；是否到期不改变 riskHold 本身，只有探活成功/人工解冻才清除。
+func (p *Pool) RiskHoldUntil(uid string) (time.Time, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	e, ok := p.byUID[uid]
+	if !ok || !e.riskHold {
+		return time.Time{}, false
+	}
+	return e.riskUntil, true
+}
+
+// RiskProbeDue 报告隔离账号是否已到下一次只读余额探活时间。
+func (p *Pool) RiskProbeDue(uid string, now time.Time) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	e, ok := p.byUID[uid]
+	return ok && e.riskHold && !now.Before(e.riskUntil)
+}
+
+// DeferRiskProbe 记录一次失败的隔离探活：下一次探活至少再等 d。
+// 该方法不清 riskHold，也不改 disabled；失败意味着账号仍不可回池。
+func (p *Pool) DeferRiskProbe(uid string, d time.Duration) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	e, ok := p.byUID[uid]
+	if !ok || !e.riskHold {
+		return
+	}
+	if d <= 0 {
+		d = 24 * time.Hour
+	}
+	e.riskUntil = time.Now().Add(d)
+	p.dirty.Store(true)
+}
+
 // CooldownSoftForModel 429 的**模型级**软冷却入口（issue #31）：把该模型的冷却截止
 // 精确对齐到上游重置墙钟（不做指数堆加、不做 softStreak 计数）。
 //

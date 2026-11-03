@@ -32,6 +32,9 @@ func (s *Scheduler) RunStreakBonusNow() {
 		if a.IsEnterpriseSession() {
 			continue // 企业版 / 企业切换会话门控：无成长体系（/activity/growth/streak 企业号 403；切换会话 200 但不计分）
 		}
+		if _, held := s.cfg.Pool.RiskHoldUntil(st.UID); held {
+			continue
+		}
 		s.streakBonusAccount(a)
 	}
 }

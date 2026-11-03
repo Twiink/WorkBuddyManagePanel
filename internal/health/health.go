@@ -56,12 +56,13 @@ type hourBucket struct {
 
 // account 单账号的累计态（落盘结构）。
 type account struct {
-	Hours      []hourBucket                `json:"hours,omitempty"`
-	KindsHour  map[string]map[string]int64 `json:"kinds_hour,omitempty"` // 小时 → 错误类型 → 次数（窗口内）
-	LastErr    *LastError                  `json:"last_err,omitempty"`
-	LastOK     time.Time                   `json:"last_ok,omitempty"`
-	BalanceOK  time.Time                   `json:"balance_ok,omitempty"`
-	BalanceErr *LastError                  `json:"balance_err,omitempty"`
+	Hours          []hourBucket                `json:"hours,omitempty"`
+	KindsHour      map[string]map[string]int64 `json:"kinds_hour,omitempty"` // 小时 → 错误类型 → 次数（窗口内）
+	SoftRateStreak int64                       `json:"soft_rate_streak,omitempty"`
+	LastErr        *LastError                  `json:"last_err,omitempty"`
+	LastOK         time.Time                   `json:"last_ok,omitempty"`
+	BalanceOK      time.Time                   `json:"balance_ok,omitempty"`
+	BalanceErr     *LastError                  `json:"balance_err,omitempty"`
 }
 
 type diskFile struct {
@@ -176,6 +177,7 @@ func (t *Tracker) Success(uid string) {
 	defer t.mu.Unlock()
 	a := t.acctLocked(uid)
 	a.hourLocked(now).OK++
+	a.SoftRateStreak = 0
 	a.LastOK = now
 	t.dirty = true
 }
@@ -193,6 +195,11 @@ func (t *Tracker) Failure(uid, kind string, status int, model, msg string) {
 	defer t.mu.Unlock()
 	a := t.acctLocked(uid)
 	a.hourLocked(now).Err++
+	if kind == "soft_rate" {
+		a.SoftRateStreak++
+	} else {
+		a.SoftRateStreak = 0
+	}
 	hk := now.Format(hourLayout)
 	if a.KindsHour[hk] == nil {
 		a.KindsHour[hk] = map[string]int64{}
@@ -253,15 +260,16 @@ type KindCount struct {
 
 // AccountView 单账号近 24 小时健康视图。
 type AccountView struct {
-	UID         string      `json:"uid"`
-	OK24h       int64       `json:"ok_24h"`
-	Err24h      int64       `json:"err_24h"`
-	SuccessRate float64     `json:"success_rate"` // 0–100；无请求时为 -1
-	Kinds24h    []KindCount `json:"kinds_24h,omitempty"`
-	LastErr     *LastError  `json:"last_err,omitempty"`
-	LastOK      time.Time   `json:"last_ok,omitempty"`
-	BalanceOK   time.Time   `json:"balance_ok,omitempty"`
-	BalanceErr  *LastError  `json:"balance_err,omitempty"`
+	UID            string      `json:"uid"`
+	OK24h          int64       `json:"ok_24h"`
+	Err24h         int64       `json:"err_24h"`
+	SuccessRate    float64     `json:"success_rate"` // 0–100；无请求时为 -1
+	Kinds24h       []KindCount `json:"kinds_24h,omitempty"`
+	SoftRateStreak int64       `json:"soft_rate_streak,omitempty"`
+	LastErr        *LastError  `json:"last_err,omitempty"`
+	LastOK         time.Time   `json:"last_ok,omitempty"`
+	BalanceOK      time.Time   `json:"balance_ok,omitempty"`
+	BalanceErr     *LastError  `json:"balance_err,omitempty"`
 	// Hourly 近 24 小时逐小时成功/失败（升序，缺失小时补 0），供面板画迷你柱。
 	Hourly []HourPoint `json:"hourly"`
 }
@@ -336,6 +344,7 @@ func (t *Tracker) Snapshot(uids []string) Summary {
 				}
 			}
 			v.Kinds24h = sortedKinds(kinds)
+			v.SoftRateStreak = a.SoftRateStreak
 			v.LastErr, v.LastOK = a.LastErr, a.LastOK
 			v.BalanceOK, v.BalanceErr = a.BalanceOK, a.BalanceErr
 		}

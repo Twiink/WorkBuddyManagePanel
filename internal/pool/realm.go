@@ -106,8 +106,8 @@ func (p *Pool) WeightedAvailableUIDsForModelRealm(model, realm string) []string 
 }
 
 // ExpiringAvailableUIDsForModelRealm 返回可用账号中有有效快过期批次的那部分（UID 排序）。
-// 供会话粘性给**新会话**分配账号时硬优先快过期账号；已有绑定的有效性仍按
-// WeightedAvailableUIDsForModelRealm 的全集判定，不因此迁移。prefer_expiring=false 时返回 nil。
+// 保留给兼容调用与观测；生产新会话统一走 Pool 的软权重选号，不再硬限定该子集。
+// prefer_expiring=false 时返回 nil。
 func (p *Pool) ExpiringAvailableUIDsForModelRealm(model, realm string) []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

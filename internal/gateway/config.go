@@ -16,6 +16,12 @@ import (
 	"github.com/linguo2625469/workbuddy2api-panel/internal/prompt"
 )
 
+// Pacing 账号级出站节流配置（同一账号两次上游请求的最小间隔 + 随机抖动）。
+type Pacing struct {
+	MinInterval string `json:"min_interval"` // 默认 "1s"；"0" = 关闭
+	Jitter      string `json:"jitter"`       // 默认 "500ms"；在上限内随机追加等待
+}
+
 // Config 顶层配置。
 type Config struct {
 	Listen    string `json:"listen"`     // ":7863"
@@ -123,6 +129,13 @@ type Config struct {
 		// 只做 accept/claim 两条幂等请求，不跑任何行为链路；分钟级开销可忽略。
 		TaskSweepEnabled bool `json:"task_sweep_enabled"` // 缺省 true；false = 关闭
 		TaskSweepMinutes int  `json:"task_sweep_minutes"` // 缺省 15；<=0 回落 15
+
+		// JitterMinutes 任务时点抖动（±分钟，0 = 关闭，默认 25）。28 个号在
+		// 09:00:00 同一秒签到是最强的机器行为特征，抖动把同任务分散到时间窗内。
+		JitterMinutes int `json:"jitter_minutes"`
+		// AccountSpacingSeconds 同一批任务内账号之间的间隔（秒，0 = 不额外间隔，
+		// 默认 30）。与抖动配合，避免整池账号在同一分钟集中打上游。
+		AccountSpacingSeconds int `json:"account_spacing_seconds"`
 	} `json:"schedule"`
 
 	Global struct {
@@ -159,9 +172,9 @@ type Config struct {
 		// 默认值已对齐官方 WorkBuddy 桌面形态（三段式），用户仍可配完全自定义值改写。
 		UserAgent string `json:"user_agent"`
 		// ClientVersion WorkBuddy 客户端版本段（出站 UA 的 `WorkBuddy/<ver>` 与归属头
-		// X-IDE-Version）。空 = 内置默认（对齐官方 5.5.4 分发包）。
+		// X-IDE-Version）。空 = 内置默认（对齐官方 5.9.3 分发包）。
 		ClientVersion string `json:"client_version"`
-		// CliVersion 出站 UA 中 `CLI/<ver>` 段的版本。空 = 内置默认（官方内置 CLI 2.137.1）。
+		// CliVersion 出站 UA 中 `CLI/<ver>` 段的版本。空 = 内置默认（官方内置 CLI 2.165.0）。
 		CliVersion string `json:"cli_version"`
 		// ClientName 用量归属头取值（X-Product / X-IDE-Name / X-IDE-Type / X-IDE-Version）。
 		// 空 = 旧行为 X-Product="SaaS" 不设 X-IDE-*；配 "WorkBuddy" 则四头跟随。
@@ -173,7 +186,20 @@ type Config struct {
 		DeviceTokenFile string `json:"device_token_file"`
 		// PassthroughIP 是否透传客户端 IP 给上游（默认 false，反代安全边界）。
 		PassthroughIP bool `json:"passthrough_ip"`
+		// Pacing 每账号出站节流：同一账号两次上游请求之间的最小间隔 + 随机抖动。
+		// 机械的等间隔请求本身就是可识别特征，抖动用于打散节奏。
+		Pacing Pacing `json:"pacing"`
 	} `json:"upstream"`
+
+	// Risk 上游风控处置策略。
+	Risk struct {
+		// Quarantine 11140 账号限制的隔离时长，默认 "24h"。到期后仍保持隔离，
+		// 只有一次成功的只读余额探活才回池。
+		Quarantine string `json:"quarantine"`
+		// ProbeEnabled 隔离到期后是否允许一次成功的只读探活（余额查询）回池。
+		// false = 回到旧的永久禁用语义，必须人工解冻。
+		ProbeEnabled bool `json:"probe_enabled"`
+	} `json:"risk"`
 
 	Features struct {
 		// SanitizeBlacklistFingerprints 出站请求体黑名单指纹脱敏（默认 true；false 完全还原）。
@@ -217,7 +243,7 @@ type Config struct {
 		Strategy           pool.RegionStrategies   `json:"strategy"`
 		AccountOrder       pool.RegionAccountOrder `json:"account_order,omitempty"`
 		MaxInFlight        int                     `json:"max_in_flight"`        // 单账号最大在途请求数，0 = 不限
-		MaxInFlightGlobal  int                     `json:"max_in_flight_global"` // global 域单账号在途上限（WAF 风控紧域压低并发），0 = 回落默认 2
+		MaxInFlightGlobal  int                     `json:"max_in_flight_global"` // global 域单账号在途上限，0/负数回落默认 2
 		BreakerThreshold   int                     `json:"breaker_threshold"`    // 连续失败次数触发熔断，默认 3
 		BreakerCooldown    string                  `json:"breaker_cooldown"`     // 基础熔断时长，默认 "30m"
 		BreakerCooldownMax string                  `json:"breaker_cooldown_max"` // 指数退避封顶，默认 "6h"
@@ -228,9 +254,8 @@ type Config struct {
 		DegradeCooldownMax string  `json:"degrade_cooldown_max"` // 降权时长的上限钳制，默认 "2h"（仅当 cooldown 超该值才钳制）
 		IdleWeightPerHour  float64 `json:"idle_weight_per_hour"` // 闲置补偿：每小时未用 +0.5 权重
 		IdleWeightMax      float64 `json:"idle_weight_max"`      // 闲置补偿封顶，默认 5.0
-		// PreferExpiring 快过期积分优先开关，默认 true。开启后成本最优层内只要有
-		// 可接单的 expiring_soon 窗口内账号，就只在它们之间选（新会话粘性分配同口径）；
-		// 都不可用时按原规则用其余账号。不按到期时间排序、与批次金额无关。
+		// PreferExpiring 快过期积分软优先开关，默认 true。开启后在成本最优层内
+		// 提高 expiring_soon 窗口账号的虚拟实例权重，不再硬过滤普通账号。
 		// 关闭后完全不使用到期信息选号。
 		PreferExpiring bool `json:"prefer_expiring"`
 		// ExpiringSoon 快过期积分窗口（如 "168h"=7天）：签到/余额刷新时，到期时间在
@@ -256,6 +281,13 @@ type Config struct {
 		DailyTokenLimit      int64 `json:"daily_token_limit"`
 		DailyCreditLimit     int64 `json:"daily_credit_limit"`
 		ModelDailyTokenLimit int64 `json:"model_daily_token_limit"`
+		// DailyRequestLimit 账号级每日请求数上限（0 = 关闭）。只拦新会话分配，
+		// 不拆已绑定的粘性会话。
+		DailyRequestLimit int64 `json:"daily_request_limit"`
+		// AccountShareCap 单号小时/日请求份额上限，相对公平份额（1/账号数）的倍数，
+		// 默认 2.0。0 = 关闭。仅作用于新会话选号：已绑定的会话永远不会因为份额
+		// 上限被换号，否则又会造成「一个会话横跨多账号」。
+		AccountShareCap float64 `json:"account_share_cap"`
 		// CrossDomainFallback 裸模型名跨域回退开关（issue #135），默认 false（零回归）。
 		// 开启后：请求模型名不带 realm 前缀时，首选域（cn）选不到可用账号（账号级冷却/
 		// 熔断/在途占满，或该域账号对这个模型 11102 后进入模型级负缓存）会自动改用
@@ -266,7 +298,7 @@ type Config struct {
 
 	SessionSticky struct {
 		Enabled    bool   `json:"enabled"`     // 默认 true
-		TTL        string `json:"ttl"`         // 会话绑定 TTL，默认 "30m"
+		TTL        string `json:"ttl"`         // 会话绑定 TTL，默认 "12h"
 		GCInterval string `json:"gc_interval"` // 会话 GC 周期，默认 "5m"
 	} `json:"session_sticky"`
 
@@ -286,6 +318,11 @@ type Config struct {
 	CostExploreIntervalDur time.Duration `json:"-"`
 	// ServerReadTimeoutDur 解析后的入站请求读取上限（issue #100）；0 = 不限制。
 	ServerReadTimeoutDur time.Duration `json:"-"`
+	// PacingMinDur / PacingJitterDur 解析后的账号级出站节流参数（0 = 关闭）。
+	PacingMinDur    time.Duration `json:"-"`
+	PacingJitterDur time.Duration `json:"-"`
+	// RiskQuarantineDur 解析后的 11140 隔离时长。
+	RiskQuarantineDur time.Duration `json:"-"`
 }
 
 // Default 默认配置。
@@ -351,12 +388,23 @@ func Default() *Config {
 	c.Pool.IdleWeightPerHour = 0.5
 	c.Pool.IdleWeightMax = 5.0
 	c.Pool.PreferExpiring = true
+	c.Pool.AccountShareCap = 2.0
+	c.Pool.DailyRequestLimit = 0
 	c.Pool.ExpiringSoon = "168h" // 快过期窗口默认 7 天：官方活动奖励积分多在两周内过期
 	// costTier 探索默认 30m（issue #136：垄断破除 + 搭车改道零新增请求）；"0" 关停。
 	c.Pool.CostExploreInterval = "30m"
 	c.SessionSticky.Enabled = true
-	c.SessionSticky.TTL = "30m"
+	c.SessionSticky.TTL = "12h"
 	c.SessionSticky.GCInterval = "5m"
+	// 账号级出站节流：1s 间隔 + 500ms 以内抖动，避免机械等间隔。
+	c.Upstream.Pacing.MinInterval = "1s"
+	c.Upstream.Pacing.Jitter = "500ms"
+	// 11140 隔离 24h，到期后允许探活回池。
+	c.Risk.Quarantine = "24h"
+	c.Risk.ProbeEnabled = true
+	// 任务排程抖动：每号 ±25 分钟；账号之间 30 秒间隔。
+	c.Schedule.JitterMinutes = 25
+	c.Schedule.AccountSpacingSeconds = 30
 	return c
 }
 
@@ -647,6 +695,50 @@ func (c *Config) normalize() error {
 	c.Pool.DailyTokenLimit = max(0, c.Pool.DailyTokenLimit)
 	c.Pool.DailyCreditLimit = max(0, c.Pool.DailyCreditLimit)
 	c.Pool.ModelDailyTokenLimit = max(0, c.Pool.ModelDailyTokenLimit)
+	c.Pool.DailyRequestLimit = max(0, c.Pool.DailyRequestLimit)
+	if c.Pool.AccountShareCap < 0 {
+		c.Pool.AccountShareCap = 0
+	}
+	// 出站节流：空值回落默认；"0" 合法（关闭）；负值无意义 fail fast。
+	if c.Upstream.Pacing.MinInterval == "" {
+		c.Upstream.Pacing.MinInterval = "1s"
+	}
+	if c.Upstream.Pacing.Jitter == "" {
+		c.Upstream.Pacing.Jitter = "500ms"
+	}
+	if c.PacingMinDur, err = time.ParseDuration(c.Upstream.Pacing.MinInterval); err != nil {
+		return fmt.Errorf("upstream.pacing.min_interval: %w", err)
+	}
+	if c.PacingJitterDur, err = time.ParseDuration(c.Upstream.Pacing.Jitter); err != nil {
+		return fmt.Errorf("upstream.pacing.jitter: %w", err)
+	}
+	if c.PacingMinDur < 0 || c.PacingJitterDur < 0 {
+		return fmt.Errorf("upstream.pacing: 负时长无意义")
+	}
+	// 11140 隔离时长：空值回落 24h；"0" 无意义（等于立即回池），一并回落。
+	if c.Risk.Quarantine == "" {
+		c.Risk.Quarantine = "24h"
+	}
+	if c.RiskQuarantineDur, err = time.ParseDuration(c.Risk.Quarantine); err != nil {
+		return fmt.Errorf("risk.quarantine: %w", err)
+	}
+	if c.RiskQuarantineDur <= 0 {
+		c.Risk.Quarantine = "24h"
+		c.RiskQuarantineDur = 24 * time.Hour
+	}
+	// 任务抖动/账号间隔：负值钳 0（= 关闭），并给出上限防止误配成小时级。
+	if c.Schedule.JitterMinutes < 0 {
+		c.Schedule.JitterMinutes = 0
+	}
+	if c.Schedule.JitterMinutes > 60 {
+		c.Schedule.JitterMinutes = 60
+	}
+	if c.Schedule.AccountSpacingSeconds < 0 {
+		c.Schedule.AccountSpacingSeconds = 0
+	}
+	if c.Schedule.AccountSpacingSeconds > 600 {
+		c.Schedule.AccountSpacingSeconds = 600
+	}
 	if c.Pool.BreakerThreshold <= 0 {
 		c.Pool.BreakerThreshold = 3
 	}
