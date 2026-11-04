@@ -9,6 +9,8 @@ let pkDetailUid = '';
 let theme = localStorage.getItem(LS_THEME) || 'auto';   // auto | light | dark
 let view = 'accounts';
 let overviewData = null, cfgLoaded = null;
+/* 账号池默认只展示可用账号；禁用账号仅在显式打开管理视图时出现。 */
+let showDisabledAccounts = false;
 let listenFallbackNotified = false;
 let logPin = true, loginState = null, loginTimer = null;
 let refTimer = null;
@@ -432,6 +434,21 @@ setTimeout(() => {
 }, 0);
 
 /* ── 账号池 ───────────────────────────────────────────────────────── */
+/* poolVisibleAccounts 负责账号池统计口径：默认剔除 disabled；汇总积分也走
+   这份列表。其它账号视图使用相同的 includeDisabled 规则，保证「不显示」和
+   「不计入」始终同源。 */
+function poolVisibleAccounts(accounts, includeDisabled) {
+  return (accounts || []).filter(s => s && (includeDisabled || !s.disabled));
+}
+
+function poolCreditSums(accounts) {
+  return (accounts || []).reduce((sum, s) => {
+    sum.remaining += s.credits || 0;
+    sum.total += s.credits_total || 0;
+    return sum;
+  }, { remaining: 0, total: 0 });
+}
+
 function renderAccounts(list) {
   const tb = $('accBody');
   if (!list.length) {
@@ -560,40 +577,65 @@ async function loadOverview(quiet) {
     const d = await api('overview');
     overviewData = d;
     if (!packageCacheMatchesAccounts(d)) clearPackageCache();
-    renderListenStatus(d.listen);
-    $('sTotal').textContent = d.total;
-    $('sHealthy').textContent = d.healthy;
-    $('sCooling').textContent = d.cooling;
-    $('sDisabled').textContent = d.disabled;
-    // 暂停选号单列（issue #125）：它只关选号、照常签到保活，与禁用是两种状态。
-    if ($('sPaused')) $('sPaused').textContent = d.paused == null ? '-' : d.paused;
-    const remSum = (d.accounts || []).reduce((a, s) => a + (s.credits || 0), 0);
-  const totSum = (d.accounts || []).reduce((a, s) => a + (s.credits_total || 0), 0);
-  $('sCredits').textContent = totSum > 0 ? remSum + ' / ' + totSum : remSum;
-    $('sSticky').textContent = d.sticky_sessions;
-    const fullVersion = d.version ? 'v' + d.version.replace(/^v/, '') : '';
-    const displayVersion = fullVersion.replace(/-panel$/, '');
-    const navVer = $('navVer');
-    navVer.textContent = displayVersion || '版本未知';
-    navVer.title = fullVersion ? '完整版本：' + fullVersion : '暂未获取到版本信息';
-    navVer.setAttribute('aria-label', fullVersion ? '版本 ' + fullVersion : '版本未知');
-    $('navRedis').textContent = d.redis_mode === 'upstash' ? 'Redis 镜像' : '本地内存';
-    $('navState').textContent = d.healthy > 0 ? '服务正常' : (d.total ? '无可用账号' : '待添加账号');
-    const p = $('navPulse');
-    p.className = 'pulse' + (d.healthy > 0 ? '' : (d.total ? ' warn' : ' bad'));
-    $('accNote').textContent = d.in_flight_full ? d.in_flight_full + ' 个账号在途占满' : '';
-    const up = Math.floor(d.uptime_sec);
-    const portMeta = d.listen && d.listen.port ? ' · 端口 ' + d.listen.port : '';
-    $('subMeta').textContent = '运行 ' + (up >= 86400 ? Math.floor(up / 86400) + ' 天 ' : '') + Math.floor(up % 86400 / 3600) + ' 时 ' + Math.floor(up % 3600 / 60) + ' 分' + portMeta;
-    renderAccounts(d.accounts || []);
-    renderModelLocks(d.model_locks);
-    // 到期卡片跟随首页统计同步刷新（用同一份响应里的按日批次，不额外发请求）。
-    // 2 分钟内的实时明细最新且更全，保留；过期后由 state 快照接管，避免点过一次
-    // 「检查」之后卡片永远停在那一刻的旧数据。
-    const liveFresh = lastPackages && (Date.now() - lastPackagesAt) < EXP_FRESH_MS;
-    if ($('expBox') && !liveFresh) renderExpirySnapshot(d);
+    renderOverview(d);
   } catch (e) { if (!quiet) toast(e.message, 'err'); }
 }
+
+function renderOverview(d) {
+  const accounts = poolVisibleAccounts(d.accounts, showDisabledAccounts);
+  renderListenStatus(d.listen);
+  $('sTotal').textContent = accounts.length;
+  $('sHealthy').textContent = d.healthy;
+  $('sCooling').textContent = d.cooling;
+  $('sDisabled').textContent = d.disabled;
+  // 禁用卡片只在「显示已禁用」管理视图里出现；默认视图不呈现禁用类数据。
+  const showDisabledColumn = showDisabledAccounts && !!d.disabled;
+  if ($('statDisabled')) $('statDisabled').hidden = !showDisabledColumn;
+  if ($('accStats')) $('accStats').classList.toggle('no-disabled', !showDisabledColumn);
+  const toggle = $('btnShowDisabled');
+  if (toggle) {
+    toggle.hidden = !d.disabled;
+    toggle.textContent = (showDisabledAccounts ? '隐藏已禁用' : '显示已禁用') + ' (' + d.disabled + ')';
+    toggle.setAttribute('aria-pressed', showDisabledAccounts ? 'true' : 'false');
+  }
+  // 暂停选号单列（issue #125）：它只关选号、照常签到保活，与禁用是两种状态。
+  if ($('sPaused')) $('sPaused').textContent = d.paused == null ? '-' : d.paused;
+  const sums = poolCreditSums(accounts);
+  $('sCredits').textContent = sums.total > 0 ? sums.remaining + ' / ' + sums.total : sums.remaining;
+  $('sSticky').textContent = d.sticky_sessions;
+  const fullVersion = d.version ? 'v' + d.version.replace(/^v/, '') : '';
+  const displayVersion = fullVersion.replace(/-panel$/, '');
+  const navVer = $('navVer');
+  navVer.textContent = displayVersion || '版本未知';
+  navVer.title = fullVersion ? '完整版本：' + fullVersion : '暂未获取到版本信息';
+  navVer.setAttribute('aria-label', fullVersion ? '版本 ' + fullVersion : '版本未知');
+  $('navRedis').textContent = d.redis_mode === 'upstash' ? 'Redis 镜像' : '本地内存';
+  $('navState').textContent = d.healthy > 0 ? '服务正常' : (d.total ? '无可用账号' : '待添加账号');
+  const p = $('navPulse');
+  p.className = 'pulse' + (d.healthy > 0 ? '' : (d.total ? ' warn' : ' bad'));
+  $('accNote').textContent = d.in_flight_full ? d.in_flight_full + ' 个账号在途占满' : '';
+  const up = Math.floor(d.uptime_sec);
+  const portMeta = d.listen && d.listen.port ? ' · 端口 ' + d.listen.port : '';
+  $('subMeta').textContent = '运行 ' + (up >= 86400 ? Math.floor(up / 86400) + ' 天 ' : '') + Math.floor(up % 86400 / 3600) + ' 时 ' + Math.floor(up % 3600 / 60) + ' 分' + portMeta;
+  renderAccounts(accounts);
+  renderModelLocks(d.model_locks);
+  // 到期卡片跟随首页统计同步刷新（用同一份响应里的按日批次，不额外发请求）。
+  // 2 分钟内的实时明细最新且更全，保留；过期后由 state 快照接管，避免点过一次
+  // 「检查」之后卡片永远停在那一刻的旧数据。切换「显示已禁用」时也走这里，
+  // 保证两种口径立即同步。
+  if ($('expBox')) {
+    const liveFresh = lastPackages && (Date.now() - lastPackagesAt) < EXP_FRESH_MS;
+    if (liveFresh) renderExpiry(lastPackages);
+    else renderExpirySnapshot(d);
+  }
+}
+
+if ($('btnShowDisabled')) $('btnShowDisabled').onclick = () => {
+  showDisabledAccounts = !showDisabledAccounts;
+  if (overviewData) renderOverview(overviewData);
+  // 积分构成/到期明细也用同一口径；已有缓存时只重渲染，不额外打上游。
+  if (lastPackages) renderPackages(lastPackages, lastDetailLimit);
+};
 
 function renderListenStatus(info) {
   if (!info || !info.port) return;
@@ -2327,15 +2369,26 @@ function renderHealth(d) {
   const sum = (d && d.summary) || {};
   const byUID = {};
   for (const s of (d && d.accounts) || []) byUID[s.uid] = s;
-  const rows = sum.accounts || [];
+  const includeDisabled = typeof showDisabledAccounts !== 'undefined' && showDisabledAccounts;
+  const rows = (sum.accounts || []).filter(v => includeDisabled || !(byUID[v.uid] && byUID[v.uid].disabled));
   const bad = rows.filter(v => hlIsBad(v, byUID[v.uid]));
-  $('hlRate').textContent = hlRate(sum.success_rate);
-  $('hlOk').textContent = fmtTok(sum.ok_24h || 0);
-  $('hlErr').textContent = fmtTok(sum.err_24h || 0);
+  const okTotal = rows.reduce((n, v) => n + Number(v.ok_24h || 0), 0);
+  const errTotal = rows.reduce((n, v) => n + Number(v.err_24h || 0), 0);
+  $('hlRate').textContent = hlRate(okTotal + errTotal > 0 ? okTotal / (okTotal + errTotal) * 100 : -1);
+  $('hlOk').textContent = fmtTok(okTotal);
+  $('hlErr').textContent = fmtTok(errTotal);
   $('hlBad').textContent = rows.length ? bad.length + ' / ' + rows.length : '0';
   $('hlBal').textContent = String(rows.filter(v => v.balance_err).length);
 
-  const hourly = sum.hourly || [];
+  // 概览图与错误类型也按当前可见账号重算；否则隐藏禁用号后，标题数字仍会带上它们。
+  const hourlyMap = new Map();
+  for (const v of rows) for (const h of (v.hourly || [])) {
+    const e = hourlyMap.get(h.hour) || { hour: h.hour, ok: 0, err: 0 };
+    e.ok += Number(h.ok || 0);
+    e.err += Number(h.err || 0);
+    hourlyMap.set(h.hour, e);
+  }
+  const hourly = [...hourlyMap.values()].sort((a, b) => String(a.hour).localeCompare(String(b.hour)));
   const max = Math.max(1, ...hourly.map(h => h.ok + h.err));
   $('hlBars').innerHTML = hourly.map(h => {
     const n = h.ok + h.err;
@@ -2344,7 +2397,13 @@ function renderHealth(d) {
       '<i class="ok" style="flex:' + h.ok + '"></i><i class="err" style="flex:' + h.err + '"></i></div>';
   }).join('');
   $('hlAxis').innerHTML = hourly.map((h, i) => '<span>' + (i % 3 === 0 ? h.hour.slice(11) : '') + '</span>').join('');
-  const kinds = sum.kinds_24h || [];
+  const kindsMap = new Map();
+  for (const v of rows) for (const k of (v.kinds_24h || [])) {
+    const e = kindsMap.get(k.kind) || { kind: k.kind, count: 0 };
+    e.count += Number(k.count || 0);
+    kindsMap.set(k.kind, e);
+  }
+  const kinds = [...kindsMap.values()].sort((a, b) => b.count - a.count);
   $('hlKinds').innerHTML = kinds.length
     ? kinds.map(k => '<span class="k" title="' + esc(k.kind) + '">' + esc(hlKind(k.kind)) + '<b>' + k.count + '</b></span>').join('')
     : '<span class="hint">近 24 小时没有失败尝试</span>';
@@ -2401,16 +2460,19 @@ async function loadRisk() {
 $('btnRisk').onclick = loadRisk;
 
 function renderRisk(d) {
-  const accounts = d.accounts || [];
-  const alerts = d.alerts || [];
-  $('rkHour').textContent = d.hour_total || 0;
-  $('rkDay').textContent = d.day_total || 0;
+  const includeDisabled = typeof showDisabledAccounts !== 'undefined' && showDisabledAccounts;
+  const allAccounts = d.accounts || [];
+  const disabledUIDs = new Set(allAccounts.filter(a => a.disabled).map(a => String(a.uid)));
+  const accounts = allAccounts.filter(a => includeDisabled || !a.disabled);
+  const alerts = (d.alerts || []).filter(a => includeDisabled || !a.uid || !disabledUIDs.has(String(a.uid)));
+  $('rkHour').textContent = accounts.reduce((n, a) => n + Number(a.hour_requests || 0), 0);
+  $('rkDay').textContent = accounts.reduce((n, a) => n + Number(a.day_requests || 0), 0);
   $('rkRebind').textContent = d.session_rebinds || 0;
   $('rkHeaders').textContent = (d.missing_headers || []).length;
   $('rkHold').textContent = accounts.filter(a => a.risk_hold).length;
-  $('rk429').textContent = (d.error_counts && d.error_counts.soft_rate_24h) || 0;
-  $('rk11140').textContent = (d.error_counts && d.error_counts.account_restricted_24h) || 0;
-  $('rk11-128').textContent = (d.error_counts && d.error_counts.channel_refused_24h) || 0;
+  $('rk429').textContent = accounts.reduce((n, a) => n + Number(a.soft_rate_24h || 0), 0);
+  $('rk11140').textContent = accounts.reduce((n, a) => n + Number(a.account_restricted_24h || 0), 0);
+  $('rk11-128').textContent = accounts.reduce((n, a) => n + Number(a.channel_refused_24h || 0), 0);
   $('rkNote').textContent = d.checked_at
     ? ('更新于 ' + new Date(d.checked_at).toLocaleTimeString() + ' · 任务抖动 ±' + (d.schedule_jitter_minutes || 0) + 'm / 账号间隔 ' + (d.schedule_account_spacing_sec || 0) + 's')
     : '—';
@@ -2418,7 +2480,7 @@ function renderRisk(d) {
     ? alerts.map(a => '<div style="margin:3px 0"><span class="tag ' + (a.level === 'crit' ? 'bad' : 'warn') + '">' + esc(a.code) + '</span> ' + esc(a.message) + '</div>').join('')
     : '<span class="tag ok">正常</span> 未发现份额集中、连续限流、会话换绑或协议头缺失';
   if (!accounts.length) {
-    $('rkBody').innerHTML = '<tr><td colspan="11"><div class="empty">账号池是空的</div></td></tr>';
+    $('rkBody').innerHTML = '<tr><td colspan="11"><div class="empty">没有可用账号</div></td></tr>';
     return;
   }
   $('rkBody').innerHTML = accounts.map(a => {
@@ -3909,7 +3971,8 @@ function renderExpiryDistribution(list, now) {
 }
 
 function renderPackages(d, detailLimit) {
-  const list = (d.accounts || []);
+  const includeDisabled = typeof showDisabledAccounts !== 'undefined' && showDisabledAccounts;
+  const list = (d.accounts || []).filter(a => a && (includeDisabled || !a.disabled));
   const now = Date.now();
   const expiryColors = pkAccountColorMap(list);
   renderExpiryDistribution(list, now);
@@ -4131,7 +4194,11 @@ async function loadPackages(force) {
     } else {
       renderPackages(lastPackages, lastDetailLimit);
       const ageMin = Math.floor((Date.now() - lastPackagesAt) / 60000);
-      if (ageMin > 0) $('pkNote').textContent = lastPackages.accounts.length + ' 个账号 · ' + ageMin + ' 分钟前的数据，点「刷新」更新';
+      if (ageMin > 0) {
+        const includeDisabled = typeof showDisabledAccounts !== 'undefined' && showDisabledAccounts;
+        const visible = (lastPackages.accounts || []).filter(a => a && (includeDisabled || !a.disabled)).length;
+        $('pkNote').textContent = visible + ' 个账号 · ' + ageMin + ' 分钟前的数据，点「刷新」更新';
+      }
       return;
     }
   }
@@ -4271,7 +4338,8 @@ function expiryRowsHtml(list) {
 }
 
 function renderExpiry(d) {
-  const list = (d.accounts || []);
+  const includeDisabled = typeof showDisabledAccounts !== 'undefined' && showDisabledAccounts;
+  const list = (d.accounts || []).filter(a => a && (includeDisabled || !a.disabled));
   const rows = expiryRowsHtml(list);
   $('expList').innerHTML = rows || '<div class="empty">没有账号</div>';
   // 数据新鲜度透明化：走缓存时标注年龄，免得把旧数据误当实时。
@@ -4290,7 +4358,8 @@ function renderExpiry(d) {
    旧 state（升级后尚未跑过一轮余额刷新，或 Redis 快照来自旧版本）没有 buckets，
    退回只显示最早一批，保证卡片不空白；下一轮刷新后自动变成完整视图。 */
 function renderExpirySnapshot(d) {
-  const list = (d && d.accounts) || [];
+  const includeDisabled = typeof showDisabledAccounts !== 'undefined' && showDisabledAccounts;
+  const list = ((d && d.accounts) || []).filter(a => a && (includeDisabled || !a.disabled));
   const hasBuckets = list.some(a => Array.isArray(a.credits_expiry_buckets) && a.credits_expiry_buckets.length);
   if (hasBuckets) {
     const isoDay = v => {
@@ -4473,10 +4542,14 @@ function storeRemarks(map) {
 /* 编辑器的行来自 overview 缓存（账号池加载过就有），另外补上「已有备注但当前列表里
    没有」的键，避免账号被移除后备注看起来凭空消失。 */
 function remarkFormRows() {
-  const rows = ((overviewData && overviewData.accounts) || [])
+  const all = (overviewData && overviewData.accounts) || [];
+  const includeDisabled = typeof showDisabledAccounts !== 'undefined' && showDisabledAccounts;
+  const rows = all.filter(s => s && (includeDisabled || !s.disabled))
     .map(s => ({ uid: remarkKey(s.uid), who: s.nickname || remarkKey(s.uid) }))
     .filter(r => r.uid);
+  const known = new Set(all.map(s => remarkKey(s.uid)));
   for (const k of Object.keys(remarksAll())) {
+    if (known.has(k)) continue; // 已存在但当前被隐藏（如禁用账号）不当作孤儿备注
     if (!rows.some(r => r.uid === k)) rows.push({ uid: k, who: k });
   }
   return rows;

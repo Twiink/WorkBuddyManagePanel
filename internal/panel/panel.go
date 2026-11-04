@@ -1055,6 +1055,7 @@ func (p *Panel) packages(w http.ResponseWriter, r *http.Request) {
 		UID      string                   `json:"uid"`
 		Nickname string                   `json:"nickname"`
 		Realm    string                   `json:"realm"`
+		Disabled bool                     `json:"disabled,omitempty"`
 		Remain   int64                    `json:"remain"`
 		Size     int64                    `json:"size"`
 		Packages []upstream.CreditPackage `json:"packages"`
@@ -1071,7 +1072,7 @@ func (p *Panel) packages(w http.ResponseWriter, r *http.Request) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			it := row{UID: s.UID, Nickname: s.Nickname, Realm: s.Realm}
+			it := row{UID: s.UID, Nickname: s.Nickname, Realm: s.Realm, Disabled: s.Disabled}
 			a := p.cfg.Pool.AuthByUID(s.UID)
 			if a == nil {
 				it.Error = "account not loaded"

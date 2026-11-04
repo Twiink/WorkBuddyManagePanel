@@ -1298,6 +1298,75 @@ process.stdout.write(JSON.stringify({
 	}
 }
 
+// TestAppJSPoolVisibleAccountsExcludesDisabled 钉住账号池的默认口径：
+// disabled 账号不参与渲染，也不参与「积分剩余 / 总额」汇总；只有显式打开
+// 「显示已禁用」管理视图时才重新纳入。
+func TestAppJSPoolVisibleAccountsExcludesDisabled(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed; pool filter test skipped")
+	}
+	script := `const fs = require('fs');
+const vm = require('vm');
+const src = fs.readFileSync(process.argv[2], 'utf8');
+const start = src.indexOf('function poolVisibleAccounts');
+const end = src.indexOf('function renderAccounts', start);
+if (start < 0 || end < 0 || end < start) throw new Error('pool filter helpers not found');
+const ctx = { Array, Object };
+vm.createContext(ctx);
+vm.runInContext(src.slice(start, end) +
+  '\nthis.poolVisibleAccounts=poolVisibleAccounts;this.poolCreditSums=poolCreditSums;', ctx);
+
+const accounts = [
+  { uid: 'a', credits: 100, credits_total: 1000 },
+  { uid: 'b', credits: 20, credits_total: 200, disabled: true },
+  { uid: 'c', credits: 30, credits_total: 300, disabled: false },
+];
+const visible = ctx.poolVisibleAccounts(accounts, false);
+const all = ctx.poolVisibleAccounts(accounts, true);
+const sums = ctx.poolCreditSums(visible);
+
+const overviewStart = src.indexOf('function renderOverview');
+const overviewEnd = src.indexOf('function renderListenStatus', overviewStart);
+const packagesStart = src.indexOf('function renderPackages');
+const packagesEnd = src.indexOf('function renderExpiry', packagesStart);
+const expiryStart = src.indexOf('function renderExpiry(');
+const snapshotStart = src.indexOf('function renderExpirySnapshot');
+const wired = overviewStart >= 0 && overviewEnd > overviewStart &&
+  packagesStart >= 0 && packagesEnd > packagesStart &&
+  expiryStart >= 0 && snapshotStart > expiryStart &&
+  src.slice(overviewStart, overviewEnd).includes('poolVisibleAccounts(d.accounts, showDisabledAccounts)') &&
+  src.slice(overviewStart, overviewEnd).includes('poolCreditSums(accounts)') &&
+  src.slice(packagesStart, packagesEnd).includes('showDisabledAccounts') &&
+  src.slice(expiryStart, snapshotStart).includes('showDisabledAccounts') &&
+  src.slice(snapshotStart, src.indexOf('function snapshotNoteText', snapshotStart)).includes('showDisabledAccounts');
+
+process.stdout.write(JSON.stringify({
+  visible: visible.map(a => a.uid),
+  all: all.map(a => a.uid),
+  remaining: sums.remaining,
+  total: sums.total,
+  hidden: accounts.length - visible.length,
+  wired,
+}));`
+	f, err := os.CreateTemp(t.TempDir(), "poolfilter-*.cjs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(script); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	out, err := exec.Command(node, f.Name(), "app.js").CombinedOutput()
+	if err != nil {
+		t.Fatalf("pool filter node test failed: %v\n%s", err, out)
+	}
+	const want = `{"visible":["a","c"],"all":["a","b","c"],"remaining":130,"total":1300,"hidden":1,"wired":true}`
+	if strings.TrimSpace(string(out)) != want {
+		t.Fatalf("pool filter=%s\nwant %s", strings.TrimSpace(string(out)), want)
+	}
+}
+
 // TestPanelIndexExpiryBoxNotHidden 到期卡片在 HTML 骨架里不得带 hidden 属性（issue #137）。
 //
 // 与上一个用例互补：app.js 侧有 renderExpirySnapshot 兜底，HTML 侧若仍写死 hidden，
