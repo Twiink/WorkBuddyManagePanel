@@ -1224,6 +1224,8 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
           <h3>账号池</h3>
           <span class="grow"></span>
           <span class="note" id="accNote"></span>
+          <button class="xs" id="btnExportSelected" disabled title="导出所选账号的完整凭据与运行状态">导出所选</button>
+          <span class="note" id="accSelected" aria-live="polite"></span>
           <button class="xs ghost" id="btnShowDisabled" hidden>显示已禁用</button>
           <button class="xs" id="btnRemarks">备注</button>
           <button class="xs" id="btnCheckinAll">全部签到</button>
@@ -1239,6 +1241,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
         <table class="acc">
           <thead><tr>
             <th class="mark" aria-hidden="true"></th>
+            <th class="select-col"><input type="checkbox" id="accSelectAll" aria-label="选择当前显示的全部账号" title="选择当前显示的全部账号"></th>
             <th>账号</th><th>状态</th><th>积分</th>
             <th>成功 / 失败</th><th>在途</th><th>用量</th><th>最近成功</th><th class="c-acts"></th>
           </tr></thead>

@@ -12,6 +12,7 @@ let overviewData = null, cfgLoaded = null;
 let overviewRequest = null, overviewUpdatedAt = 0, overviewError = '';
 /* 账号池默认只展示可用账号；禁用账号仅在显式打开管理视图时出现。 */
 let showDisabledAccounts = false;
+let selectedExportUIDs = new Set();
 let listenFallbackNotified = false;
 let logPin = true, loginState = null, loginTimer = null;
 let refTimer = null;
@@ -452,10 +453,70 @@ function poolCreditSums(accounts) {
   }, { remaining: 0, total: 0 });
 }
 
+function syncExportSelection(list) {
+  const visible = new Set(list.map(s => String(s.uid)));
+  selectedExportUIDs = new Set([...selectedExportUIDs].filter(uid => visible.has(uid)));
+  for (const box of document.querySelectorAll('.acc-export-check')) {
+    box.checked = selectedExportUIDs.has(box.dataset.u);
+  }
+  const selected = list.filter(s => selectedExportUIDs.has(String(s.uid))).length;
+  const all = $('accSelectAll');
+  all.checked = list.length > 0 && selected === list.length;
+  all.indeterminate = selected > 0 && selected < list.length;
+  all.disabled = list.length === 0;
+  $('accSelected').textContent = selected ? '已选 ' + selected + ' 个' : '';
+  $('btnExportSelected').disabled = selected === 0;
+}
+
+async function downloadAccountExport(uids, button) {
+  if (!uids.length) return;
+  const previous = button.disabled;
+  button.disabled = true;
+  try {
+    const headers = {};
+    const key = localStorage.getItem(LS_KEY);
+    if (key) headers['Authorization'] = 'Bearer ' + key;
+    let request;
+    if (uids.length === 1) {
+      request = { url: '/panel/api/accounts/' + encodeURIComponent(uids[0]) + '/export', options: { headers } };
+    } else {
+      headers['Content-Type'] = 'application/json';
+      request = { url: '/panel/api/accounts/export', options: { method: 'POST', headers, body: JSON.stringify({ uids }) } };
+    }
+    const response = await fetch(request.url, request.options);
+    if (response.status === 401) { openKey(); throw new Error('密钥无效或未填写'); }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || ('HTTP ' + response.status));
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const utf8Name = /filename\*=utf-8''([^;]+)/i.exec(disposition);
+    const fallbackName = /filename="?([^";]+)"?/i.exec(disposition);
+    let filename = '';
+    if (utf8Name) {
+      try { filename = decodeURIComponent(utf8Name[1]); } catch { filename = utf8Name[1]; }
+    } else if (fallbackName) filename = fallbackName[1];
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename || (uids.length > 1 ? 'workbuddy-accounts.zip' : 'workbuddy-account.json');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+    toast('已导出 ' + uids.length + ' 个账号，文件包含完整登录凭据，请妥善保管', 'ok');
+  } catch (error) {
+    toast('导出失败：' + error.message, 'err');
+  } finally {
+    button.disabled = previous;
+  }
+}
+
 function renderAccounts(list) {
   const tb = $('accBody');
   if (!list.length) {
-    tb.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="big">账号池是空的</div>点击右上角「添加账号」，用浏览器登录一个 WorkBuddy 账号</div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="big">账号池是空的</div>点击右上角「添加账号」，用浏览器登录一个 WorkBuddy 账号</div></td></tr>';
+    syncExportSelection(list);
     return;
   }
   // 有总额度（credits_total）→ 进度条按自身 剩余/总额 百分比；旧数据无总额 → 退回池内最高=100%
@@ -509,6 +570,7 @@ function renderAccounts(list) {
     const usageTitle = '最近一次：' + req + ' 次 / ' + totalTok + ' / 延迟 ' + latency + ' / ' + rate;
     return '<tr class="' + cls + '" title="uid: ' + esc(s.uid) + '">' +
       '<td class="mark" aria-hidden="true"><i></i></td>' +
+      '<td class="select-col"><input class="acc-export-check" type="checkbox" data-u="' + esc(s.uid) + '" aria-label="选择账号 ' + esc(s.nickname || s.uid) + '" title="选择导出"></td>' +
       '<td class="who"><div class="nm">' + remarkName(s.uid, s.nickname ? esc(s.nickname) : '<span style="color:var(--ink-3)">未命名</span>') + (s.realm === 'global' ? ' <span class="realm-tag">国际版</span>' : '') + (s.enterprise ? ' <span class="realm-tag">企业版</span>' : '') + '</div><div class="id">' + esc(short) + '</div></td>' +
       '<td>' + tag + note + rateLimits + '</td>' +
       '<td class="cred" title="' + esc(credTip) + '"><div class="n">' + cred + '</div><div class="bar"><i style="width:' + pct + '%"></i></div></td>' +
@@ -530,6 +592,7 @@ function renderAccounts(list) {
         '<button class="xs ghost" data-a="balance" data-u="' + esc(s.uid) + '"' + (s.enterprise ? ' title="刷新企业版已分配额度（上游 get-enterprise-user-usage）"' : '') + '>' + (s.enterprise ? '额度' : '余额') + '</button>' +
         (s.enterprise ? '' :
           '<button class="xs ghost" data-a="tasks" data-u="' + esc(s.uid) + '">任务</button>') +
+        '<button class="xs ghost" data-a="export" data-u="' + esc(s.uid) + '" title="下载完整账号 JSON（含登录凭据与运行状态）">导出</button>' +
         (frozen ? '<button class="xs primary" data-a="revive" data-u="' + esc(s.uid) + '">解冻</button>'
                 : (s.paused ? '<button class="xs primary" data-a="resume" data-u="' + esc(s.uid) + '">恢复选号</button>'
                             : '<button class="xs ghost" data-a="pause" data-u="' + esc(s.uid) + '" title="' + (s.enterprise ? '退出选号，但照常保活 / 刷新额度' : '退出选号，但照常签到 / 活跃上报 / 保活 / 刷新余额') + '">暂停选号</button>')) +
@@ -537,6 +600,7 @@ function renderAccounts(list) {
         '<button class="xs ghost danger" data-a="remove" data-u="' + esc(s.uid) + '">移除</button>' +
       '</td></tr>';
   }).join('');
+  syncExportSelection(list);
 }
 
 // renderModelLocks 模型锁池：哪些模型不能用、锁了几个号、还要锁多久。
@@ -654,6 +718,7 @@ function renderOverview(d) {
   const portMeta = d.listen && d.listen.port ? ' · 端口 ' + d.listen.port : '';
   $('subMeta').textContent = '运行 ' + (up >= 86400 ? Math.floor(up / 86400) + ' 天 ' : '') + Math.floor(up % 86400 / 3600) + ' 时 ' + Math.floor(up % 3600 / 60) + ' 分' + portMeta;
   renderAccounts(accounts);
+  syncExportSelection(accounts);
   renderModelLocks(d.model_locks);
   // 到期卡片跟随首页统计同步刷新（用同一份响应里的按日批次，不额外发请求）。
   // 2 分钟内的实时明细最新且更全，保留；过期后由 state 快照接管，避免点过一次
@@ -671,6 +736,27 @@ if ($('btnShowDisabled')) $('btnShowDisabled').onclick = () => {
   if (overviewData) renderOverview(overviewData);
   // 积分构成/到期明细也用同一口径；已有缓存时只重渲染，不额外打上游。
   if (lastPackages) renderPackages(lastPackages, lastDetailLimit);
+};
+
+$('accSelectAll').onchange = ev => {
+  const accounts = poolVisibleAccounts((overviewData && overviewData.accounts) || [], showDisabledAccounts);
+  selectedExportUIDs = ev.target.checked ? new Set(accounts.map(s => String(s.uid))) : new Set();
+  syncExportSelection(accounts);
+};
+
+$('accBody').addEventListener('change', ev => {
+  const box = ev.target.closest('.acc-export-check');
+  if (!box) return;
+  if (box.checked) selectedExportUIDs.add(box.dataset.u);
+  else selectedExportUIDs.delete(box.dataset.u);
+  const accounts = poolVisibleAccounts((overviewData && overviewData.accounts) || [], showDisabledAccounts);
+  syncExportSelection(accounts);
+});
+
+$('btnExportSelected').onclick = ev => {
+  const accounts = poolVisibleAccounts((overviewData && overviewData.accounts) || [], showDisabledAccounts);
+  const uids = accounts.filter(s => selectedExportUIDs.has(String(s.uid))).map(s => String(s.uid));
+  downloadAccountExport(uids, ev.currentTarget);
 };
 
 function renderListenStatus(info) {
@@ -787,6 +873,10 @@ $('accBody').addEventListener('click', async ev => {
     if (!await confirmRemoveAccount(account)) return;
   }
   if (a === 'disable' && !confirm('禁用后该账号不再参与选号（保号任务默认也跳过），需手动解冻才能恢复。若只是想临时让位、仍要保号，请改用「暂停选号」。确认禁用？')) return;
+  if (a === 'export') {
+    await downloadAccountExport([u], b);
+    return;
+  }
   b.disabled = true;
   try {
     if (a === 'checkin') {
