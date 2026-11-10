@@ -4,6 +4,10 @@
     "id": "workbuddy-manage-panel"
   },
   "recall": {
-    "peer_scope": "actor"
+    "peer_scope": "actor",
+    "enabled": true
+  },
+  "capture": {
+    "enabled": true
   }
 }

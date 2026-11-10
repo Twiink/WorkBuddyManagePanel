@@ -1,0 +1,1396 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]: WorkBuddy2API
+        - generic [ref=e6]: v1.15.0-panel
+      - list [ref=e7]:
+        - listitem [ref=e8]:
+          - link "账号池" [ref=e9] [cursor=pointer]:
+            - /url: "#accounts"
+        - listitem [ref=e13]:
+          - link "用量" [ref=e14] [cursor=pointer]:
+            - /url: "#usage"
+        - listitem [ref=e17]:
+          - link "积分构成" [ref=e18] [cursor=pointer]:
+            - /url: "#packages"
+        - listitem [ref=e22]:
+          - link "任务中心" [ref=e23] [cursor=pointer]:
+            - /url: "#taskscenter"
+        - listitem [ref=e27]:
+          - link "模型与档位" [ref=e28] [cursor=pointer]:
+            - /url: "#models"
+        - listitem [ref=e32]:
+          - link "配置" [ref=e33] [cursor=pointer]:
+            - /url: "#config"
+        - listitem [ref=e37]:
+          - link "运行日志" [ref=e38] [cursor=pointer]:
+            - /url: "#logs"
+      - generic [ref=e41]:
+        - generic [ref=e42]: 服务正常
+        - generic [ref=e45]:
+          - generic [ref=e46]: v1.15.0-panel
+          - text: ·
+          - generic [ref=e47]: 本地内存
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - heading "账号池" [level=2] [ref=e50]
+        - generic [ref=e51]: /
+        - generic [ref=e52]: 运行 0 时 10 分
+        - button "切换主题" [ref=e53] [cursor=pointer]
+        - button "刷新" [ref=e57] [cursor=pointer]
+        - button "添加账号" [ref=e58] [cursor=pointer]
+      - generic [ref=e59]:
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]: "21"
+            - generic [ref=e63]: 账号总数
+          - generic [ref=e64]:
+            - generic [ref=e65]: "20"
+            - generic [ref=e66]: 可用
+          - generic [ref=e67]:
+            - generic [ref=e68]: "0"
+            - generic [ref=e69]: 冷却中
+          - generic [ref=e70]:
+            - generic [ref=e71]: "1"
+            - generic [ref=e72]: 已禁用
+          - generic [ref=e73]:
+            - generic [ref=e74]: "0"
+            - generic [ref=e75]: 已暂停选号
+          - generic [ref=e76]:
+            - generic [ref=e77]: 131667 / 160631
+            - generic [ref=e78]: 积分剩余 / 总额
+          - generic [ref=e79]:
+            - generic [ref=e80]: "0"
+            - generic [ref=e81]: 粘性会话
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - heading "积分到期提醒红 = 3 天内 · 琥珀 = 7 天内 · 日均需耗 = 批次剩余 ÷ 剩余天数" [level=3] [ref=e84]
+            - generic [ref=e85]: 21 个账号 · 快照（每 5 分钟后台刷新，刚刚更新，点「检查」拉实时明细）
+            - button "收起" [expanded] [ref=e86] [cursor=pointer]
+            - button "检查" [ref=e87] [cursor=pointer]
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - generic [ref=e92]: 冷暖🍓
+              - generic [ref=e93]:
+                - generic [ref=e94]:
+                  - generic [ref=e95]: 明天
+                  - generic [ref=e96]: 2026-10-29 · 明天到期
+                - generic [ref=e97]:
+                  - emphasis [ref=e98]: 最近一批
+                  - generic [ref=e99]: "100"
+                - generic [ref=e100]:
+                  - emphasis [ref=e101]: 到期前日均需耗
+                  - generic [ref=e102]: ≥100
+                - generic [ref=e103]:
+                  - emphasis [ref=e104]: 7 天内合计
+                  - generic [ref=e105]: "500"
+                - generic [ref=e106]:
+                  - emphasis [ref=e107]: 随后
+                  - generic "2026-10-31 到期 100 积分（3 天后）" [ref=e108]:
+                    - text: 10-31 ·
+                    - generic [ref=e109]: "100"
+                  - generic "2026-11-01 到期 100 积分（4 天后）" [ref=e110]:
+                    - text: 11-01 ·
+                    - generic [ref=e111]: "100"
+                  - generic "2026-11-03 到期 100 积分（6 天后）" [ref=e112]:
+                    - text: 11-03 ·
+                    - generic [ref=e113]: "100"
+                  - generic "2026-11-04 到期 100 积分（7 天后）" [ref=e114]:
+                    - text: 11-04 ·
+                    - generic [ref=e115]: "100"
+                  - generic "2026-11-05 到期 100 积分（8 天后）" [ref=e116]:
+                    - text: 11-05 ·
+                    - generic [ref=e117]: "100"
+                  - generic "2026-11-06 到期 100 积分（9 天后）" [ref=e118]:
+                    - text: 11-06 ·
+                    - generic [ref=e119]: "100"
+                  - generic [ref=e120]: 等 26 批
+            - generic [ref=e121]:
+              - generic [ref=e123]: 梦牵绕了谁的灵魂
+              - generic [ref=e124]:
+                - generic [ref=e125]:
+                  - generic [ref=e126]: 9 天
+                  - generic [ref=e127]: 2026-11-06 · 9 天后到期
+                - generic [ref=e128]:
+                  - emphasis [ref=e129]: 最近一批
+                  - generic [ref=e130]: "74"
+                - generic [ref=e131]:
+                  - emphasis [ref=e132]: 到期前日均需耗
+                  - generic [ref=e133]: ≥9
+                - generic [ref=e134]:
+                  - emphasis [ref=e135]: 7 天内合计
+                  - generic [ref=e136]: "0"
+                - generic [ref=e137]:
+                  - emphasis [ref=e138]: 随后
+                  - generic "2026-11-07 到期 100 积分（10 天后）" [ref=e139]:
+                    - text: 11-07 ·
+                    - generic [ref=e140]: "100"
+                  - generic "2026-11-08 到期 100 积分（11 天后）" [ref=e141]:
+                    - text: 11-08 ·
+                    - generic [ref=e142]: "100"
+                  - generic "2026-11-22 到期 2.6k 积分（25 天后）" [ref=e143]:
+                    - text: 11-22 ·
+                    - generic [ref=e144]: 2.6k
+                  - generic "2026-11-23 到期 306 积分（26 天后）" [ref=e145]:
+                    - text: 11-23 ·
+                    - generic [ref=e146]: "306"
+                  - generic "2026-11-24 到期 411 积分（27 天后）" [ref=e147]:
+                    - text: 11-24 ·
+                    - generic [ref=e148]: "411"
+                  - generic "2026-11-25 到期 205 积分（28 天后）" [ref=e149]:
+                    - text: 11-25 ·
+                    - generic [ref=e150]: "205"
+                  - generic [ref=e151]: 等 12 批
+            - generic [ref=e152]:
+              - generic [ref=e154]: 182****8462
+              - generic [ref=e155]:
+                - generic [ref=e156]:
+                  - generic [ref=e157]: 15 天
+                  - generic [ref=e158]: 2026-11-12 · 15 天后到期
+                - generic [ref=e159]:
+                  - emphasis [ref=e160]: 最近一批
+                  - generic [ref=e161]: 1.0k
+                - generic [ref=e162]:
+                  - emphasis [ref=e163]: 到期前日均需耗
+                  - generic [ref=e164]: ≥68
+                - generic [ref=e165]:
+                  - emphasis [ref=e166]: 7 天内合计
+                  - generic [ref=e167]: "0"
+                - generic [ref=e168]:
+                  - emphasis [ref=e169]: 随后
+                  - generic "2026-11-13 到期 400 积分（16 天后）" [ref=e170]:
+                    - text: 11-13 ·
+                    - generic [ref=e171]: "400"
+                  - generic "2026-11-14 到期 105 积分（17 天后）" [ref=e172]:
+                    - text: 11-14 ·
+                    - generic [ref=e173]: "105"
+                  - generic "2026-11-15 到期 108 积分（18 天后）" [ref=e174]:
+                    - text: 11-15 ·
+                    - generic [ref=e175]: "108"
+                  - generic "2026-11-16 到期 2.1k 积分（19 天后）" [ref=e176]:
+                    - text: 11-16 ·
+                    - generic [ref=e177]: 2.1k
+                  - generic "2026-11-17 到期 109 积分（20 天后）" [ref=e178]:
+                    - text: 11-17 ·
+                    - generic [ref=e179]: "109"
+                  - generic "2026-11-18 到期 110 积分（21 天后）" [ref=e180]:
+                    - text: 11-18 ·
+                    - generic [ref=e181]: "110"
+                  - generic [ref=e182]: 等 17 批
+            - generic [ref=e183]:
+              - generic [ref=e185]: 625号试验品鲁本
+              - generic [ref=e186]:
+                - generic [ref=e187]:
+                  - generic [ref=e188]: 17 天
+                  - generic [ref=e189]: 2026-11-14 · 17 天后到期
+                - generic [ref=e190]:
+                  - emphasis [ref=e191]: 最近一批
+                  - generic [ref=e192]: "521"
+                - generic [ref=e193]:
+                  - emphasis [ref=e194]: 到期前日均需耗
+                  - generic [ref=e195]: ≥31
+                - generic [ref=e196]:
+                  - emphasis [ref=e197]: 7 天内合计
+                  - generic [ref=e198]: "0"
+                - generic [ref=e199]:
+                  - emphasis [ref=e200]: 随后
+                  - generic "2026-11-15 到期 600 积分（18 天后）" [ref=e201]:
+                    - text: 11-15 ·
+                    - generic [ref=e202]: "600"
+                  - generic "2026-11-16 到期 2.2k 积分（19 天后）" [ref=e203]:
+                    - text: 11-16 ·
+                    - generic [ref=e204]: 2.2k
+                  - generic "2026-11-17 到期 409 积分（20 天后）" [ref=e205]:
+                    - text: 11-17 ·
+                    - generic [ref=e206]: "409"
+                  - generic "2026-11-18 到期 207 积分（21 天后）" [ref=e207]:
+                    - text: 11-18 ·
+                    - generic [ref=e208]: "207"
+                  - generic "2026-11-19 到期 208 积分（22 天后）" [ref=e209]:
+                    - text: 11-19 ·
+                    - generic [ref=e210]: "208"
+                  - generic "2026-11-20 到期 200 积分（23 天后）" [ref=e211]:
+                    - text: 11-20 ·
+                    - generic [ref=e212]: "200"
+                  - generic [ref=e213]: 等 16 批
+            - generic [ref=e214]:
+              - generic [ref=e216]: Summer
+              - generic [ref=e217]:
+                - generic [ref=e218]:
+                  - generic [ref=e219]: 19 天
+                  - generic [ref=e220]: 2026-11-16 · 19 天后到期
+                - generic [ref=e221]:
+                  - emphasis [ref=e222]: 最近一批
+                  - generic [ref=e223]: "855"
+                - generic [ref=e224]:
+                  - emphasis [ref=e225]: 到期前日均需耗
+                  - generic [ref=e226]: ≥45
+                - generic [ref=e227]:
+                  - emphasis [ref=e228]: 7 天内合计
+                  - generic [ref=e229]: "0"
+                - generic [ref=e230]:
+                  - emphasis [ref=e231]: 随后
+                  - generic "2026-11-17 到期 407 积分（20 天后）" [ref=e232]:
+                    - text: 11-17 ·
+                    - generic [ref=e233]: "407"
+                  - generic "2026-11-18 到期 205 积分（21 天后）" [ref=e234]:
+                    - text: 11-18 ·
+                    - generic [ref=e235]: "205"
+                  - generic "2026-11-19 到期 208 积分（22 天后）" [ref=e236]:
+                    - text: 11-19 ·
+                    - generic [ref=e237]: "208"
+                  - generic "2026-11-20 到期 206 积分（23 天后）" [ref=e238]:
+                    - text: 11-20 ·
+                    - generic [ref=e239]: "206"
+                  - generic "2026-11-21 到期 618 积分（24 天后）" [ref=e240]:
+                    - text: 11-21 ·
+                    - generic [ref=e241]: "618"
+                  - generic "2026-11-22 到期 108 积分（25 天后）" [ref=e242]:
+                    - text: 11-22 ·
+                    - generic [ref=e243]: "108"
+                  - generic [ref=e244]: 等 13 批
+            - generic [ref=e245]:
+              - generic [ref=e247]: 初来乍到
+              - generic [ref=e248]:
+                - generic [ref=e249]:
+                  - generic [ref=e250]: 19 天
+                  - generic [ref=e251]: 2026-11-16 · 19 天后到期
+                - generic [ref=e252]:
+                  - emphasis [ref=e253]: 最近一批
+                  - generic [ref=e254]: 2.2k
+                - generic [ref=e255]:
+                  - emphasis [ref=e256]: 到期前日均需耗
+                  - generic [ref=e257]: ≥115
+                - generic [ref=e258]:
+                  - emphasis [ref=e259]: 7 天内合计
+                  - generic [ref=e260]: "0"
+                - generic [ref=e261]:
+                  - emphasis [ref=e262]: 随后
+                  - generic "2026-11-17 到期 408 积分（20 天后）" [ref=e263]:
+                    - text: 11-17 ·
+                    - generic [ref=e264]: "408"
+                  - generic "2026-11-18 到期 205 积分（21 天后）" [ref=e265]:
+                    - text: 11-18 ·
+                    - generic [ref=e266]: "205"
+                  - generic "2026-11-19 到期 210 积分（22 天后）" [ref=e267]:
+                    - text: 11-19 ·
+                    - generic [ref=e268]: "210"
+                  - generic "2026-11-20 到期 200 积分（23 天后）" [ref=e269]:
+                    - text: 11-20 ·
+                    - generic [ref=e270]: "200"
+                  - generic "2026-11-23 到期 610 积分（26 天后）" [ref=e271]:
+                    - text: 11-23 ·
+                    - generic [ref=e272]: "610"
+                  - generic "2026-11-24 到期 207 积分（27 天后）" [ref=e273]:
+                    - text: 11-24 ·
+                    - generic [ref=e274]: "207"
+                  - generic [ref=e275]: 等 12 批
+            - generic [ref=e276]:
+              - generic [ref=e278]: 159****9335
+              - generic [ref=e279]:
+                - generic [ref=e280]:
+                  - generic [ref=e281]: 20 天
+                  - generic [ref=e282]: 2026-11-17 · 20 天后到期
+                - generic [ref=e283]:
+                  - emphasis [ref=e284]: 最近一批
+                  - generic [ref=e285]: 3.1k
+                - generic [ref=e286]:
+                  - emphasis [ref=e287]: 到期前日均需耗
+                  - generic [ref=e288]: ≥156
+                - generic [ref=e289]:
+                  - emphasis [ref=e290]: 7 天内合计
+                  - generic [ref=e291]: "0"
+                - generic [ref=e292]:
+                  - emphasis [ref=e293]: 随后
+                  - generic "2026-11-18 到期 800 积分（21 天后）" [ref=e294]:
+                    - text: 11-18 ·
+                    - generic [ref=e295]: "800"
+                  - generic "2026-11-21 到期 400 积分（24 天后）" [ref=e296]:
+                    - text: 11-21 ·
+                    - generic [ref=e297]: "400"
+                  - generic "2026-11-22 到期 206 积分（25 天后）" [ref=e298]:
+                    - text: 11-22 ·
+                    - generic [ref=e299]: "206"
+                  - generic "2026-11-23 到期 315 积分（26 天后）" [ref=e300]:
+                    - text: 11-23 ·
+                    - generic [ref=e301]: "315"
+                  - generic "2026-11-24 到期 207 积分（27 天后）" [ref=e302]:
+                    - text: 11-24 ·
+                    - generic [ref=e303]: "207"
+                  - generic "2026-11-25 到期 600 积分（28 天后）" [ref=e304]:
+                    - text: 11-25 ·
+                    - generic [ref=e305]: "600"
+                  - generic [ref=e306]: 等 10 批
+            - generic [ref=e307]:
+              - generic [ref=e309]: 180****0163
+              - generic [ref=e310]:
+                - generic [ref=e311]:
+                  - generic [ref=e312]: 20 天
+                  - generic [ref=e313]: 2026-11-17 · 20 天后到期
+                - generic [ref=e314]:
+                  - emphasis [ref=e315]: 最近一批
+                  - generic [ref=e316]: 3.3k
+                - generic [ref=e317]:
+                  - emphasis [ref=e318]: 到期前日均需耗
+                  - generic [ref=e319]: ≥163
+                - generic [ref=e320]:
+                  - emphasis [ref=e321]: 7 天内合计
+                  - generic [ref=e322]: "0"
+                - generic [ref=e323]:
+                  - emphasis [ref=e324]: 随后
+                  - generic "2026-11-18 到期 800 积分（21 天后）" [ref=e325]:
+                    - text: 11-18 ·
+                    - generic [ref=e326]: "800"
+                  - generic "2026-11-21 到期 400 积分（24 天后）" [ref=e327]:
+                    - text: 11-21 ·
+                    - generic [ref=e328]: "400"
+                  - generic "2026-11-22 到期 208 积分（25 天后）" [ref=e329]:
+                    - text: 11-22 ·
+                    - generic [ref=e330]: "208"
+                  - generic "2026-11-23 到期 315 积分（26 天后）" [ref=e331]:
+                    - text: 11-23 ·
+                    - generic [ref=e332]: "315"
+                  - generic "2026-11-24 到期 207 积分（27 天后）" [ref=e333]:
+                    - text: 11-24 ·
+                    - generic [ref=e334]: "207"
+                  - generic "2026-11-25 到期 606 积分（28 天后）" [ref=e335]:
+                    - text: 11-25 ·
+                    - generic [ref=e336]: "606"
+                  - generic [ref=e337]: 等 10 批
+            - generic [ref=e338]:
+              - generic [ref=e340]: 逐梦zhi光
+              - generic [ref=e341]:
+                - generic [ref=e342]:
+                  - generic [ref=e343]: 20 天
+                  - generic [ref=e344]: 2026-11-17 · 20 天后到期
+                - generic [ref=e345]:
+                  - emphasis [ref=e346]: 最近一批
+                  - generic [ref=e347]: 1.4k
+                - generic [ref=e348]:
+                  - emphasis [ref=e349]: 到期前日均需耗
+                  - generic [ref=e350]: ≥68
+                - generic [ref=e351]:
+                  - emphasis [ref=e352]: 7 天内合计
+                  - generic [ref=e353]: "0"
+                - generic [ref=e354]:
+                  - emphasis [ref=e355]: 随后
+                  - generic "2026-11-18 到期 307 积分（21 天后）" [ref=e356]:
+                    - text: 11-18 ·
+                    - generic [ref=e357]: "307"
+                  - generic "2026-11-19 到期 405 积分（22 天后）" [ref=e358]:
+                    - text: 11-19 ·
+                    - generic [ref=e359]: "405"
+                  - generic "2026-11-20 到期 406 积分（23 天后）" [ref=e360]:
+                    - text: 11-20 ·
+                    - generic [ref=e361]: "406"
+                  - generic "2026-11-21 到期 206 积分（24 天后）" [ref=e362]:
+                    - text: 11-21 ·
+                    - generic [ref=e363]: "206"
+                  - generic "2026-11-22 到期 219 积分（25 天后）" [ref=e364]:
+                    - text: 11-22 ·
+                    - generic [ref=e365]: "219"
+                  - generic "2026-11-23 到期 610 积分（26 天后）" [ref=e366]:
+                    - text: 11-23 ·
+                    - generic [ref=e367]: "610"
+                  - generic [ref=e368]: 等 13 批
+            - generic [ref=e369]:
+              - generic [ref=e371]: 乙与鱼
+              - generic [ref=e372]:
+                - generic [ref=e373]:
+                  - generic [ref=e374]: 21 天
+                  - generic [ref=e375]: 2026-11-18 · 21 天后到期
+                - generic [ref=e376]:
+                  - emphasis [ref=e377]: 最近一批
+                  - generic [ref=e378]: 2.1k
+                - generic [ref=e379]:
+                  - emphasis [ref=e380]: 到期前日均需耗
+                  - generic [ref=e381]: ≥100
+                - generic [ref=e382]:
+                  - emphasis [ref=e383]: 7 天内合计
+                  - generic [ref=e384]: "0"
+                - generic [ref=e385]:
+                  - emphasis [ref=e386]: 随后
+                  - generic "2026-11-21 到期 300 积分（24 天后）" [ref=e387]:
+                    - text: 11-21 ·
+                    - generic [ref=e388]: "300"
+                  - generic "2026-11-22 到期 408 积分（25 天后）" [ref=e389]:
+                    - text: 11-22 ·
+                    - generic [ref=e390]: "408"
+                  - generic "2026-11-23 到期 318 积分（26 天后）" [ref=e391]:
+                    - text: 11-23 ·
+                    - generic [ref=e392]: "318"
+                  - generic "2026-11-24 到期 210 积分（27 天后）" [ref=e393]:
+                    - text: 11-24 ·
+                    - generic [ref=e394]: "210"
+                  - generic "2026-11-25 到期 200 积分（28 天后）" [ref=e395]:
+                    - text: 11-25 ·
+                    - generic [ref=e396]: "200"
+                  - generic "2026-11-26 到期 606 积分（29 天后）" [ref=e397]:
+                    - text: 11-26 ·
+                    - generic [ref=e398]: "606"
+                  - generic [ref=e399]: 等 10 批
+            - generic [ref=e400]:
+              - generic [ref=e402]: 恰逢予陽
+              - generic [ref=e403]:
+                - generic [ref=e404]:
+                  - generic [ref=e405]: 21 天
+                  - generic [ref=e406]: 2026-11-18 · 21 天后到期
+                - generic [ref=e407]:
+                  - emphasis [ref=e408]: 最近一批
+                  - generic [ref=e409]: 1.6k
+                - generic [ref=e410]:
+                  - emphasis [ref=e411]: 到期前日均需耗
+                  - generic [ref=e412]: ≥75
+                - generic [ref=e413]:
+                  - emphasis [ref=e414]: 7 天内合计
+                  - generic [ref=e415]: "0"
+                - generic [ref=e416]:
+                  - emphasis [ref=e417]: 随后
+                  - generic "2026-11-19 到期 306 积分（22 天后）" [ref=e418]:
+                    - text: 11-19 ·
+                    - generic [ref=e419]: "306"
+                  - generic "2026-11-20 到期 414 积分（23 天后）" [ref=e420]:
+                    - text: 11-20 ·
+                    - generic [ref=e421]: "414"
+                  - generic "2026-11-21 到期 210 积分（24 天后）" [ref=e422]:
+                    - text: 11-21 ·
+                    - generic [ref=e423]: "210"
+                  - generic "2026-11-22 到期 207 积分（25 天后）" [ref=e424]:
+                    - text: 11-22 ·
+                    - generic [ref=e425]: "207"
+                  - generic "2026-11-23 到期 318 积分（26 天后）" [ref=e426]:
+                    - text: 11-23 ·
+                    - generic [ref=e427]: "318"
+                  - generic "2026-11-24 到期 609 积分（27 天后）" [ref=e428]:
+                    - text: 11-24 ·
+                    - generic [ref=e429]: "609"
+                  - generic [ref=e430]: 等 12 批
+            - generic [ref=e431]:
+              - generic [ref=e433]: 133****3056
+              - generic [ref=e434]:
+                - generic [ref=e435]:
+                  - generic [ref=e436]: 22 天
+                  - generic [ref=e437]: 2026-11-19 · 22 天后到期
+                - generic [ref=e438]:
+                  - emphasis [ref=e439]: 最近一批
+                  - generic [ref=e440]: 3.7k
+                - generic [ref=e441]:
+                  - emphasis [ref=e442]: 到期前日均需耗
+                  - generic [ref=e443]: ≥169
+                - generic [ref=e444]:
+                  - emphasis [ref=e445]: 7 天内合计
+                  - generic [ref=e446]: "0"
+                - generic [ref=e447]:
+                  - emphasis [ref=e448]: 随后
+                  - generic "2026-11-20 到期 100 积分（23 天后）" [ref=e449]:
+                    - text: 11-20 ·
+                    - generic [ref=e450]: "100"
+                  - generic "2026-11-21 到期 100 积分（24 天后）" [ref=e451]:
+                    - text: 11-21 ·
+                    - generic [ref=e452]: "100"
+                  - generic "2026-11-23 到期 208 积分（26 天后）" [ref=e453]:
+                    - text: 11-23 ·
+                    - generic [ref=e454]: "208"
+                  - generic "2026-11-24 到期 109 积分（27 天后）" [ref=e455]:
+                    - text: 11-24 ·
+                    - generic [ref=e456]: "109"
+                  - generic "2026-11-25 到期 308 积分（28 天后）" [ref=e457]:
+                    - text: 11-25 ·
+                    - generic [ref=e458]: "308"
+                  - generic "2026-11-26 到期 406 积分（29 天后）" [ref=e459]:
+                    - text: 11-26 ·
+                    - generic [ref=e460]: "406"
+                  - generic [ref=e461]: 等 9 批
+            - generic [ref=e462]:
+              - generic [ref=e464]: 姗姗
+              - generic [ref=e465]:
+                - generic [ref=e466]:
+                  - generic [ref=e467]: 22 天
+                  - generic [ref=e468]: 2026-11-19 · 22 天后到期
+                - generic [ref=e469]:
+                  - emphasis [ref=e470]: 最近一批
+                  - generic [ref=e471]: 1.9k
+                - generic [ref=e472]:
+                  - emphasis [ref=e473]: 到期前日均需耗
+                  - generic [ref=e474]: ≥85
+                - generic [ref=e475]:
+                  - emphasis [ref=e476]: 7 天内合计
+                  - generic [ref=e477]: "0"
+                - generic [ref=e478]:
+                  - emphasis [ref=e479]: 随后
+                  - generic "2026-11-20 到期 308 积分（23 天后）" [ref=e480]:
+                    - text: 11-20 ·
+                    - generic [ref=e481]: "308"
+                  - generic "2026-11-21 到期 407 积分（24 天后）" [ref=e482]:
+                    - text: 11-21 ·
+                    - generic [ref=e483]: "407"
+                  - generic "2026-11-22 到期 205 积分（25 天后）" [ref=e484]:
+                    - text: 11-22 ·
+                    - generic [ref=e485]: "205"
+                  - generic "2026-11-23 到期 305 积分（26 天后）" [ref=e486]:
+                    - text: 11-23 ·
+                    - generic [ref=e487]: "305"
+                  - generic "2026-11-24 到期 207 积分（27 天后）" [ref=e488]:
+                    - text: 11-24 ·
+                    - generic [ref=e489]: "207"
+                  - generic "2026-11-25 到期 615 积分（28 天后）" [ref=e490]:
+                    - text: 11-25 ·
+                    - generic [ref=e491]: "615"
+                  - generic [ref=e492]: 等 12 批
+            - generic [ref=e493]:
+              - generic [ref=e495]: 178****9169
+              - generic [ref=e496]:
+                - generic [ref=e497]:
+                  - generic [ref=e498]: 23 天
+                  - generic [ref=e499]: 2026-11-20 · 23 天后到期
+                - generic [ref=e500]:
+                  - emphasis [ref=e501]: 最近一批
+                  - generic [ref=e502]: 4.0k
+                - generic [ref=e503]:
+                  - emphasis [ref=e504]: 到期前日均需耗
+                  - generic [ref=e505]: ≥174
+                - generic [ref=e506]:
+                  - emphasis [ref=e507]: 7 天内合计
+                  - generic [ref=e508]: "0"
+                - generic [ref=e509]:
+                  - emphasis [ref=e510]: 随后
+                  - generic "2026-11-21 到期 100 积分（24 天后）" [ref=e511]:
+                    - text: 11-21 ·
+                    - generic [ref=e512]: "100"
+                  - generic "2026-11-23 到期 209 积分（26 天后）" [ref=e513]:
+                    - text: 11-23 ·
+                    - generic [ref=e514]: "209"
+                  - generic "2026-11-24 到期 107 积分（27 天后）" [ref=e515]:
+                    - text: 11-24 ·
+                    - generic [ref=e516]: "107"
+                  - generic "2026-11-25 到期 305 积分（28 天后）" [ref=e517]:
+                    - text: 11-25 ·
+                    - generic [ref=e518]: "305"
+                  - generic "2026-11-26 到期 405 积分（29 天后）" [ref=e519]:
+                    - text: 11-26 ·
+                    - generic [ref=e520]: "405"
+                  - generic "2026-11-27 到期 210 积分（30 天后）" [ref=e521]:
+                    - text: 11-27 ·
+                    - generic [ref=e522]: "210"
+                  - generic [ref=e523]: 等 9 批
+            - generic [ref=e524]:
+              - generic [ref=e526]: A🐵 樵木🐵
+              - generic [ref=e527]:
+                - generic [ref=e528]:
+                  - generic [ref=e529]: 23 天
+                  - generic [ref=e530]: 2026-11-20 · 23 天后到期
+                - generic [ref=e531]:
+                  - emphasis [ref=e532]: 最近一批
+                  - generic [ref=e533]: "112"
+                - generic [ref=e534]:
+                  - emphasis [ref=e535]: 到期前日均需耗
+                  - generic [ref=e536]: ≥5
+                - generic [ref=e537]:
+                  - emphasis [ref=e538]: 7 天内合计
+                  - generic [ref=e539]: "0"
+                - generic [ref=e540]:
+                  - emphasis [ref=e541]: 随后
+                  - generic "2026-11-22 到期 810 积分（25 天后）" [ref=e542]:
+                    - text: 11-22 ·
+                    - generic [ref=e543]: "810"
+                  - generic "2026-11-23 到期 413 积分（26 天后）" [ref=e544]:
+                    - text: 11-23 ·
+                    - generic [ref=e545]: "413"
+                  - generic "2026-11-24 到期 305 积分（27 天后）" [ref=e546]:
+                    - text: 11-24 ·
+                    - generic [ref=e547]: "305"
+                  - generic "2026-11-25 到期 205 积分（28 天后）" [ref=e548]:
+                    - text: 11-25 ·
+                    - generic [ref=e549]: "205"
+                  - generic "2026-11-26 到期 206 积分（29 天后）" [ref=e550]:
+                    - text: 11-26 ·
+                    - generic [ref=e551]: "206"
+                  - generic "2026-11-27 到期 606 积分（30 天后）" [ref=e552]:
+                    - text: 11-27 ·
+                    - generic [ref=e553]: "606"
+                  - generic [ref=e554]: 等 9 批
+            - generic [ref=e555]:
+              - generic [ref=e557]: 178****3839
+              - generic [ref=e558]:
+                - generic [ref=e559]:
+                  - generic [ref=e560]: 24 天
+                  - generic [ref=e561]: 2026-11-21 · 24 天后到期
+                - generic [ref=e562]:
+                  - emphasis [ref=e563]: 最近一批
+                  - generic [ref=e564]: 4.0k
+                - generic [ref=e565]:
+                  - emphasis [ref=e566]: 到期前日均需耗
+                  - generic [ref=e567]: ≥166
+                - generic [ref=e568]:
+                  - emphasis [ref=e569]: 7 天内合计
+                  - generic [ref=e570]: "0"
+                - generic [ref=e571]:
+                  - emphasis [ref=e572]: 随后
+                  - generic "2026-11-23 到期 209 积分（26 天后）" [ref=e573]:
+                    - text: 11-23 ·
+                    - generic [ref=e574]: "209"
+                  - generic "2026-11-24 到期 109 积分（27 天后）" [ref=e575]:
+                    - text: 11-24 ·
+                    - generic [ref=e576]: "109"
+                  - generic "2026-11-25 到期 307 积分（28 天后）" [ref=e577]:
+                    - text: 11-25 ·
+                    - generic [ref=e578]: "307"
+                  - generic "2026-11-26 到期 410 积分（29 天后）" [ref=e579]:
+                    - text: 11-26 ·
+                    - generic [ref=e580]: "410"
+                  - generic "2026-11-27 到期 207 积分（30 天后）" [ref=e581]:
+                    - text: 11-27 ·
+                    - generic [ref=e582]: "207"
+                  - generic "2026-11-28 到期 100 积分（31 天后）" [ref=e583]:
+                    - text: 11-28 ·
+                    - generic [ref=e584]: "100"
+            - generic [ref=e585]:
+              - generic [ref=e587]: A
+              - generic [ref=e588]:
+                - generic [ref=e589]:
+                  - generic [ref=e590]: 25 天
+                  - generic [ref=e591]: 2026-11-22 · 25 天后到期
+                - generic [ref=e592]:
+                  - emphasis [ref=e593]: 最近一批
+                  - generic [ref=e594]: 2.3k
+                - generic [ref=e595]:
+                  - emphasis [ref=e596]: 到期前日均需耗
+                  - generic [ref=e597]: ≥93
+                - generic [ref=e598]:
+                  - emphasis [ref=e599]: 7 天内合计
+                  - generic [ref=e600]: "0"
+                - generic [ref=e601]:
+                  - emphasis [ref=e602]: 随后
+                  - generic "2026-11-23 到期 413 积分（26 天后）" [ref=e603]:
+                    - text: 11-23 ·
+                    - generic [ref=e604]: "413"
+                  - generic "2026-11-24 到期 409 积分（27 天后）" [ref=e605]:
+                    - text: 11-24 ·
+                    - generic [ref=e606]: "409"
+                  - generic "2026-11-25 到期 207 积分（28 天后）" [ref=e607]:
+                    - text: 11-25 ·
+                    - generic [ref=e608]: "207"
+                  - generic "2026-11-26 到期 207 积分（29 天后）" [ref=e609]:
+                    - text: 11-26 ·
+                    - generic [ref=e610]: "207"
+                  - generic "2026-11-27 到期 209 积分（30 天后）" [ref=e611]:
+                    - text: 11-27 ·
+                    - generic [ref=e612]: "209"
+                  - generic "2026-11-28 到期 760 积分（31 天后）" [ref=e613]:
+                    - text: 11-28 ·
+                    - generic [ref=e614]: "760"
+                  - generic [ref=e615]: 等 10 批
+            - generic [ref=e616]:
+              - generic [ref=e618]: 呆呆
+              - generic [ref=e619]:
+                - generic [ref=e620]:
+                  - generic [ref=e621]: 25 天
+                  - generic [ref=e622]: 2026-11-22 · 25 天后到期
+                - generic [ref=e623]:
+                  - emphasis [ref=e624]: 最近一批
+                  - generic [ref=e625]: 1.4k
+                - generic [ref=e626]:
+                  - emphasis [ref=e627]: 到期前日均需耗
+                  - generic [ref=e628]: ≥55
+                - generic [ref=e629]:
+                  - emphasis [ref=e630]: 7 天内合计
+                  - generic [ref=e631]: "0"
+                - generic [ref=e632]:
+                  - emphasis [ref=e633]: 随后
+                  - generic "2026-11-23 到期 2.0k 积分（26 天后）" [ref=e634]:
+                    - text: 11-23 ·
+                    - generic [ref=e635]: 2.0k
+                  - generic "2026-11-24 到期 309 积分（27 天后）" [ref=e636]:
+                    - text: 11-24 ·
+                    - generic [ref=e637]: "309"
+                  - generic "2026-11-25 到期 405 积分（28 天后）" [ref=e638]:
+                    - text: 11-25 ·
+                    - generic [ref=e639]: "405"
+                  - generic "2026-11-26 到期 207 积分（29 天后）" [ref=e640]:
+                    - text: 11-26 ·
+                    - generic [ref=e641]: "207"
+                  - generic "2026-11-27 到期 206 积分（30 天后）" [ref=e642]:
+                    - text: 11-27 ·
+                    - generic [ref=e643]: "206"
+                  - generic "2026-11-28 到期 200 积分（31 天后）" [ref=e644]:
+                    - text: 11-28 ·
+                    - generic [ref=e645]: "200"
+                  - generic [ref=e646]: 等 9 批
+            - generic [ref=e647]:
+              - generic [ref=e649]: 逐浪
+              - generic [ref=e650]:
+                - generic [ref=e651]:
+                  - generic [ref=e652]: 25 天
+                  - generic [ref=e653]: 2026-11-22 · 25 天后到期
+                - generic [ref=e654]:
+                  - emphasis [ref=e655]: 最近一批
+                  - generic [ref=e656]: 2.2k
+                - generic [ref=e657]:
+                  - emphasis [ref=e658]: 到期前日均需耗
+                  - generic [ref=e659]: ≥88
+                - generic [ref=e660]:
+                  - emphasis [ref=e661]: 7 天内合计
+                  - generic [ref=e662]: "0"
+                - generic [ref=e663]:
+                  - emphasis [ref=e664]: 随后
+                  - generic "2026-11-23 到期 707 积分（26 天后）" [ref=e665]:
+                    - text: 11-23 ·
+                    - generic [ref=e666]: "707"
+                  - generic "2026-11-24 到期 607 积分（27 天后）" [ref=e667]:
+                    - text: 11-24 ·
+                    - generic [ref=e668]: "607"
+                  - generic "2026-11-25 到期 210 积分（28 天后）" [ref=e669]:
+                    - text: 11-25 ·
+                    - generic [ref=e670]: "210"
+                  - generic "2026-11-26 到期 205 积分（29 天后）" [ref=e671]:
+                    - text: 11-26 ·
+                    - generic [ref=e672]: "205"
+                  - generic "2026-11-27 到期 210 积分（30 天后）" [ref=e673]:
+                    - text: 11-27 ·
+                    - generic [ref=e674]: "210"
+                  - generic "2026-11-28 到期 610 积分（31 天后）" [ref=e675]:
+                    - text: 11-28 ·
+                    - generic [ref=e676]: "610"
+                  - generic [ref=e677]: 等 8 批
+            - generic [ref=e678]:
+              - generic [ref=e680]: 150****6934
+              - generic [ref=e681]:
+                - generic [ref=e682]:
+                  - generic [ref=e683]: 26 天
+                  - generic [ref=e684]: 2026-11-23 · 26 天后到期
+                - generic [ref=e685]:
+                  - emphasis [ref=e686]: 最近一批
+                  - generic [ref=e687]: "907"
+                - generic [ref=e688]:
+                  - emphasis [ref=e689]: 到期前日均需耗
+                  - generic [ref=e690]: ≥35
+                - generic [ref=e691]:
+                  - emphasis [ref=e692]: 7 天内合计
+                  - generic [ref=e693]: "0"
+                - generic [ref=e694]:
+                  - emphasis [ref=e695]: 随后
+                  - generic "2026-11-24 到期 406 积分（27 天后）" [ref=e696]:
+                    - text: 11-24 ·
+                    - generic [ref=e697]: "406"
+                  - generic "2026-11-25 到期 408 积分（28 天后）" [ref=e698]:
+                    - text: 11-25 ·
+                    - generic [ref=e699]: "408"
+                  - generic "2026-11-26 到期 205 积分（29 天后）" [ref=e700]:
+                    - text: 11-26 ·
+                    - generic [ref=e701]: "205"
+                  - generic "2026-11-27 到期 206 积分（30 天后）" [ref=e702]:
+                    - text: 11-27 ·
+                    - generic [ref=e703]: "206"
+                  - generic "2026-11-28 到期 200 积分（31 天后）" [ref=e704]:
+                    - text: 11-28 ·
+                    - generic [ref=e705]: "200"
+                  - generic "2027-04-19 到期 3.0k 积分（173 天后）" [ref=e706]:
+                    - text: 04-19 ·
+                    - generic [ref=e707]: 3.0k
+                  - generic [ref=e708]: 等 9 批
+            - generic [ref=e709]:
+              - generic [ref=e711]: 江湖
+              - generic [ref=e712]: 7 天内无到期积分
+        - generic [ref=e713]:
+          - generic [ref=e714]:
+            - heading "账号池" [level=3] [ref=e715]
+            - button "备注" [ref=e716] [cursor=pointer]
+            - button "全部签到" [ref=e717] [cursor=pointer]
+            - button "旅行巡检" [ref=e718] [cursor=pointer]
+            - button "活跃上报" [ref=e719] [cursor=pointer]
+            - button "全部保活" [ref=e720] [cursor=pointer]
+          - table [ref=e722]:
+            - rowgroup [ref=e723]:
+              - row [ref=e724]:
+                - columnheader [aria-hidden] [ref=e725]
+                - columnheader "账号" [ref=e726]
+                - columnheader "状态" [ref=e727]
+                - columnheader "积分" [ref=e728]
+                - columnheader "成功 / 失败" [ref=e729]
+                - columnheader "在途" [ref=e730]
+                - columnheader "用量" [ref=e731]
+                - columnheader "最近成功" [ref=e732]
+                - columnheader [ref=e733]
+            - rowgroup [ref=e734]:
+              - row [ref=e735]:
+                - cell [aria-hidden] [ref=e736]
+                - cell "呆呆 035fb409-9316-43…" [ref=e738]:
+                  - generic [ref=e739]: 呆呆
+                  - generic [ref=e740]: 035fb409-9316-43…
+                - cell "可用" [ref=e741]
+                - cell "4944/5687" [ref=e743]
+                - cell "328 / 0" [ref=e747]
+                - cell "0" [ref=e748]
+                - cell [ref=e749]:
+                  - generic "最近一次：329 次 / 54.1m / 延迟 7.5s / 166.7tok/s" [ref=e750]:
+                    - generic [ref=e751]:
+                      - generic [ref=e752]: "329"
+                      - emphasis [ref=e753]: 次
+                    - generic [ref=e754]:
+                      - generic [ref=e755]: 54.1m
+                      - emphasis [ref=e756]: tok
+                    - generic [ref=e757]: 7.5s
+                    - generic [ref=e759]: 166.7tok/s
+                - cell "18 小时前" [ref=e761]
+                - cell [ref=e762]:
+                  - button "已签" [ref=e763] [cursor=pointer]
+                  - button "余额" [ref=e764] [cursor=pointer]
+                  - button "任务" [ref=e765] [cursor=pointer]
+                  - button "暂停选号" [ref=e766] [cursor=pointer]
+                  - button "禁用" [ref=e767] [cursor=pointer]
+                  - button "移除" [ref=e768] [cursor=pointer]
+              - row [ref=e769]:
+                - cell [aria-hidden] [ref=e770]
+                - cell "625号试验品鲁本 14a2db07-8975-45…" [ref=e772]:
+                  - generic [ref=e773]: 625号试验品鲁本
+                  - generic [ref=e774]: 14a2db07-8975-45…
+                - cell "可用" [ref=e775]
+                - cell "6031/7510" [ref=e777]
+                - cell "22 / 0" [ref=e781]
+                - cell "0" [ref=e782]
+                - cell [ref=e783]:
+                  - generic "最近一次：22 次 / 2.7m / 延迟 4s / 165.8tok/s" [ref=e784]:
+                    - generic [ref=e785]:
+                      - generic [ref=e786]: "22"
+                      - emphasis [ref=e787]: 次
+                    - generic [ref=e788]:
+                      - generic [ref=e789]: 2.7m
+                      - emphasis [ref=e790]: tok
+                    - generic [ref=e791]: 4s
+                    - generic [ref=e793]: 165.8tok/s
+                - cell "18 小时前" [ref=e795]
+                - cell [ref=e796]:
+                  - button "已签" [ref=e797] [cursor=pointer]
+                  - button "余额" [ref=e798] [cursor=pointer]
+                  - button "任务" [ref=e799] [cursor=pointer]
+                  - button "暂停选号" [ref=e800] [cursor=pointer]
+                  - button "禁用" [ref=e801] [cursor=pointer]
+                  - button "移除" [ref=e802] [cursor=pointer]
+              - row [ref=e803]:
+                - cell [aria-hidden] [ref=e804]
+                - cell "133****3056 19ff0fbb-f153-4d…" [ref=e806]:
+                  - generic [ref=e807]: 133****3056
+                  - generic [ref=e808]: 19ff0fbb-f153-4d…
+                - cell "可用" [ref=e809]
+                - cell "5243/6038" [ref=e811]
+                - cell "257 / 0" [ref=e815]
+                - cell "0" [ref=e816]
+                - cell [ref=e817]:
+                  - generic "最近一次：259 次 / 29.9m / 延迟 6.5s / 161.5tok/s" [ref=e818]:
+                    - generic [ref=e819]:
+                      - generic [ref=e820]: "259"
+                      - emphasis [ref=e821]: 次
+                    - generic [ref=e822]:
+                      - generic [ref=e823]: 29.9m
+                      - emphasis [ref=e824]: tok
+                    - generic [ref=e825]: 6.5s
+                    - generic [ref=e827]: 161.5tok/s
+                - cell "1 天前" [ref=e829]
+                - cell [ref=e830]:
+                  - button "已签" [ref=e831] [cursor=pointer]
+                  - button "余额" [ref=e832] [cursor=pointer]
+                  - button "任务" [ref=e833] [cursor=pointer]
+                  - button "暂停选号" [ref=e834] [cursor=pointer]
+                  - button "禁用" [ref=e835] [cursor=pointer]
+                  - button "移除" [ref=e836] [cursor=pointer]
+              - row [ref=e837]:
+                - cell [aria-hidden] [ref=e838]
+                - cell "梦牵绕了谁的灵魂 1b4929ae-3234-4c…" [ref=e840]:
+                  - generic [ref=e841]: 梦牵绕了谁的灵魂
+                  - generic [ref=e842]: 1b4929ae-3234-4c…
+                - cell "可用" [ref=e843]
+                - cell "4933/9059" [ref=e845]
+                - cell "96 / 0" [ref=e849]
+                - cell "0" [ref=e850]
+                - cell [ref=e851]:
+                  - generic "最近一次：98 次 / 12.6m / 延迟 4.5s / 143.9tok/s" [ref=e852]:
+                    - generic [ref=e853]:
+                      - generic [ref=e854]: "98"
+                      - emphasis [ref=e855]: 次
+                    - generic [ref=e856]:
+                      - generic [ref=e857]: 12.6m
+                      - emphasis [ref=e858]: tok
+                    - generic [ref=e859]: 4.5s
+                    - generic [ref=e861]: 143.9tok/s
+                - cell "1 天前" [ref=e863]
+                - cell [ref=e864]:
+                  - button "已签" [ref=e865] [cursor=pointer]
+                  - button "余额" [ref=e866] [cursor=pointer]
+                  - button "任务" [ref=e867] [cursor=pointer]
+                  - button "暂停选号" [ref=e868] [cursor=pointer]
+                  - button "禁用" [ref=e869] [cursor=pointer]
+                  - button "移除" [ref=e870] [cursor=pointer]
+              - row [ref=e871]:
+                - cell [aria-hidden] [ref=e872]
+                - cell "A 1c08f3b0-0359-44…" [ref=e874]:
+                  - generic [ref=e875]: A
+                  - generic [ref=e876]: 1c08f3b0-0359-44…
+                - cell "可用" [ref=e877]
+                - cell "7660/8425" [ref=e879]
+                - cell "64 / 0" [ref=e883]
+                - cell "0" [ref=e884]
+                - cell [ref=e885]:
+                  - generic "最近一次：66 次 / 10.1m / 延迟 10.5s / 153.9tok/s" [ref=e886]:
+                    - generic [ref=e887]:
+                      - generic [ref=e888]: "66"
+                      - emphasis [ref=e889]: 次
+                    - generic [ref=e890]:
+                      - generic [ref=e891]: 10.1m
+                      - emphasis [ref=e892]: tok
+                    - generic [ref=e893]: 10.5s
+                    - generic [ref=e895]: 153.9tok/s
+                - cell "1 天前" [ref=e897]
+                - cell [ref=e898]:
+                  - button "已签" [ref=e899] [cursor=pointer]
+                  - button "余额" [ref=e900] [cursor=pointer]
+                  - button "任务" [ref=e901] [cursor=pointer]
+                  - button "暂停选号" [ref=e902] [cursor=pointer]
+                  - button "禁用" [ref=e903] [cursor=pointer]
+                  - button "移除" [ref=e904] [cursor=pointer]
+              - row [ref=e905]:
+                - cell [aria-hidden] [ref=e906]
+                - cell "150****6934 28ce6c13-0ba2-46…" [ref=e908]:
+                  - generic [ref=e909]: 150****6934
+                  - generic [ref=e910]: 28ce6c13-0ba2-46…
+                - cell "可用" [ref=e911]
+                - cell "5632/7333" [ref=e913]
+                - cell "19 / 0" [ref=e917]
+                - cell "0" [ref=e918]
+                - cell [ref=e919]:
+                  - generic "最近一次：20 次 / 4m / 延迟 2.1s / —" [ref=e920]:
+                    - generic [ref=e921]:
+                      - generic [ref=e922]: "20"
+                      - emphasis [ref=e923]: 次
+                    - generic [ref=e924]:
+                      - generic [ref=e925]: 4m
+                      - emphasis [ref=e926]: tok
+                    - generic [ref=e927]: 2.1s
+                    - generic [ref=e929]: —
+                - cell "2 天前" [ref=e931]
+                - cell [ref=e932]:
+                  - button "已签" [ref=e933] [cursor=pointer]
+                  - button "余额" [ref=e934] [cursor=pointer]
+                  - button "任务" [ref=e935] [cursor=pointer]
+                  - button "暂停选号" [ref=e936] [cursor=pointer]
+                  - button "禁用" [ref=e937] [cursor=pointer]
+                  - button "移除" [ref=e938] [cursor=pointer]
+              - row [ref=e939]:
+                - cell [aria-hidden] [ref=e940]
+                - cell "姗姗 478effe5-d747-45…" [ref=e942]:
+                  - generic [ref=e943]: 姗姗
+                  - generic [ref=e944]: 478effe5-d747-45…
+                - cell "可用" [ref=e945]
+                - cell "7365/8625" [ref=e947]
+                - cell "971 / 0" [ref=e951]
+                - cell "0" [ref=e952]
+                - cell [ref=e953]:
+                  - generic "最近一次：975 次 / 133.4m / 延迟 2.8s / 314.7tok/s" [ref=e954]:
+                    - generic [ref=e955]:
+                      - generic [ref=e956]: "975"
+                      - emphasis [ref=e957]: 次
+                    - generic [ref=e958]:
+                      - generic [ref=e959]: 133.4m
+                      - emphasis [ref=e960]: tok
+                    - generic [ref=e961]: 2.8s
+                    - generic [ref=e963]: 314.7tok/s
+                - cell "4 小时前" [ref=e965]
+                - cell [ref=e966]:
+                  - button "已签" [ref=e967] [cursor=pointer]
+                  - button "余额" [ref=e968] [cursor=pointer]
+                  - button "任务" [ref=e969] [cursor=pointer]
+                  - button "暂停选号" [ref=e970] [cursor=pointer]
+                  - button "禁用" [ref=e971] [cursor=pointer]
+                  - button "移除" [ref=e972] [cursor=pointer]
+              - row [ref=e973]:
+                - cell [aria-hidden] [ref=e974]
+                - cell "182****8462 4e374c2c-da0e-42…" [ref=e976]:
+                  - generic [ref=e977]: 182****8462
+                  - generic [ref=e978]: 4e374c2c-da0e-42…
+                - cell "可用" [ref=e979]
+                - cell "6603/7697" [ref=e981]
+                - cell "172 / 0" [ref=e985]
+                - cell "0" [ref=e986]
+                - cell [ref=e987]:
+                  - generic "最近一次：173 次 / 26.9m / 延迟 9.4s / 159.6tok/s" [ref=e988]:
+                    - generic [ref=e989]:
+                      - generic [ref=e990]: "173"
+                      - emphasis [ref=e991]: 次
+                    - generic [ref=e992]:
+                      - generic [ref=e993]: 26.9m
+                      - emphasis [ref=e994]: tok
+                    - generic [ref=e995]: 9.4s
+                    - generic [ref=e997]: 159.6tok/s
+                - cell "20 小时前" [ref=e999]
+                - cell [ref=e1000]:
+                  - button "已签" [ref=e1001] [cursor=pointer]
+                  - button "余额" [ref=e1002] [cursor=pointer]
+                  - button "任务" [ref=e1003] [cursor=pointer]
+                  - button "暂停选号" [ref=e1004] [cursor=pointer]
+                  - button "禁用" [ref=e1005] [cursor=pointer]
+                  - button "移除" [ref=e1006] [cursor=pointer]
+              - row [ref=e1007]:
+                - cell [aria-hidden] [ref=e1008]
+                - cell "恰逢予陽 50454645-055a-44…" [ref=e1010]:
+                  - generic [ref=e1011]: 恰逢予陽
+                  - generic [ref=e1012]: 50454645-055a-44…
+                - cell "可用" [ref=e1013]
+                - cell "7245/8789" [ref=e1015]
+                - cell "1660 / 0" [ref=e1019]
+                - cell "0" [ref=e1020]
+                - cell [ref=e1021]:
+                  - generic "最近一次：1665 次 / 244.9m / 延迟 7.8s / 162.5tok/s" [ref=e1022]:
+                    - generic [ref=e1023]:
+                      - generic [ref=e1024]: "1665"
+                      - emphasis [ref=e1025]: 次
+                    - generic [ref=e1026]:
+                      - generic [ref=e1027]: 244.9m
+                      - emphasis [ref=e1028]: tok
+                    - generic [ref=e1029]: 7.8s
+                    - generic [ref=e1031]: 162.5tok/s
+                - cell "18 小时前" [ref=e1033]
+                - cell [ref=e1034]:
+                  - button "已签" [ref=e1035] [cursor=pointer]
+                  - button "余额" [ref=e1036] [cursor=pointer]
+                  - button "任务" [ref=e1037] [cursor=pointer]
+                  - button "暂停选号" [ref=e1038] [cursor=pointer]
+                  - button "禁用" [ref=e1039] [cursor=pointer]
+                  - button "移除" [ref=e1040] [cursor=pointer]
+              - row [ref=e1041]:
+                - cell [aria-hidden] [ref=e1042]
+                - cell "178****9169 5f37c552-450c-4d…" [ref=e1044]:
+                  - generic [ref=e1045]: 178****9169
+                  - generic [ref=e1046]: 5f37c552-450c-4d…
+                - cell "可用" [ref=e1047]
+                - cell "5565/5936" [ref=e1049]
+                - cell "268 / 0" [ref=e1053]
+                - cell "0" [ref=e1054]
+                - cell [ref=e1055]:
+                  - generic "最近一次：269 次 / 36.1m / 延迟 14s / 188.2tok/s" [ref=e1056]:
+                    - generic [ref=e1057]:
+                      - generic [ref=e1058]: "269"
+                      - emphasis [ref=e1059]: 次
+                    - generic [ref=e1060]:
+                      - generic [ref=e1061]: 36.1m
+                      - emphasis [ref=e1062]: tok
+                    - generic [ref=e1063]: 14s
+                    - generic [ref=e1065]: 188.2tok/s
+                - cell "1 天前" [ref=e1067]
+                - cell [ref=e1068]:
+                  - button "已签" [ref=e1069] [cursor=pointer]
+                  - button "余额" [ref=e1070] [cursor=pointer]
+                  - button "任务" [ref=e1071] [cursor=pointer]
+                  - button "暂停选号" [ref=e1072] [cursor=pointer]
+                  - button "禁用" [ref=e1073] [cursor=pointer]
+                  - button "移除" [ref=e1074] [cursor=pointer]
+              - row [ref=e1075]:
+                - cell [aria-hidden] [ref=e1076]
+                - cell "江湖 6df90f6b-635d-4d…" [ref=e1078]:
+                  - generic [ref=e1079]: 江湖
+                  - generic [ref=e1080]: 6df90f6b-635d-4d…
+                - cell "已禁用 account banned by upstream (11140 request illegal), re-login required" [ref=e1081]:
+                  - generic [ref=e1082]: 已禁用
+                  - generic [ref=e1083]: account banned by upstream (11140 request illegal), re-login required
+                - cell "6274/6933" [ref=e1084]
+                - cell "0 / 0" [ref=e1088]
+                - cell "0" [ref=e1089]
+                - cell [ref=e1090]:
+                  - generic "最近一次：3 次 / — / 延迟 557ms / —" [ref=e1091]:
+                    - generic [ref=e1092]:
+                      - generic [ref=e1093]: "3"
+                      - emphasis [ref=e1094]: 次
+                    - generic [ref=e1095]: —
+                    - generic [ref=e1097]: 557ms
+                    - generic [ref=e1099]: —
+                - cell "—" [ref=e1101]
+                - cell [ref=e1102]:
+                  - button "签到" [ref=e1103] [cursor=pointer]
+                  - button "余额" [ref=e1104] [cursor=pointer]
+                  - button "任务" [ref=e1105] [cursor=pointer]
+                  - button "解冻" [ref=e1106] [cursor=pointer]
+                  - button "移除" [ref=e1107] [cursor=pointer]
+              - row [ref=e1108]:
+                - cell [aria-hidden] [ref=e1109]
+                - cell "冷暖🍓 844cbd37-af74-49…" [ref=e1111]:
+                  - generic [ref=e1112]: 冷暖🍓
+                  - generic [ref=e1113]: 844cbd37-af74-49…
+                - cell "可用" [ref=e1114]
+                - cell "7661/8837" [ref=e1116]
+                - cell "0 / 0" [ref=e1120]
+                - cell "0" [ref=e1121]
+                - cell [ref=e1122]:
+                  - generic "最近一次：1 次 / — / 延迟 870ms / —" [ref=e1123]:
+                    - generic [ref=e1124]:
+                      - generic [ref=e1125]: "1"
+                      - emphasis [ref=e1126]: 次
+                    - generic [ref=e1127]: —
+                    - generic [ref=e1129]: 870ms
+                    - generic [ref=e1131]: —
+                - cell "—" [ref=e1133]
+                - cell [ref=e1134]:
+                  - button "已签" [ref=e1135] [cursor=pointer]
+                  - button "余额" [ref=e1136] [cursor=pointer]
+                  - button "任务" [ref=e1137] [cursor=pointer]
+                  - button "暂停选号" [ref=e1138] [cursor=pointer]
+                  - button "禁用" [ref=e1139] [cursor=pointer]
+                  - button "移除" [ref=e1140] [cursor=pointer]
+              - row [ref=e1141]:
+                - cell [aria-hidden] [ref=e1142]
+                - cell "180****0163 b5a5c5c8-ada8-40…" [ref=e1144]:
+                  - generic [ref=e1145]: 180****0163
+                  - generic [ref=e1146]: b5a5c5c8-ada8-40…
+                - cell "可用" [ref=e1147]
+                - cell "6204/6950" [ref=e1149]
+                - cell "1030 / 0" [ref=e1153]
+                - cell "0" [ref=e1154]
+                - cell [ref=e1155]:
+                  - generic "最近一次：1032 次 / 155.3m / 延迟 12.2s / 164.7tok/s" [ref=e1156]:
+                    - generic [ref=e1157]:
+                      - generic [ref=e1158]: "1032"
+                      - emphasis [ref=e1159]: 次
+                    - generic [ref=e1160]:
+                      - generic [ref=e1161]: 155.3m
+                      - emphasis [ref=e1162]: tok
+                    - generic [ref=e1163]: 12.2s
+                    - generic [ref=e1165]: 164.7tok/s
+                - cell "1 天前" [ref=e1167]
+                - cell [ref=e1168]:
+                  - button "已签" [ref=e1169] [cursor=pointer]
+                  - button "余额" [ref=e1170] [cursor=pointer]
+                  - button "任务" [ref=e1171] [cursor=pointer]
+                  - button "暂停选号" [ref=e1172] [cursor=pointer]
+                  - button "禁用" [ref=e1173] [cursor=pointer]
+                  - button "移除" [ref=e1174] [cursor=pointer]
+              - row [ref=e1175]:
+                - cell [aria-hidden] [ref=e1176]
+                - cell "Summer b6d505f0-4862-4f…" [ref=e1178]:
+                  - generic [ref=e1179]: Summer
+                  - generic [ref=e1180]: b6d505f0-4862-4f…
+                - cell "可用" [ref=e1181]
+                - cell "3404/7366" [ref=e1183]
+                - cell "1 / 0" [ref=e1187]
+                - cell "0" [ref=e1188]
+                - cell [ref=e1189]:
+                  - generic "最近一次：1 次 / 24.5k / 延迟 2.8s / 158.5tok/s" [ref=e1190]:
+                    - generic [ref=e1191]:
+                      - generic [ref=e1192]: "1"
+                      - emphasis [ref=e1193]: 次
+                    - generic [ref=e1194]:
+                      - generic [ref=e1195]: 24.5k
+                      - emphasis [ref=e1196]: tok
+                    - generic [ref=e1197]: 2.8s
+                    - generic [ref=e1199]: 158.5tok/s
+                - cell "19 小时前" [ref=e1201]
+                - cell [ref=e1202]:
+                  - button "已签" [ref=e1203] [cursor=pointer]
+                  - button "余额" [ref=e1204] [cursor=pointer]
+                  - button "任务" [ref=e1205] [cursor=pointer]
+                  - button "暂停选号" [ref=e1206] [cursor=pointer]
+                  - button "禁用" [ref=e1207] [cursor=pointer]
+                  - button "移除" [ref=e1208] [cursor=pointer]
+              - row [ref=e1209]:
+                - cell [aria-hidden] [ref=e1210]
+                - cell "A🐵 樵木🐵 ba7601b7-6065-43…" [ref=e1212]:
+                  - generic [ref=e1213]: A🐵 樵木🐵
+                  - generic [ref=e1214]: ba7601b7-6065-43…
+                - cell "可用" [ref=e1215]
+                - cell "5767/8561" [ref=e1217]
+                - cell "33 / 0" [ref=e1221]
+                - cell "0" [ref=e1222]
+                - cell [ref=e1223]:
+                  - generic "最近一次：34 次 / 6.1m / 延迟 1.4s / 0.7tok/s" [ref=e1224]:
+                    - generic [ref=e1225]:
+                      - generic [ref=e1226]: "34"
+                      - emphasis [ref=e1227]: 次
+                    - generic [ref=e1228]:
+                      - generic [ref=e1229]: 6.1m
+                      - emphasis [ref=e1230]: tok
+                    - generic [ref=e1231]: 1.4s
+                    - generic [ref=e1233]: 0.7tok/s
+                - cell "1 天前" [ref=e1235]
+                - cell [ref=e1236]:
+                  - button "已签" [ref=e1237] [cursor=pointer]
+                  - button "余额" [ref=e1238] [cursor=pointer]
+                  - button "任务" [ref=e1239] [cursor=pointer]
+                  - button "暂停选号" [ref=e1240] [cursor=pointer]
+                  - button "禁用" [ref=e1241] [cursor=pointer]
+                  - button "移除" [ref=e1242] [cursor=pointer]
+              - row [ref=e1243]:
+                - cell [aria-hidden] [ref=e1244]
+                - cell "178****3839 ba84b73e-2de1-48…" [ref=e1246]:
+                  - generic [ref=e1247]: 178****3839
+                  - generic [ref=e1248]: ba84b73e-2de1-48…
+                - cell "可用" [ref=e1249]
+                - cell "5308/5842" [ref=e1251]
+                - cell "264 / 0" [ref=e1255]
+                - cell "0" [ref=e1256]
+                - cell [ref=e1257]:
+                  - generic "最近一次：265 次 / 41.3m / 延迟 18.5s / 155.7tok/s" [ref=e1258]:
+                    - generic [ref=e1259]:
+                      - generic [ref=e1260]: "265"
+                      - emphasis [ref=e1261]: 次
+                    - generic [ref=e1262]:
+                      - generic [ref=e1263]: 41.3m
+                      - emphasis [ref=e1264]: tok
+                    - generic [ref=e1265]: 18.5s
+                    - generic [ref=e1267]: 155.7tok/s
+                - cell "1 天前" [ref=e1269]
+                - cell [ref=e1270]:
+                  - button "已签" [ref=e1271] [cursor=pointer]
+                  - button "余额" [ref=e1272] [cursor=pointer]
+                  - button "任务" [ref=e1273] [cursor=pointer]
+                  - button "暂停选号" [ref=e1274] [cursor=pointer]
+                  - button "禁用" [ref=e1275] [cursor=pointer]
+                  - button "移除" [ref=e1276] [cursor=pointer]
+              - row [ref=e1277]:
+                - cell [aria-hidden] [ref=e1278]
+                - cell "乙与鱼 bf087bf8-ae95-4f…" [ref=e1280]:
+                  - generic [ref=e1281]: 乙与鱼
+                  - generic [ref=e1282]: bf087bf8-ae95-4f…
+                - cell "可用" [ref=e1283]
+                - cell "7545/8461" [ref=e1285]
+                - cell "339 / 0" [ref=e1289]
+                - cell "0" [ref=e1290]
+                - cell [ref=e1291]:
+                  - generic "最近一次：342 次 / 45m / 延迟 4.2s / 269.5tok/s" [ref=e1292]:
+                    - generic [ref=e1293]:
+                      - generic [ref=e1294]: "342"
+                      - emphasis [ref=e1295]: 次
+                    - generic [ref=e1296]:
+                      - generic [ref=e1297]: 45m
+                      - emphasis [ref=e1298]: tok
+                    - generic [ref=e1299]: 4.2s
+                    - generic [ref=e1301]: 269.5tok/s
+                - cell "20 小时前" [ref=e1303]
+                - cell [ref=e1304]:
+                  - button "已签" [ref=e1305] [cursor=pointer]
+                  - button "余额" [ref=e1306] [cursor=pointer]
+                  - button "任务" [ref=e1307] [cursor=pointer]
+                  - button "暂停选号" [ref=e1308] [cursor=pointer]
+                  - button "禁用" [ref=e1309] [cursor=pointer]
+                  - button "移除" [ref=e1310] [cursor=pointer]
+              - row [ref=e1311]:
+                - cell [aria-hidden] [ref=e1312]
+                - cell "159****9335 d5bac43c-de68-4b…" [ref=e1314]:
+                  - generic [ref=e1315]: 159****9335
+                  - generic [ref=e1316]: d5bac43c-de68-4b…
+                - cell "可用" [ref=e1317]
+                - cell "5968/6854" [ref=e1319]
+                - cell "1298 / 0" [ref=e1323]
+                - cell "0" [ref=e1324]
+                - cell [ref=e1325]:
+                  - generic "最近一次：1303 次 / 173.6m / 延迟 3.5s / 292.9tok/s" [ref=e1326]:
+                    - generic [ref=e1327]:
+                      - generic [ref=e1328]: "1303"
+                      - emphasis [ref=e1329]: 次
+                    - generic [ref=e1330]:
+                      - generic [ref=e1331]: 173.6m
+                      - emphasis [ref=e1332]: tok
+                    - generic [ref=e1333]: 3.5s
+                    - generic [ref=e1335]: 292.9tok/s
+                - cell "1 天前" [ref=e1337]
+                - cell [ref=e1338]:
+                  - button "已签" [ref=e1339] [cursor=pointer]
+                  - button "余额" [ref=e1340] [cursor=pointer]
+                  - button "任务" [ref=e1341] [cursor=pointer]
+                  - button "暂停选号" [ref=e1342] [cursor=pointer]
+                  - button "禁用" [ref=e1343] [cursor=pointer]
+                  - button "移除" [ref=e1344] [cursor=pointer]
+              - row [ref=e1345]:
+                - cell [aria-hidden] [ref=e1346]
+                - cell "逐浪 d999a766-1e8d-41…" [ref=e1348]:
+                  - generic [ref=e1349]: 逐浪
+                  - generic [ref=e1350]: d999a766-1e8d-41…
+                - cell "可用" [ref=e1351]
+                - cell "7734/8257" [ref=e1353]
+                - cell "45 / 0" [ref=e1357]
+                - cell "0" [ref=e1358]
+                - cell [ref=e1359]:
+                  - generic "最近一次：46 次 / 8.7m / 延迟 4.3s / 140.6tok/s" [ref=e1360]:
+                    - generic [ref=e1361]:
+                      - generic [ref=e1362]: "46"
+                      - emphasis [ref=e1363]: 次
+                    - generic [ref=e1364]:
+                      - generic [ref=e1365]: 8.7m
+                      - emphasis [ref=e1366]: tok
+                    - generic [ref=e1367]: 4.3s
+                    - generic [ref=e1369]: 140.6tok/s
+                - cell "1 天前" [ref=e1371]
+                - cell [ref=e1372]:
+                  - button "已签" [ref=e1373] [cursor=pointer]
+                  - button "余额" [ref=e1374] [cursor=pointer]
+                  - button "任务" [ref=e1375] [cursor=pointer]
+                  - button "暂停选号" [ref=e1376] [cursor=pointer]
+                  - button "禁用" [ref=e1377] [cursor=pointer]
+                  - button "移除" [ref=e1378] [cursor=pointer]
+              - row [ref=e1379]:
+                - cell [aria-hidden] [ref=e1380]
+                - cell "初来乍到 e837c661-d7be-48…" [ref=e1382]:
+                  - generic [ref=e1383]: 初来乍到
+                  - generic [ref=e1384]: e837c661-d7be-48…
+                - cell "可用" [ref=e1385]
+                - cell "7436/8570" [ref=e1387]
+                - cell "30 / 0" [ref=e1391]
+                - cell "0" [ref=e1392]
+                - cell [ref=e1393]:
+                  - generic "最近一次：31 次 / 6.4m / 延迟 1s / —" [ref=e1394]:
+                    - generic [ref=e1395]:
+                      - generic [ref=e1396]: "31"
+                      - emphasis [ref=e1397]: 次
+                    - generic [ref=e1398]:
+                      - generic [ref=e1399]: 6.4m
+                      - emphasis [ref=e1400]: tok
+                    - generic [ref=e1401]: 1s
+                    - generic [ref=e1403]: —
+                - cell "2 天前" [ref=e1405]
+                - cell [ref=e1406]:
+                  - button "已签" [ref=e1407] [cursor=pointer]
+                  - button "余额" [ref=e1408] [cursor=pointer]
+                  - button "任务" [ref=e1409] [cursor=pointer]
+                  - button "暂停选号" [ref=e1410] [cursor=pointer]
+                  - button "禁用" [ref=e1411] [cursor=pointer]
+                  - button "移除" [ref=e1412] [cursor=pointer]
+              - row [ref=e1413]:
+                - cell [aria-hidden] [ref=e1414]
+                - cell "逐梦zhi光 fc3a3b80-c778-41…" [ref=e1416]:
+                  - generic [ref=e1417]: 逐梦zhi光
+                  - generic [ref=e1418]: fc3a3b80-c778-41…
+                - cell "可用" [ref=e1419]
+                - cell "7145/8901" [ref=e1421]
+                - cell "126 / 0" [ref=e1425]
+                - cell "0" [ref=e1426]
+                - cell [ref=e1427]:
+                  - generic "最近一次：126 次 / 12.3m / 延迟 4.6s / 176.4tok/s" [ref=e1428]:
+                    - generic [ref=e1429]:
+                      - generic [ref=e1430]: "126"
+                      - emphasis [ref=e1431]: 次
+                    - generic [ref=e1432]:
+                      - generic [ref=e1433]: 12.3m
+                      - emphasis [ref=e1434]: tok
+                    - generic [ref=e1435]: 4.6s
+                    - generic [ref=e1437]: 176.4tok/s
+                - cell "1 天前" [ref=e1439]
+                - cell [ref=e1440]:
+                  - button "已签" [ref=e1441] [cursor=pointer]
+                  - button "余额" [ref=e1442] [cursor=pointer]
+                  - button "任务" [ref=e1443] [cursor=pointer]
+                  - button "暂停选号" [ref=e1444] [cursor=pointer]
+                  - button "禁用" [ref=e1445] [cursor=pointer]
+                  - button "移除" [ref=e1446] [cursor=pointer]
+        - generic [ref=e1447]:
+          - heading "模型锁池 哪些模型不能用、还要锁多久" [level=3] [ref=e1449]
+          - table [ref=e1451]:
+            - rowgroup [ref=e1452]:
+              - row [ref=e1453]:
+                - columnheader "模型" [ref=e1454]
+                - columnheader "域" [ref=e1455]
+                - columnheader "状态" [ref=e1456]
+                - columnheader "可选 / 总数" [ref=e1457]
+                - columnheader "锁定账号" [ref=e1458]
+                - columnheader "最早解锁" [ref=e1459]
+                - columnheader "全池解锁" [ref=e1460]
+                - columnheader "原因" [ref=e1461]
+            - rowgroup [ref=e1462]:
+              - row [ref=e1463]:
+                - cell "当前没有模型级限流 —— 所有模型均可选" [ref=e1464]
+  - text: … … …

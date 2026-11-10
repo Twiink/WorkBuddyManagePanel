@@ -54,3 +54,7 @@ docs/
 *.zip
 server.exe
 .DS_Store
+# OpenViking local-only state; config.json stays trackable
+.openviking/config.local.json
+.openviking/media/
+.openviking/downloads/

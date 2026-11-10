@@ -56,40 +56,19 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Install Linux WebView headers
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
-          sudo rm -f /etc/apt/sources.list.d/*.sources
-          sudo tee /etc/apt/sources.list.d/ubuntu.sources >/dev/null <<'EOF'
-          Types: deb
-          URIs: http://archive.ubuntu.com/ubuntu/
-          Suites: noble noble-updates noble-backports
-          Components: main restricted universe multiverse
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-          Types: deb
-          URIs: http://security.ubuntu.com/ubuntu/
-          Suites: noble-security
-          Components: main restricted universe multiverse
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-          EOF
-          for attempt in 1 2 3; do
-            if sudo timeout 120 apt-get \
-              -o Acquire::Retries=3 \
-              -o Acquire::http::Timeout=15 \
-              -o Acquire::https::Timeout=15 \
-              -o Acquire::ForceIPv4=true \
-              update; then
-              break
-            fi
-            if [[ "$attempt" -eq 3 ]]; then
-              exit 1
-            fi
-            sleep 5
-          done
+          # Keep the runner's configured Ubuntu mirrors and fallback list.
           sudo apt-get \
             -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=15 \
-            -o Acquire::https::Timeout=15 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
+            -o Acquire::ForceIPv4=true \
+            --error-on=any update
+          sudo apt-get \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
             -o Acquire::ForceIPv4=true \
             install -y --no-install-recommends \
             build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
@@ -194,40 +173,19 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install native desktop dependencies
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
-          sudo rm -f /etc/apt/sources.list.d/*.sources
-          sudo tee /etc/apt/sources.list.d/ubuntu.sources >/dev/null <<'EOF'
-          Types: deb
-          URIs: http://archive.ubuntu.com/ubuntu/
-          Suites: noble noble-updates noble-backports
-          Components: main restricted universe multiverse
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-          Types: deb
-          URIs: http://security.ubuntu.com/ubuntu/
-          Suites: noble-security
-          Components: main restricted universe multiverse
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-          EOF
-          for attempt in 1 2 3; do
-            if sudo timeout 120 apt-get \
-              -o Acquire::Retries=3 \
-              -o Acquire::http::Timeout=15 \
-              -o Acquire::https::Timeout=15 \
-              -o Acquire::ForceIPv4=true \
-              update; then
-              break
-            fi
-            if [[ "$attempt" -eq 3 ]]; then
-              exit 1
-            fi
-            sleep 5
-          done
+          # Keep the runner's configured Ubuntu mirrors and fallback list.
           sudo apt-get \
             -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=15 \
-            -o Acquire::https::Timeout=15 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
+            -o Acquire::ForceIPv4=true \
+            --error-on=any update
+          sudo apt-get \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
             -o Acquire::ForceIPv4=true \
             install -y --no-install-recommends \
             build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev \

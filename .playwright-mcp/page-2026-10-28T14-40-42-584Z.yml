@@ -1,0 +1,322 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic "WorkBuddy Manage Panel" [ref=e4]:
+        - generic [ref=e5]: WorkBuddy
+        - generic [ref=e6]: Manage Panel
+      - list [ref=e7]:
+        - listitem [ref=e8]:
+          - link "账号池" [ref=e9] [cursor=pointer]:
+            - /url: "#accounts"
+        - listitem [ref=e13]:
+          - link "用量" [ref=e14] [cursor=pointer]:
+            - /url: "#usage"
+        - listitem [ref=e17]:
+          - link "积分构成" [ref=e18] [cursor=pointer]:
+            - /url: "#packages"
+        - listitem [ref=e22]:
+          - link "任务中心" [ref=e23] [cursor=pointer]:
+            - /url: "#taskscenter"
+        - listitem [ref=e27]:
+          - link "模型与档位" [ref=e28] [cursor=pointer]:
+            - /url: "#models"
+        - listitem [ref=e32]:
+          - link "配置" [ref=e33] [cursor=pointer]:
+            - /url: "#config"
+        - listitem [ref=e37]:
+          - link "运行日志" [ref=e38] [cursor=pointer]:
+            - /url: "#logs"
+      - generic [ref=e41]:
+        - generic [ref=e42]: 连接中
+        - generic [ref=e45]:
+          - generic "版本信息加载中" [ref=e46]: 版本加载中
+          - generic [ref=e47]: "-"
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - heading "配置" [level=2] [ref=e50]
+        - generic [ref=e51]: /
+        - generic [ref=e52]: "-"
+        - button "切换主题" [ref=e53] [cursor=pointer]
+        - button "刷新" [ref=e57] [cursor=pointer]
+        - button "添加账号" [ref=e58] [cursor=pointer]
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - heading "服务" [level=3] [ref=e63]
+          - generic [ref=e64]:
+            - generic [ref=e65]:
+              - generic [ref=e66]:
+                - generic [ref=e67]: 监听地址
+                - textbox "监听地址 桌面版仅允许本机回环地址；例如 :7864 或 127.0.0.1:7864，保存后重启应用生效" [ref=e68]:
+                  - /placeholder: 127.0.0.1:7863
+                - generic [ref=e69]: 桌面版仅允许本机回环地址；例如 :7864 或 127.0.0.1:7864，保存后重启应用生效
+              - generic [ref=e70]:
+                - generic [ref=e71]: API 密钥
+                - generic [ref=e72]:
+                  - textbox "API 密钥 显示 生成密钥 复制 真实 API 密钥，供 OpenAI 兼容客户端使用；输入自己的密钥，或点击“生成密钥”。保存后立即生效" [ref=e73]:
+                    - /placeholder: 留空 = 不修改
+                  - button "显示" [ref=e74] [cursor=pointer]
+                  - button "生成密钥" [ref=e75] [cursor=pointer]
+                  - button "复制" [ref=e76] [cursor=pointer]
+                - generic [ref=e77]: 真实 API 密钥，供 OpenAI 兼容客户端使用；输入自己的密钥，或点击“生成密钥”。保存后立即生效
+            - generic [ref=e78]:
+              - generic [ref=e79]: 单账号明细默认展示条数
+              - spinbutton "单账号明细默认展示条数 积分构成页按最早到期展示，其余未用完包聚合" [ref=e80]
+              - generic [ref=e81]: 积分构成页按最早到期展示，其余未用完包聚合
+        - generic [ref=e82]:
+          - heading "定时任务" [level=3] [ref=e84]
+          - generic [ref=e85]:
+            - generic [ref=e86]:
+              - generic [ref=e87]:
+                - generic [ref=e88]:
+                  - generic [ref=e89]: 自动签到
+                  - checkbox [ref=e90] [cursor=pointer]
+                - generic [ref=e91]:
+                  - generic [ref=e92]: 签到时点（小时，逗号分隔）
+                  - textbox "签到时点（小时，逗号分隔）" [ref=e93]:
+                    - /placeholder: 9, 21
+              - generic [ref=e94]:
+                - generic [ref=e95]:
+                  - generic [ref=e96]: Token 保活
+                  - checkbox [ref=e97] [cursor=pointer]
+                - generic [ref=e98]:
+                  - generic [ref=e99]: 保活时点（小时，逗号分隔）
+                  - textbox "保活时点（小时，逗号分隔）" [ref=e100]:
+                    - /placeholder: "22"
+            - generic [ref=e102]:
+              - generic [ref=e103]:
+                - generic [ref=e104]:
+                  - generic [ref=e105]: 猫猫旅行
+                  - checkbox [ref=e106] [cursor=pointer]
+                - generic [ref=e107]:
+                  - generic [ref=e108]: 旅行时点（小时，逗号分隔）
+                  - textbox "旅行时点（小时，逗号分隔） 一趟派出 + 一趟领奖闭环" [ref=e109]:
+                    - /placeholder: 9, 21
+                  - generic [ref=e110]: 一趟派出 + 一趟领奖闭环
+              - generic [ref=e111]:
+                - generic [ref=e112]:
+                  - generic [ref=e113]: 活跃上报
+                  - checkbox [ref=e114] [cursor=pointer]
+                - generic [ref=e115]:
+                  - generic [ref=e116]: 上报时点（小时，逗号分隔）
+                  - textbox "上报时点（小时，逗号分隔） 点亮连登 + 解锁领养前置" [ref=e117]:
+                    - /placeholder: "10"
+                  - generic [ref=e118]: 点亮连登 + 解锁领养前置
+            - generic [ref=e120]:
+              - generic [ref=e121]:
+                - generic [ref=e122]: 后台刷新余额
+                - checkbox [ref=e123] [cursor=pointer]
+              - generic [ref=e124]:
+                - generic [ref=e125]: 刷新间隔（分钟）
+                - spinbutton "刷新间隔（分钟）" [ref=e126]
+            - generic [ref=e128]:
+              - generic [ref=e129]:
+                - generic [ref=e130]: 成长任务自动执行
+                - checkbox [checked] [ref=e131] [cursor=pointer]
+              - generic [ref=e132]:
+                - generic [ref=e133]: 执行时点（小时，逗号分隔）
+                - textbox "执行时点（小时，逗号分隔） 每日到点自动「扫描 + 执行全部待办」（Sequential 任务链零点解锁后自动推进，建议零点后）" [ref=e134]:
+                  - /placeholder: "1"
+                - generic [ref=e135]: 每日到点自动「扫描 + 执行全部待办」（Sequential 任务链零点解锁后自动推进，建议零点后）
+            - generic [ref=e137]:
+              - generic [ref=e138]:
+                - generic [ref=e139]: 任务补领清扫
+                - checkbox [checked] [ref=e140] [cursor=pointer]
+              - generic [ref=e141]:
+                - generic [ref=e142]: 清扫间隔（分钟）
+                - spinbutton "清扫间隔（分钟）" [ref=e143]
+            - generic [ref=e144]: 周期扫描全部账号，把「进度已达标但尚未领奖」的成长任务补领掉（不含自动动作的口令任务也能领），并顺带接受未接受的任务。只发 accept / claim 两条幂等请求，不跑任何对话或上报行为，开销可忽略。用途：真实对话点亮的任务不在自动动作白名单里，成长队列与「一键完成」都不会去领它——积分因此卡在半路上不去（#174）。
+            - generic [ref=e146]:
+              - generic [ref=e147]: 保号任务覆盖已禁用账号
+              - checkbox [ref=e148] [cursor=pointer]
+            - generic [ref=e149]: 禁用只关选号：打开后已禁用的账号仍会签到 / 活跃上报 / 保活 / 刷新余额（依旧不参与选号）。适合「一次只放开一个账号、用禁用做流量开关」的轮换养号用法，默认关闭。若只想让单个账号临时退出选号但保留保号，直接用账号行的「暂停选号」按钮（账号级，无需打开本开关）。
+        - generic [ref=e150]:
+          - heading "账号池与流量治理" [level=3] [ref=e152]
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - generic [ref=e155]:
+                - generic [ref=e156]: 国内版调度策略
+                - combobox "国内版调度策略" [ref=e157]:
+                  - option "加权随机（默认）" [selected]
+                  - option "轮询"
+                  - option "顺序耗尽"
+              - generic [ref=e158]:
+                - generic [ref=e159]: 国际版调度策略
+                - combobox "国际版调度策略" [ref=e160]:
+                  - option "加权随机（默认）" [selected]
+                  - option "轮询"
+                  - option "顺序耗尽"
+            - generic [ref=e161]:
+              - generic [ref=e162]:
+                - generic [ref=e163]: 国内版账号顺序（UID）
+                - textbox "国内版账号顺序（UID）" [ref=e164]:
+                  - /placeholder: uid1, uid2, uid3
+              - generic [ref=e165]:
+                - generic [ref=e166]: 国际版账号顺序（UID）
+                - textbox "国际版账号顺序（UID）" [ref=e167]:
+                  - /placeholder: uid1, uid2, uid3
+            - generic [ref=e168]: 按地区独立热生效；未列出的账号按 UID 排序追加。指针按地区和模型分别保存。会话粘性、模型成本分层优先；有序策略等待冷却恢复，不提前试探。临时重试或在途占满不推进顺序耗尽的主账号。闲置与快过期积分权重仅用于加权随机。
+            - generic [ref=e169]:
+              - generic [ref=e170]:
+                - generic [ref=e171]: 单账号最大在途
+                - spinbutton "单账号最大在途 0 = 不限制" [ref=e172]
+                - generic [ref=e173]: 0 = 不限制
+              - generic [ref=e174]:
+                - generic [ref=e175]: 国际版在途上限
+                - spinbutton "国际版在途上限 global 域风控更紧，默认 2" [ref=e176]
+                - generic [ref=e177]: global 域风控更紧，默认 2
+              - generic [ref=e178]:
+                - generic [ref=e179]: 连续失败熔断阈值
+                - spinbutton "连续失败熔断阈值" [ref=e180]
+            - generic [ref=e181]:
+              - generic [ref=e182]:
+                - generic [ref=e183]: 软限流冷却基数
+                - textbox "软限流冷却基数" [ref=e184]:
+                  - /placeholder: 600s
+              - generic [ref=e185]:
+                - generic [ref=e186]: 软冷却退避上限
+                - textbox "软冷却退避上限" [ref=e187]:
+                  - /placeholder: 2h
+              - generic [ref=e188]:
+                - generic [ref=e189]: 熔断基础时长
+                - textbox "熔断基础时长" [ref=e190]:
+                  - /placeholder: 30m
+            - generic [ref=e191]:
+              - generic [ref=e192]:
+                - generic [ref=e193]: 熔断退避上限
+                - textbox "熔断退避上限" [ref=e194]:
+                  - /placeholder: 6h
+              - generic [ref=e195]:
+                - generic [ref=e196]: 连败降权阈值
+                - spinbutton "连败降权阈值 未知错误连败 N 次临时出池" [ref=e197]
+                - generic [ref=e198]: 未知错误连败 N 次临时出池
+              - generic [ref=e199]:
+                - generic [ref=e200]: 连败降权时长
+                - textbox "连败降权时长" [ref=e201]:
+                  - /placeholder: 10m
+            - generic [ref=e202]:
+              - generic [ref=e203]:
+                - generic [ref=e204]: 连败降权上限
+                - textbox "连败降权上限" [ref=e205]:
+                  - /placeholder: 2h
+              - generic [ref=e206]:
+                - generic [ref=e207]: 闲置补偿 / 小时
+                - spinbutton "闲置补偿 / 小时" [ref=e208]
+              - generic [ref=e209]:
+                - generic [ref=e210]: 闲置补偿上限
+                - spinbutton "闲置补偿上限" [ref=e211]
+            - generic [ref=e212]:
+              - generic [ref=e213]:
+                - generic [ref=e214]: 成本探索窗口
+                - textbox "成本探索窗口 垄断破除：免费层垄断时定期搭车探索未知号；0 关停" [ref=e215]:
+                  - /placeholder: 30m
+                - generic [ref=e216]: 垄断破除：免费层垄断时定期搭车探索未知号；0 关停
+              - generic [ref=e217]:
+                - generic [ref=e218]: 积分保底
+                - spinbutton "积分保底 余额低于此值不再接实测收费模型（保住免费模型可用）；0 关闭" [ref=e219]
+                - generic [ref=e220]: 余额低于此值不再接实测收费模型（保住免费模型可用）；0 关闭
+              - generic [ref=e221]:
+                - generic [ref=e222]: 每日 Token 上限
+                - spinbutton "每日 Token 上限 单账号当日 token 达到后整号停用，次日零点恢复；0 关闭" [ref=e223]
+                - generic [ref=e224]: 单账号当日 token 达到后整号停用，次日零点恢复；0 关闭
+              - generic [ref=e225]:
+                - generic [ref=e226]: 每日积分上限
+                - spinbutton "每日积分上限 单账号当日实扣积分达到后只停收费模型，免费模型照常；0 关闭" [ref=e227]
+                - generic [ref=e228]: 单账号当日实扣积分达到后只停收费模型，免费模型照常；0 关闭
+              - generic [ref=e229]:
+                - generic [ref=e230]: 单模型每日 Token 上限
+                - spinbutton "单模型每日 Token 上限 单账号单模型当日 token 达到后只停这个模型；0 关闭" [ref=e231]
+                - generic [ref=e232]: 单账号单模型当日 token 达到后只停这个模型；0 关闭
+              - generic [ref=e233]:
+                - generic [ref=e234]: 快过期路由窗口
+                - textbox "快过期路由窗口 窗口内有快过期批次的账号优先接单，都不可用才用其他账号；0 关闭" [ref=e235]:
+                  - /placeholder: 168h
+                - generic [ref=e236]: 窗口内有快过期批次的账号优先接单，都不可用才用其他账号；0 关闭
+              - generic [ref=e237]:
+                - generic [ref=e238]: 会话粘性 TTL
+                - textbox "会话粘性 TTL 改动需重启进程" [ref=e239]:
+                  - /placeholder: 30m
+                - generic [ref=e240]: 改动需重启进程
+            - generic [ref=e241]:
+              - generic [ref=e242]: 快过期积分优先
+              - checkbox [ref=e243] [cursor=pointer]
+        - generic [ref=e244]:
+          - heading "模型命名与选域" [level=3] [ref=e246]
+          - generic [ref=e247]:
+            - generic [ref=e248]:
+              - generic [ref=e249]: 重名模型首选域
+              - radiogroup "重名模型首选域" [ref=e250]:
+                - generic [ref=e251] [cursor=pointer]:
+                  - radio "国内版"
+                  - generic [ref=e252]: 国内版
+                - generic [ref=e253] [cursor=pointer]:
+                  - radio "国际版"
+                  - generic [ref=e254]: 国际版
+            - text: 两域都有的模型、不带前缀时先走哪一域；默认国内版
+            - generic [ref=e255]:
+              - generic [ref=e256]: 模型列表使用裸名
+              - checkbox [ref=e257] [cursor=pointer]
+            - text: "开启后 /v1/models 合并两域、不带 cn:/global: 前缀；仅一域有的模型自动走该域，重名模型按首选域、选不到号回退另一域。显式前缀仍可用"
+        - generic [ref=e258]:
+          - heading "上游与高级" [level=3] [ref=e260]
+          - generic [ref=e261]:
+            - generic [ref=e262]:
+              - generic [ref=e263]:
+                - generic [ref=e264]: 短请求超时
+                - spinbutton "短请求超时 需重启" [ref=e265]
+                - generic [ref=e266]: 需重启
+              - generic [ref=e267]:
+                - generic [ref=e268]: 聊天首字节超时
+                - spinbutton "聊天首字节超时 需重启" [ref=e269]
+                - generic [ref=e270]: 需重启
+              - generic [ref=e271]:
+                - generic [ref=e272]: 流空闲超时
+                - spinbutton "流空闲超时 需重启" [ref=e273]
+                - generic [ref=e274]: 需重启
+            - generic [ref=e277]:
+              - generic [ref=e278]: 出站 User-Agent
+              - textbox "出站 User-Agent 影响官网积分记录「使用端」显示；需重启" [ref=e279]:
+                - /placeholder: 留空 = CLI/2.63.2 CodeBuddy/2.63.2
+              - generic [ref=e280]: 影响官网积分记录「使用端」显示；需重启
+            - generic [ref=e282]:
+              - generic [ref=e283]:
+                - generic [ref=e284]: 系统提示词模式
+                - combobox "系统提示词模式 需重启" [ref=e285]:
+                  - option "custom — 网关自有提示词（避免指纹误报）" [selected]
+                  - option "append — 客户端 system 后插网关提示词（并用）"
+                  - option "passthrough — 透传客户端原始 system"
+                - generic [ref=e286]: 需重启
+              - generic [ref=e287]:
+                - generic [ref=e288]: 提示词文件路径
+                - textbox "提示词文件路径 需重启" [ref=e289]:
+                  - /placeholder: 留空 = 内置默认提示词
+                - generic [ref=e290]: 需重启
+            - generic [ref=e292]:
+              - generic [ref=e293]: 出站请求指纹脱敏
+              - checkbox [ref=e294] [cursor=pointer]
+            - generic [ref=e295]:
+              - generic [ref=e296]: 会话粘性路由
+              - checkbox [ref=e297] [cursor=pointer]
+            - generic [ref=e298]: Upstash Redis 镜像、凭证目录与状态文件路径需手工编辑配置文件（判为重启项）。
+        - generic [ref=e299]:
+          - heading "日志" [level=3] [ref=e301]
+          - generic [ref=e302]:
+            - generic [ref=e303]:
+              - generic [ref=e304]: 记录调用来源（客户端 IP / User-Agent）
+              - checkbox [ref=e305] [cursor=pointer]
+            - generic [ref=e306]: 开启后，「运行日志」页的请求记录会显示每次调用来自哪个 IP、用什么客户端； 关闭则归档与面板都不再出现来源信息。改动即时生效，无需重启。
+            - generic [ref=e307]:
+              - text: 归档开关、保留天数与容量上限（
+              - code [ref=e308]: logging.request_archive_*
+              - text: ）需手工编辑配置文件。
+        - generic [ref=e309]:
+          - button "放弃修改" [ref=e310] [cursor=pointer]
+          - button "保存配置" [ref=e311] [cursor=pointer]
+  - text: … … …
+  - generic [ref=e313]:
+    - banner [ref=e314]:
+      - heading "需要访问密钥" [level=3] [ref=e315]
+      - generic [ref=e316]: 浏览器访问时需要 config.json 中的 API 密钥。桌面窗口双击后可直接进入，并在“配置”页设置密钥。
+    - textbox "api_key" [active] [ref=e319]
+    - contentinfo [ref=e320]:
+      - button "进入" [ref=e322] [cursor=pointer]
+  - generic [ref=e323]: 读取配置失败：密钥无效或未填写

@@ -1,0 +1,939 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - navigation [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - generic [ref=f1e5]: WorkBuddy2API
+        - generic [ref=f1e6]: v1.15.1-panel
+      - list [ref=f1e7]:
+        - listitem [ref=f1e8]:
+          - link "账号池" [ref=f1e9] [cursor=pointer]:
+            - /url: "#accounts"
+        - listitem [ref=f1e13]:
+          - link "用量" [ref=f1e14] [cursor=pointer]:
+            - /url: "#usage"
+        - listitem [ref=f1e17]:
+          - link "积分构成" [ref=f1e18] [cursor=pointer]:
+            - /url: "#packages"
+        - listitem [ref=f1e22]:
+          - link "任务中心" [ref=f1e23] [cursor=pointer]:
+            - /url: "#taskscenter"
+        - listitem [ref=f1e27]:
+          - link "模型与档位" [ref=f1e28] [cursor=pointer]:
+            - /url: "#models"
+        - listitem [ref=f1e32]:
+          - link "配置" [ref=f1e33] [cursor=pointer]:
+            - /url: "#config"
+        - listitem [ref=f1e37]:
+          - link "运行日志" [ref=f1e38] [cursor=pointer]:
+            - /url: "#logs"
+      - generic [ref=f1e41]:
+        - generic [ref=f1e42]: 服务正常
+        - generic [ref=f1e45]:
+          - generic [ref=f1e46]: v1.15.1-panel
+          - text: ·
+          - generic [ref=f1e47]: 本地内存
+    - generic [ref=f1e48]:
+      - generic [ref=f1e49]:
+        - button "打开导航" [ref=f1e50] [cursor=pointer]
+        - heading "账号池" [level=2] [ref=f1e109]
+        - button "切换主题" [ref=f1e54] [cursor=pointer]
+        - button "刷新" [ref=f1e58] [cursor=pointer]
+        - button "添加账号" [ref=f1e59] [cursor=pointer]
+      - generic [ref=f1e112]:
+        - generic [ref=f1e113]:
+          - generic [ref=f1e114]:
+            - generic [ref=f1e115]: "21"
+            - generic [ref=f1e116]: 账号总数
+          - generic [ref=f1e117]:
+            - generic [ref=f1e118]: "20"
+            - generic [ref=f1e119]: 可用
+          - generic [ref=f1e120]:
+            - generic [ref=f1e121]: "0"
+            - generic [ref=f1e122]: 冷却中
+          - generic [ref=f1e123]:
+            - generic [ref=f1e124]: "1"
+            - generic [ref=f1e125]: 已禁用
+          - generic [ref=f1e126]:
+            - generic [ref=f1e127]: "0"
+            - generic [ref=f1e128]: 已暂停选号
+          - generic [ref=f1e129]:
+            - generic [ref=f1e130]: 131090 / 160697
+            - generic [ref=f1e131]: 积分剩余 / 总额
+          - generic [ref=f1e132]:
+            - generic [ref=f1e133]: "0"
+            - generic [ref=f1e134]: 粘性会话
+        - generic [ref=f1e135]:
+          - generic [ref=f1e136]:
+            - heading "积分到期提醒红 = 3 天内 · 琥珀 = 7 天内 · 日均需耗 = 批次剩余 ÷ 剩余天数" [level=3] [ref=f1e137]
+            - generic [ref=f1e138]: 21 个账号 · 快照（每 5 分钟后台刷新，刚刚更新，点「检查」拉实时明细）
+            - button "收起" [expanded] [ref=f1e139] [cursor=pointer]
+            - button "检查" [ref=f1e140] [cursor=pointer]
+          - generic [ref=f1e142]:
+            - generic "冷暖🍓：2026-10-29 明天到期" [ref=f1e143]:
+              - generic [ref=f1e145]: 冷暖🍓
+              - generic [ref=f1e146]:
+                - generic [ref=f1e147]:
+                  - generic [ref=f1e148]: 明天
+                  - generic [ref=f1e149]: 2026-10-29
+                - generic [ref=f1e150]:
+                  - emphasis [ref=f1e151]: 最近一批
+                  - generic [ref=f1e152]: "100"
+                - generic [ref=f1e153]:
+                  - emphasis [ref=f1e154]: 到期前日均需耗
+                  - generic [ref=f1e155]: ≥100
+                - generic [ref=f1e156]:
+                  - emphasis [ref=f1e157]: 7 天内合计
+                  - generic [ref=f1e158]: "500"
+                - generic [ref=f1e159]:
+                  - emphasis [ref=f1e160]: 随后
+                  - generic "2026-10-31 到期 100 积分（3 天后）" [ref=f1e161]:
+                    - text: 10-31 ·
+                    - generic [ref=f1e162]: "100"
+                  - generic "2026-11-01 到期 100 积分（4 天后）" [ref=f1e163]:
+                    - text: 11-01 ·
+                    - generic [ref=f1e164]: "100"
+                  - generic "2026-11-03 到期 100 积分（6 天后）" [ref=f1e165]:
+                    - text: 11-03 ·
+                    - generic [ref=f1e166]: "100"
+                  - generic "2026-11-04 到期 100 积分（7 天后）" [ref=f1e167]:
+                    - text: 11-04 ·
+                    - generic [ref=f1e168]: "100"
+                  - generic [ref=f1e169]: 共 26 批
+            - generic "梦牵绕了谁的灵魂：2026-11-06 9 天后到期" [ref=f1e170]:
+              - generic [ref=f1e172]: 梦牵绕了谁的灵魂
+              - generic [ref=f1e173]:
+                - generic [ref=f1e174]:
+                  - generic [ref=f1e175]: 9 天
+                  - generic [ref=f1e176]: 2026-11-06
+                - generic [ref=f1e177]:
+                  - emphasis [ref=f1e178]: 最近一批
+                  - generic [ref=f1e179]: "9"
+                - generic [ref=f1e180]:
+                  - emphasis [ref=f1e181]: 到期前日均需耗
+                  - generic [ref=f1e182]: ≥1
+                - generic [ref=f1e183]:
+                  - emphasis [ref=f1e184]: 7 天内合计
+                  - generic [ref=f1e185]: "0"
+                - generic [ref=f1e186]:
+                  - emphasis [ref=f1e187]: 随后
+                  - generic "2026-11-07 到期 100 积分（10 天后）" [ref=f1e188]:
+                    - text: 11-07 ·
+                    - generic [ref=f1e189]: "100"
+                  - generic "2026-11-08 到期 100 积分（11 天后）" [ref=f1e190]:
+                    - text: 11-08 ·
+                    - generic [ref=f1e191]: "100"
+                  - generic "2026-11-22 到期 2.6k 积分（25 天后）" [ref=f1e192]:
+                    - text: 11-22 ·
+                    - generic [ref=f1e193]: 2.6k
+                  - generic "2026-11-23 到期 306 积分（26 天后）" [ref=f1e194]:
+                    - text: 11-23 ·
+                    - generic [ref=f1e195]: "306"
+                  - generic [ref=f1e196]: 共 12 批
+            - generic "182****8462：2026-11-12 15 天后到期" [ref=f1e197]:
+              - generic [ref=f1e199]: 182****8462
+              - generic [ref=f1e200]:
+                - generic [ref=f1e201]:
+                  - generic [ref=f1e202]: 15 天
+                  - generic [ref=f1e203]: 2026-11-12
+                - generic [ref=f1e204]:
+                  - emphasis [ref=f1e205]: 最近一批
+                  - generic [ref=f1e206]: 1.0k
+                - generic [ref=f1e207]:
+                  - emphasis [ref=f1e208]: 到期前日均需耗
+                  - generic [ref=f1e209]: ≥68
+                - generic [ref=f1e210]:
+                  - emphasis [ref=f1e211]: 7 天内合计
+                  - generic [ref=f1e212]: "0"
+                - generic [ref=f1e213]:
+                  - emphasis [ref=f1e214]: 随后
+                  - generic "2026-11-13 到期 400 积分（16 天后）" [ref=f1e215]:
+                    - text: 11-13 ·
+                    - generic [ref=f1e216]: "400"
+                  - generic "2026-11-14 到期 105 积分（17 天后）" [ref=f1e217]:
+                    - text: 11-14 ·
+                    - generic [ref=f1e218]: "105"
+                  - generic "2026-11-15 到期 108 积分（18 天后）" [ref=f1e219]:
+                    - text: 11-15 ·
+                    - generic [ref=f1e220]: "108"
+                  - generic "2026-11-16 到期 2.1k 积分（19 天后）" [ref=f1e221]:
+                    - text: 11-16 ·
+                    - generic [ref=f1e222]: 2.1k
+                  - generic [ref=f1e223]: 共 17 批
+            - generic "625号试验品鲁本：2026-11-14 17 天后到期" [ref=f1e224]:
+              - generic [ref=f1e226]: 625号试验品鲁本
+              - generic [ref=f1e227]:
+                - generic [ref=f1e228]:
+                  - generic [ref=f1e229]: 17 天
+                  - generic [ref=f1e230]: 2026-11-14
+                - generic [ref=f1e231]:
+                  - emphasis [ref=f1e232]: 最近一批
+                  - generic [ref=f1e233]: "521"
+                - generic [ref=f1e234]:
+                  - emphasis [ref=f1e235]: 到期前日均需耗
+                  - generic [ref=f1e236]: ≥31
+                - generic [ref=f1e237]:
+                  - emphasis [ref=f1e238]: 7 天内合计
+                  - generic [ref=f1e239]: "0"
+                - generic [ref=f1e240]:
+                  - emphasis [ref=f1e241]: 随后
+                  - generic "2026-11-15 到期 600 积分（18 天后）" [ref=f1e242]:
+                    - text: 11-15 ·
+                    - generic [ref=f1e243]: "600"
+                  - generic "2026-11-16 到期 2.2k 积分（19 天后）" [ref=f1e244]:
+                    - text: 11-16 ·
+                    - generic [ref=f1e245]: 2.2k
+                  - generic "2026-11-17 到期 409 积分（20 天后）" [ref=f1e246]:
+                    - text: 11-17 ·
+                    - generic [ref=f1e247]: "409"
+                  - generic "2026-11-18 到期 207 积分（21 天后）" [ref=f1e248]:
+                    - text: 11-18 ·
+                    - generic [ref=f1e249]: "207"
+                  - generic [ref=f1e250]: 共 16 批
+            - generic "Summer：2026-11-16 19 天后到期" [ref=f1e251]:
+              - generic [ref=f1e253]: Summer
+              - generic [ref=f1e254]:
+                - generic [ref=f1e255]:
+                  - generic [ref=f1e256]: 19 天
+                  - generic [ref=f1e257]: 2026-11-16
+                - generic [ref=f1e258]:
+                  - emphasis [ref=f1e259]: 最近一批
+                  - generic [ref=f1e260]: "855"
+                - generic [ref=f1e261]:
+                  - emphasis [ref=f1e262]: 到期前日均需耗
+                  - generic [ref=f1e263]: ≥45
+                - generic [ref=f1e264]:
+                  - emphasis [ref=f1e265]: 7 天内合计
+                  - generic [ref=f1e266]: "0"
+                - generic [ref=f1e267]:
+                  - emphasis [ref=f1e268]: 随后
+                  - generic "2026-11-17 到期 407 积分（20 天后）" [ref=f1e269]:
+                    - text: 11-17 ·
+                    - generic [ref=f1e270]: "407"
+                  - generic "2026-11-18 到期 205 积分（21 天后）" [ref=f1e271]:
+                    - text: 11-18 ·
+                    - generic [ref=f1e272]: "205"
+                  - generic "2026-11-19 到期 208 积分（22 天后）" [ref=f1e273]:
+                    - text: 11-19 ·
+                    - generic [ref=f1e274]: "208"
+                  - generic "2026-11-20 到期 206 积分（23 天后）" [ref=f1e275]:
+                    - text: 11-20 ·
+                    - generic [ref=f1e276]: "206"
+                  - generic [ref=f1e277]: 共 13 批
+            - generic "初来乍到：2026-11-16 19 天后到期" [ref=f1e278]:
+              - generic [ref=f1e280]: 初来乍到
+              - generic [ref=f1e281]:
+                - generic [ref=f1e282]:
+                  - generic [ref=f1e283]: 19 天
+                  - generic [ref=f1e284]: 2026-11-16
+                - generic [ref=f1e285]:
+                  - emphasis [ref=f1e286]: 最近一批
+                  - generic [ref=f1e287]: 2.2k
+                - generic [ref=f1e288]:
+                  - emphasis [ref=f1e289]: 到期前日均需耗
+                  - generic [ref=f1e290]: ≥115
+                - generic [ref=f1e291]:
+                  - emphasis [ref=f1e292]: 7 天内合计
+                  - generic [ref=f1e293]: "0"
+                - generic [ref=f1e294]:
+                  - emphasis [ref=f1e295]: 随后
+                  - generic "2026-11-17 到期 408 积分（20 天后）" [ref=f1e296]:
+                    - text: 11-17 ·
+                    - generic [ref=f1e297]: "408"
+                  - generic "2026-11-18 到期 205 积分（21 天后）" [ref=f1e298]:
+                    - text: 11-18 ·
+                    - generic [ref=f1e299]: "205"
+                  - generic "2026-11-19 到期 210 积分（22 天后）" [ref=f1e300]:
+                    - text: 11-19 ·
+                    - generic [ref=f1e301]: "210"
+                  - generic "2026-11-20 到期 200 积分（23 天后）" [ref=f1e302]:
+                    - text: 11-20 ·
+                    - generic [ref=f1e303]: "200"
+                  - generic [ref=f1e304]: 共 12 批
+            - button "展开其余 15 个账号" [ref=f1e305] [cursor=pointer]
+        - generic [ref=f1e306]:
+          - generic [ref=f1e307]:
+            - heading "账号池" [level=3] [ref=f1e308]
+            - button "备注" [ref=f1e309] [cursor=pointer]
+            - button "全部签到" [ref=f1e310] [cursor=pointer]
+            - button "旅行巡检" [ref=f1e311] [cursor=pointer]
+            - button "活跃上报" [ref=f1e312] [cursor=pointer]
+            - button "全部保活" [ref=f1e313] [cursor=pointer]
+          - table [ref=f1e315]:
+            - rowgroup [ref=f1e316]:
+              - row [ref=f1e317]:
+                - cell "呆呆 035fb409-9316-43…" [ref=f1e318]:
+                  - generic [ref=f1e319]: 呆呆
+                  - generic [ref=f1e320]: 035fb409-9316-43…
+                - cell "可用" [ref=f1e321]
+                - cell "积分 4383/5696" [ref=f1e323]:
+                  - text: 积分
+                  - generic [ref=f1e324]: 4383/5696
+                - cell "成功 328 / 0" [ref=f1e327]:
+                  - text: 成功 328
+                  - generic [ref=f1e328]: /
+                  - generic [ref=f1e329]: "0"
+                - cell "在途 0" [ref=f1e330]
+                - cell [ref=f1e331]:
+                  - text: 用量
+                  - generic "最近一次：329 次 / 54.1m / 延迟 7.5s / 166.7tok/s" [ref=f1e332]:
+                    - generic [ref=f1e333]:
+                      - generic [ref=f1e334]: "329"
+                      - emphasis [ref=f1e335]: 次
+                    - generic [ref=f1e336]:
+                      - generic [ref=f1e337]: 54.1m
+                      - emphasis [ref=f1e338]: tok
+                    - generic [ref=f1e339]: 7.5s
+                    - generic [ref=f1e341]: 166.7tok/s
+                - cell "最近 23 小时前" [ref=f1e343]
+                - cell [ref=f1e344]:
+                  - button "已签" [ref=f1e345] [cursor=pointer]
+                  - button "余额" [ref=f1e346] [cursor=pointer]
+                  - button "任务" [ref=f1e347] [cursor=pointer]
+                  - button "暂停" [ref=f1e348] [cursor=pointer]
+                  - button "禁用" [ref=f1e349] [cursor=pointer]
+                  - button "移除" [ref=f1e350] [cursor=pointer]
+              - row [ref=f1e351]:
+                - cell "625号试验品鲁本 14a2db07-8975-45…" [ref=f1e352]:
+                  - generic [ref=f1e353]: 625号试验品鲁本
+                  - generic [ref=f1e354]: 14a2db07-8975-45…
+                - cell "可用" [ref=f1e355]
+                - cell "积分 6041/7520" [ref=f1e357]:
+                  - text: 积分
+                  - generic [ref=f1e358]: 6041/7520
+                - cell "成功 22 / 0" [ref=f1e361]:
+                  - text: 成功 22
+                  - generic [ref=f1e362]: /
+                  - generic [ref=f1e363]: "0"
+                - cell "在途 0" [ref=f1e364]
+                - cell [ref=f1e365]:
+                  - text: 用量
+                  - generic "最近一次：22 次 / 2.7m / 延迟 4s / 165.8tok/s" [ref=f1e366]:
+                    - generic [ref=f1e367]:
+                      - generic [ref=f1e368]: "22"
+                      - emphasis [ref=f1e369]: 次
+                    - generic [ref=f1e370]:
+                      - generic [ref=f1e371]: 2.7m
+                      - emphasis [ref=f1e372]: tok
+                    - generic [ref=f1e373]: 4s
+                    - generic [ref=f1e375]: 165.8tok/s
+                - cell "最近 23 小时前" [ref=f1e377]
+                - cell [ref=f1e378]:
+                  - button "已签" [ref=f1e379] [cursor=pointer]
+                  - button "余额" [ref=f1e380] [cursor=pointer]
+                  - button "任务" [ref=f1e381] [cursor=pointer]
+                  - button "暂停" [ref=f1e382] [cursor=pointer]
+                  - button "禁用" [ref=f1e383] [cursor=pointer]
+                  - button "移除" [ref=f1e384] [cursor=pointer]
+              - row [ref=f1e385]:
+                - cell "133****3056 19ff0fbb-f153-4d…" [ref=f1e386]:
+                  - generic [ref=f1e387]: 133****3056
+                  - generic [ref=f1e388]: 19ff0fbb-f153-4d…
+                - cell "可用" [ref=f1e389]
+                - cell "积分 5243/6038" [ref=f1e391]:
+                  - text: 积分
+                  - generic [ref=f1e392]: 5243/6038
+                - cell "成功 257 / 0" [ref=f1e395]:
+                  - text: 成功 257
+                  - generic [ref=f1e396]: /
+                  - generic [ref=f1e397]: "0"
+                - cell "在途 0" [ref=f1e398]
+                - cell [ref=f1e399]:
+                  - text: 用量
+                  - generic "最近一次：259 次 / 29.9m / 延迟 6.5s / 161.5tok/s" [ref=f1e400]:
+                    - generic [ref=f1e401]:
+                      - generic [ref=f1e402]: "259"
+                      - emphasis [ref=f1e403]: 次
+                    - generic [ref=f1e404]:
+                      - generic [ref=f1e405]: 29.9m
+                      - emphasis [ref=f1e406]: tok
+                    - generic [ref=f1e407]: 6.5s
+                    - generic [ref=f1e409]: 161.5tok/s
+                - cell "最近 2 天前" [ref=f1e411]
+                - cell [ref=f1e412]:
+                  - button "已签" [ref=f1e413] [cursor=pointer]
+                  - button "余额" [ref=f1e414] [cursor=pointer]
+                  - button "任务" [ref=f1e415] [cursor=pointer]
+                  - button "暂停" [ref=f1e416] [cursor=pointer]
+                  - button "禁用" [ref=f1e417] [cursor=pointer]
+                  - button "移除" [ref=f1e418] [cursor=pointer]
+              - row [ref=f1e419]:
+                - cell "梦牵绕了谁的灵魂 1b4929ae-3234-4c…" [ref=f1e420]:
+                  - generic [ref=f1e421]: 梦牵绕了谁的灵魂
+                  - generic [ref=f1e422]: 1b4929ae-3234-4c…
+                - cell "可用" [ref=f1e423]
+                - cell "积分 4873/9064" [ref=f1e425]:
+                  - text: 积分
+                  - generic [ref=f1e426]: 4873/9064
+                - cell "成功 96 / 0" [ref=f1e429]:
+                  - text: 成功 96
+                  - generic [ref=f1e430]: /
+                  - generic [ref=f1e431]: "0"
+                - cell "在途 0" [ref=f1e432]
+                - cell [ref=f1e433]:
+                  - text: 用量
+                  - generic "最近一次：98 次 / 12.6m / 延迟 4.5s / 143.9tok/s" [ref=f1e434]:
+                    - generic [ref=f1e435]:
+                      - generic [ref=f1e436]: "98"
+                      - emphasis [ref=f1e437]: 次
+                    - generic [ref=f1e438]:
+                      - generic [ref=f1e439]: 12.6m
+                      - emphasis [ref=f1e440]: tok
+                    - generic [ref=f1e441]: 4.5s
+                    - generic [ref=f1e443]: 143.9tok/s
+                - cell "最近 1 天前" [ref=f1e445]
+                - cell [ref=f1e446]:
+                  - button "已签" [ref=f1e447] [cursor=pointer]
+                  - button "余额" [ref=f1e448] [cursor=pointer]
+                  - button "任务" [ref=f1e449] [cursor=pointer]
+                  - button "暂停" [ref=f1e450] [cursor=pointer]
+                  - button "禁用" [ref=f1e451] [cursor=pointer]
+                  - button "移除" [ref=f1e452] [cursor=pointer]
+              - row [ref=f1e453]:
+                - cell "A 1c08f3b0-0359-44…" [ref=f1e454]:
+                  - generic [ref=f1e455]: A
+                  - generic [ref=f1e456]: 1c08f3b0-0359-44…
+                - cell "可用" [ref=f1e457]
+                - cell "积分 7652/8425" [ref=f1e459]:
+                  - text: 积分
+                  - generic [ref=f1e460]: 7652/8425
+                - cell "成功 64 / 0" [ref=f1e463]:
+                  - text: 成功 64
+                  - generic [ref=f1e464]: /
+                  - generic [ref=f1e465]: "0"
+                - cell "在途 0" [ref=f1e466]
+                - cell [ref=f1e467]:
+                  - text: 用量
+                  - generic "最近一次：66 次 / 10.1m / 延迟 10.5s / 153.9tok/s" [ref=f1e468]:
+                    - generic [ref=f1e469]:
+                      - generic [ref=f1e470]: "66"
+                      - emphasis [ref=f1e471]: 次
+                    - generic [ref=f1e472]:
+                      - generic [ref=f1e473]: 10.1m
+                      - emphasis [ref=f1e474]: tok
+                    - generic [ref=f1e475]: 10.5s
+                    - generic [ref=f1e477]: 153.9tok/s
+                - cell "最近 2 天前" [ref=f1e479]
+                - cell [ref=f1e480]:
+                  - button "已签" [ref=f1e481] [cursor=pointer]
+                  - button "余额" [ref=f1e482] [cursor=pointer]
+                  - button "任务" [ref=f1e483] [cursor=pointer]
+                  - button "暂停" [ref=f1e484] [cursor=pointer]
+                  - button "禁用" [ref=f1e485] [cursor=pointer]
+                  - button "移除" [ref=f1e486] [cursor=pointer]
+              - row [ref=f1e487]:
+                - cell "150****6934 28ce6c13-0ba2-46…" [ref=f1e488]:
+                  - generic [ref=f1e489]: 150****6934
+                  - generic [ref=f1e490]: 28ce6c13-0ba2-46…
+                - cell "可用" [ref=f1e491]
+                - cell "积分 5632/7333" [ref=f1e493]:
+                  - text: 积分
+                  - generic [ref=f1e494]: 5632/7333
+                - cell "成功 19 / 0" [ref=f1e497]:
+                  - text: 成功 19
+                  - generic [ref=f1e498]: /
+                  - generic [ref=f1e499]: "0"
+                - cell "在途 0" [ref=f1e500]
+                - cell [ref=f1e501]:
+                  - text: 用量
+                  - generic "最近一次：20 次 / 4m / 延迟 2.1s / —" [ref=f1e502]:
+                    - generic [ref=f1e503]:
+                      - generic [ref=f1e504]: "20"
+                      - emphasis [ref=f1e505]: 次
+                    - generic [ref=f1e506]:
+                      - generic [ref=f1e507]: 4m
+                      - emphasis [ref=f1e508]: tok
+                    - generic [ref=f1e509]: 2.1s
+                    - generic [ref=f1e511]: —
+                - cell "最近 2 天前" [ref=f1e513]
+                - cell [ref=f1e514]:
+                  - button "已签" [ref=f1e515] [cursor=pointer]
+                  - button "余额" [ref=f1e516] [cursor=pointer]
+                  - button "任务" [ref=f1e517] [cursor=pointer]
+                  - button "暂停" [ref=f1e518] [cursor=pointer]
+                  - button "禁用" [ref=f1e519] [cursor=pointer]
+                  - button "移除" [ref=f1e520] [cursor=pointer]
+              - row [ref=f1e521]:
+                - cell "姗姗 478effe5-d747-45…" [ref=f1e522]:
+                  - generic [ref=f1e523]: 姗姗
+                  - generic [ref=f1e524]: 478effe5-d747-45…
+                - cell "可用" [ref=f1e525]
+                - cell "积分 7375/8635" [ref=f1e527]:
+                  - text: 积分
+                  - generic [ref=f1e528]: 7375/8635
+                - cell "成功 971 / 0" [ref=f1e531]:
+                  - text: 成功 971
+                  - generic [ref=f1e532]: /
+                  - generic [ref=f1e533]: "0"
+                - cell "在途 0" [ref=f1e534]
+                - cell [ref=f1e535]:
+                  - text: 用量
+                  - generic "最近一次：975 次 / 133.4m / 延迟 2.8s / 314.7tok/s" [ref=f1e536]:
+                    - generic [ref=f1e537]:
+                      - generic [ref=f1e538]: "975"
+                      - emphasis [ref=f1e539]: 次
+                    - generic [ref=f1e540]:
+                      - generic [ref=f1e541]: 133.4m
+                      - emphasis [ref=f1e542]: tok
+                    - generic [ref=f1e543]: 2.8s
+                    - generic [ref=f1e545]: 314.7tok/s
+                - cell "最近 9 小时前" [ref=f1e547]
+                - cell [ref=f1e548]:
+                  - button "已签" [ref=f1e549] [cursor=pointer]
+                  - button "余额" [ref=f1e550] [cursor=pointer]
+                  - button "任务" [ref=f1e551] [cursor=pointer]
+                  - button "暂停" [ref=f1e552] [cursor=pointer]
+                  - button "禁用" [ref=f1e553] [cursor=pointer]
+                  - button "移除" [ref=f1e554] [cursor=pointer]
+              - row [ref=f1e555]:
+                - cell "182****8462 4e374c2c-da0e-42…" [ref=f1e556]:
+                  - generic [ref=f1e557]: 182****8462
+                  - generic [ref=f1e558]: 4e374c2c-da0e-42…
+                - cell "可用" [ref=f1e559]
+                - cell "积分 6613/7707" [ref=f1e561]:
+                  - text: 积分
+                  - generic [ref=f1e562]: 6613/7707
+                - cell "成功 172 / 0" [ref=f1e565]:
+                  - text: 成功 172
+                  - generic [ref=f1e566]: /
+                  - generic [ref=f1e567]: "0"
+                - cell "在途 0" [ref=f1e568]
+                - cell [ref=f1e569]:
+                  - text: 用量
+                  - generic "最近一次：173 次 / 26.9m / 延迟 9.4s / 159.6tok/s" [ref=f1e570]:
+                    - generic [ref=f1e571]:
+                      - generic [ref=f1e572]: "173"
+                      - emphasis [ref=f1e573]: 次
+                    - generic [ref=f1e574]:
+                      - generic [ref=f1e575]: 26.9m
+                      - emphasis [ref=f1e576]: tok
+                    - generic [ref=f1e577]: 9.4s
+                    - generic [ref=f1e579]: 159.6tok/s
+                - cell "最近 1 天前" [ref=f1e581]
+                - cell [ref=f1e582]:
+                  - button "已签" [ref=f1e583] [cursor=pointer]
+                  - button "余额" [ref=f1e584] [cursor=pointer]
+                  - button "任务" [ref=f1e585] [cursor=pointer]
+                  - button "暂停" [ref=f1e586] [cursor=pointer]
+                  - button "禁用" [ref=f1e587] [cursor=pointer]
+                  - button "移除" [ref=f1e588] [cursor=pointer]
+              - row [ref=f1e589]:
+                - cell "恰逢予陽 50454645-055a-44…" [ref=f1e590]:
+                  - generic [ref=f1e591]: 恰逢予陽
+                  - generic [ref=f1e592]: 50454645-055a-44…
+                - cell "可用" [ref=f1e593]
+                - cell "积分 7245/8789" [ref=f1e595]:
+                  - text: 积分
+                  - generic [ref=f1e596]: 7245/8789
+                - cell "成功 1660 / 0" [ref=f1e599]:
+                  - text: 成功 1660
+                  - generic [ref=f1e600]: /
+                  - generic [ref=f1e601]: "0"
+                - cell "在途 0" [ref=f1e602]
+                - cell [ref=f1e603]:
+                  - text: 用量
+                  - generic "最近一次：1665 次 / 244.9m / 延迟 7.8s / 162.5tok/s" [ref=f1e604]:
+                    - generic [ref=f1e605]:
+                      - generic [ref=f1e606]: "1665"
+                      - emphasis [ref=f1e607]: 次
+                    - generic [ref=f1e608]:
+                      - generic [ref=f1e609]: 244.9m
+                      - emphasis [ref=f1e610]: tok
+                    - generic [ref=f1e611]: 7.8s
+                    - generic [ref=f1e613]: 162.5tok/s
+                - cell "最近 23 小时前" [ref=f1e615]
+                - cell [ref=f1e616]:
+                  - button "已签" [ref=f1e617] [cursor=pointer]
+                  - button "余额" [ref=f1e618] [cursor=pointer]
+                  - button "任务" [ref=f1e619] [cursor=pointer]
+                  - button "暂停" [ref=f1e620] [cursor=pointer]
+                  - button "禁用" [ref=f1e621] [cursor=pointer]
+                  - button "移除" [ref=f1e622] [cursor=pointer]
+              - row [ref=f1e623]:
+                - cell "178****9169 5f37c552-450c-4d…" [ref=f1e624]:
+                  - generic [ref=f1e625]: 178****9169
+                  - generic [ref=f1e626]: 5f37c552-450c-4d…
+                - cell "可用" [ref=f1e627]
+                - cell "积分 5565/5936" [ref=f1e629]:
+                  - text: 积分
+                  - generic [ref=f1e630]: 5565/5936
+                - cell "成功 268 / 0" [ref=f1e633]:
+                  - text: 成功 268
+                  - generic [ref=f1e634]: /
+                  - generic [ref=f1e635]: "0"
+                - cell "在途 0" [ref=f1e636]
+                - cell [ref=f1e637]:
+                  - text: 用量
+                  - generic "最近一次：269 次 / 36.1m / 延迟 14s / 188.2tok/s" [ref=f1e638]:
+                    - generic [ref=f1e639]:
+                      - generic [ref=f1e640]: "269"
+                      - emphasis [ref=f1e641]: 次
+                    - generic [ref=f1e642]:
+                      - generic [ref=f1e643]: 36.1m
+                      - emphasis [ref=f1e644]: tok
+                    - generic [ref=f1e645]: 14s
+                    - generic [ref=f1e647]: 188.2tok/s
+                - cell "最近 1 天前" [ref=f1e649]
+                - cell [ref=f1e650]:
+                  - button "已签" [ref=f1e651] [cursor=pointer]
+                  - button "余额" [ref=f1e652] [cursor=pointer]
+                  - button "任务" [ref=f1e653] [cursor=pointer]
+                  - button "暂停" [ref=f1e654] [cursor=pointer]
+                  - button "禁用" [ref=f1e655] [cursor=pointer]
+                  - button "移除" [ref=f1e656] [cursor=pointer]
+              - row [ref=f1e657]:
+                - cell "江湖 6df90f6b-635d-4d…" [ref=f1e658]:
+                  - generic [ref=f1e659]: 江湖
+                  - generic [ref=f1e660]: 6df90f6b-635d-4d…
+                - cell "已禁用 account banned by upstream (11140 request illegal), re-login required" [ref=f1e661]:
+                  - generic [ref=f1e662]: 已禁用
+                  - generic [ref=f1e663]: account banned by upstream (11140 request illegal), re-login required
+                - cell "积分 6274/6933" [ref=f1e664]:
+                  - text: 积分
+                  - generic [ref=f1e665]: 6274/6933
+                - cell "成功 0 / 0" [ref=f1e668]:
+                  - text: 成功 0
+                  - generic [ref=f1e669]: /
+                  - generic [ref=f1e670]: "0"
+                - cell "在途 0" [ref=f1e671]
+                - cell [ref=f1e672]:
+                  - text: 用量
+                  - generic "最近一次：3 次 / — / 延迟 557ms / —" [ref=f1e673]:
+                    - generic [ref=f1e674]:
+                      - generic [ref=f1e675]: "3"
+                      - emphasis [ref=f1e676]: 次
+                    - generic [ref=f1e677]: —
+                    - generic [ref=f1e679]: 557ms
+                    - generic [ref=f1e681]: —
+                - cell "最近 —" [ref=f1e683]
+                - cell [ref=f1e684]:
+                  - button "签到" [ref=f1e685] [cursor=pointer]
+                  - button "余额" [ref=f1e686] [cursor=pointer]
+                  - button "任务" [ref=f1e687] [cursor=pointer]
+                  - button "解冻" [ref=f1e688] [cursor=pointer]
+                  - button "移除" [ref=f1e689] [cursor=pointer]
+              - row [ref=f1e690]:
+                - cell "冷暖🍓 844cbd37-af74-49…" [ref=f1e691]:
+                  - generic [ref=f1e692]: 冷暖🍓
+                  - generic [ref=f1e693]: 844cbd37-af74-49…
+                - cell "可用" [ref=f1e694]
+                - cell "积分 7668/8844" [ref=f1e696]:
+                  - text: 积分
+                  - generic [ref=f1e697]: 7668/8844
+                - cell "成功 0 / 0" [ref=f1e700]:
+                  - text: 成功 0
+                  - generic [ref=f1e701]: /
+                  - generic [ref=f1e702]: "0"
+                - cell "在途 0" [ref=f1e703]
+                - cell [ref=f1e704]:
+                  - text: 用量
+                  - generic "最近一次：1 次 / — / 延迟 870ms / —" [ref=f1e705]:
+                    - generic [ref=f1e706]:
+                      - generic [ref=f1e707]: "1"
+                      - emphasis [ref=f1e708]: 次
+                    - generic [ref=f1e709]: —
+                    - generic [ref=f1e711]: 870ms
+                    - generic [ref=f1e713]: —
+                - cell "最近 —" [ref=f1e715]
+                - cell [ref=f1e716]:
+                  - button "已签" [ref=f1e717] [cursor=pointer]
+                  - button "余额" [ref=f1e718] [cursor=pointer]
+                  - button "任务" [ref=f1e719] [cursor=pointer]
+                  - button "暂停" [ref=f1e720] [cursor=pointer]
+                  - button "禁用" [ref=f1e721] [cursor=pointer]
+                  - button "移除" [ref=f1e722] [cursor=pointer]
+              - row [ref=f1e723]:
+                - cell "180****0163 b5a5c5c8-ada8-40…" [ref=f1e724]:
+                  - generic [ref=f1e725]: 180****0163
+                  - generic [ref=f1e726]: b5a5c5c8-ada8-40…
+                - cell "可用" [ref=f1e727]
+                - cell "积分 6204/6950" [ref=f1e729]:
+                  - text: 积分
+                  - generic [ref=f1e730]: 6204/6950
+                - cell "成功 1030 / 0" [ref=f1e733]:
+                  - text: 成功 1030
+                  - generic [ref=f1e734]: /
+                  - generic [ref=f1e735]: "0"
+                - cell "在途 0" [ref=f1e736]
+                - cell [ref=f1e737]:
+                  - text: 用量
+                  - generic "最近一次：1032 次 / 155.3m / 延迟 12.2s / 164.7tok/s" [ref=f1e738]:
+                    - generic [ref=f1e739]:
+                      - generic [ref=f1e740]: "1032"
+                      - emphasis [ref=f1e741]: 次
+                    - generic [ref=f1e742]:
+                      - generic [ref=f1e743]: 155.3m
+                      - emphasis [ref=f1e744]: tok
+                    - generic [ref=f1e745]: 12.2s
+                    - generic [ref=f1e747]: 164.7tok/s
+                - cell "最近 1 天前" [ref=f1e749]
+                - cell [ref=f1e750]:
+                  - button "已签" [ref=f1e751] [cursor=pointer]
+                  - button "余额" [ref=f1e752] [cursor=pointer]
+                  - button "任务" [ref=f1e753] [cursor=pointer]
+                  - button "暂停" [ref=f1e754] [cursor=pointer]
+                  - button "禁用" [ref=f1e755] [cursor=pointer]
+                  - button "移除" [ref=f1e756] [cursor=pointer]
+              - row [ref=f1e757]:
+                - cell "Summer b6d505f0-4862-4f…" [ref=f1e758]:
+                  - generic [ref=f1e759]: Summer
+                  - generic [ref=f1e760]: b6d505f0-4862-4f…
+                - cell "可用" [ref=f1e761]
+                - cell "积分 3404/7366" [ref=f1e763]:
+                  - text: 积分
+                  - generic [ref=f1e764]: 3404/7366
+                - cell "成功 1 / 0" [ref=f1e767]:
+                  - text: 成功 1
+                  - generic [ref=f1e768]: /
+                  - generic [ref=f1e769]: "0"
+                - cell "在途 0" [ref=f1e770]
+                - cell [ref=f1e771]:
+                  - text: 用量
+                  - generic "最近一次：1 次 / 24.5k / 延迟 2.8s / 158.5tok/s" [ref=f1e772]:
+                    - generic [ref=f1e773]:
+                      - generic [ref=f1e774]: "1"
+                      - emphasis [ref=f1e775]: 次
+                    - generic [ref=f1e776]:
+                      - generic [ref=f1e777]: 24.5k
+                      - emphasis [ref=f1e778]: tok
+                    - generic [ref=f1e779]: 2.8s
+                    - generic [ref=f1e781]: 158.5tok/s
+                - cell "最近 23 小时前" [ref=f1e783]
+                - cell [ref=f1e784]:
+                  - button "已签" [ref=f1e785] [cursor=pointer]
+                  - button "余额" [ref=f1e786] [cursor=pointer]
+                  - button "任务" [ref=f1e787] [cursor=pointer]
+                  - button "暂停" [ref=f1e788] [cursor=pointer]
+                  - button "禁用" [ref=f1e789] [cursor=pointer]
+                  - button "移除" [ref=f1e790] [cursor=pointer]
+              - row [ref=f1e791]:
+                - cell "A🐵 樵木🐵 ba7601b7-6065-43…" [ref=f1e792]:
+                  - generic [ref=f1e793]: A🐵 樵木🐵
+                  - generic [ref=f1e794]: ba7601b7-6065-43…
+                - cell "可用" [ref=f1e795]
+                - cell "积分 5767/8561" [ref=f1e797]:
+                  - text: 积分
+                  - generic [ref=f1e798]: 5767/8561
+                - cell "成功 33 / 0" [ref=f1e801]:
+                  - text: 成功 33
+                  - generic [ref=f1e802]: /
+                  - generic [ref=f1e803]: "0"
+                - cell "在途 0" [ref=f1e804]
+                - cell [ref=f1e805]:
+                  - text: 用量
+                  - generic "最近一次：34 次 / 6.1m / 延迟 1.4s / 0.7tok/s" [ref=f1e806]:
+                    - generic [ref=f1e807]:
+                      - generic [ref=f1e808]: "34"
+                      - emphasis [ref=f1e809]: 次
+                    - generic [ref=f1e810]:
+                      - generic [ref=f1e811]: 6.1m
+                      - emphasis [ref=f1e812]: tok
+                    - generic [ref=f1e813]: 1.4s
+                    - generic [ref=f1e815]: 0.7tok/s
+                - cell "最近 1 天前" [ref=f1e817]
+                - cell [ref=f1e818]:
+                  - button "已签" [ref=f1e819] [cursor=pointer]
+                  - button "余额" [ref=f1e820] [cursor=pointer]
+                  - button "任务" [ref=f1e821] [cursor=pointer]
+                  - button "暂停" [ref=f1e822] [cursor=pointer]
+                  - button "禁用" [ref=f1e823] [cursor=pointer]
+                  - button "移除" [ref=f1e824] [cursor=pointer]
+              - row [ref=f1e825]:
+                - cell "178****3839 ba84b73e-2de1-48…" [ref=f1e826]:
+                  - generic [ref=f1e827]: 178****3839
+                  - generic [ref=f1e828]: ba84b73e-2de1-48…
+                - cell "可用" [ref=f1e829]
+                - cell "积分 5308/5842" [ref=f1e831]:
+                  - text: 积分
+                  - generic [ref=f1e832]: 5308/5842
+                - cell "成功 264 / 0" [ref=f1e835]:
+                  - text: 成功 264
+                  - generic [ref=f1e836]: /
+                  - generic [ref=f1e837]: "0"
+                - cell "在途 0" [ref=f1e838]
+                - cell [ref=f1e839]:
+                  - text: 用量
+                  - generic "最近一次：265 次 / 41.3m / 延迟 18.5s / 155.7tok/s" [ref=f1e840]:
+                    - generic [ref=f1e841]:
+                      - generic [ref=f1e842]: "265"
+                      - emphasis [ref=f1e843]: 次
+                    - generic [ref=f1e844]:
+                      - generic [ref=f1e845]: 41.3m
+                      - emphasis [ref=f1e846]: tok
+                    - generic [ref=f1e847]: 18.5s
+                    - generic [ref=f1e849]: 155.7tok/s
+                - cell "最近 1 天前" [ref=f1e851]
+                - cell [ref=f1e852]:
+                  - button "已签" [ref=f1e853] [cursor=pointer]
+                  - button "余额" [ref=f1e854] [cursor=pointer]
+                  - button "任务" [ref=f1e855] [cursor=pointer]
+                  - button "暂停" [ref=f1e856] [cursor=pointer]
+                  - button "禁用" [ref=f1e857] [cursor=pointer]
+                  - button "移除" [ref=f1e858] [cursor=pointer]
+              - row [ref=f1e859]:
+                - cell "乙与鱼 bf087bf8-ae95-4f…" [ref=f1e860]:
+                  - generic [ref=f1e861]: 乙与鱼
+                  - generic [ref=f1e862]: bf087bf8-ae95-4f…
+                - cell "可用" [ref=f1e863]
+                - cell "积分 7550/8466" [ref=f1e865]:
+                  - text: 积分
+                  - generic [ref=f1e866]: 7550/8466
+                - cell "成功 339 / 0" [ref=f1e869]:
+                  - text: 成功 339
+                  - generic [ref=f1e870]: /
+                  - generic [ref=f1e871]: "0"
+                - cell "在途 0" [ref=f1e872]
+                - cell [ref=f1e873]:
+                  - text: 用量
+                  - generic "最近一次：342 次 / 45m / 延迟 4.2s / 269.5tok/s" [ref=f1e874]:
+                    - generic [ref=f1e875]:
+                      - generic [ref=f1e876]: "342"
+                      - emphasis [ref=f1e877]: 次
+                    - generic [ref=f1e878]:
+                      - generic [ref=f1e879]: 45m
+                      - emphasis [ref=f1e880]: tok
+                    - generic [ref=f1e881]: 4.2s
+                    - generic [ref=f1e883]: 269.5tok/s
+                - cell "最近 1 天前" [ref=f1e885]
+                - cell [ref=f1e886]:
+                  - button "已签" [ref=f1e887] [cursor=pointer]
+                  - button "余额" [ref=f1e888] [cursor=pointer]
+                  - button "任务" [ref=f1e889] [cursor=pointer]
+                  - button "暂停" [ref=f1e890] [cursor=pointer]
+                  - button "禁用" [ref=f1e891] [cursor=pointer]
+                  - button "移除" [ref=f1e892] [cursor=pointer]
+              - row [ref=f1e893]:
+                - cell "159****9335 d5bac43c-de68-4b…" [ref=f1e894]:
+                  - generic [ref=f1e895]: 159****9335
+                  - generic [ref=f1e896]: d5bac43c-de68-4b…
+                - cell "可用" [ref=f1e897]
+                - cell "积分 5978/6864" [ref=f1e899]:
+                  - text: 积分
+                  - generic [ref=f1e900]: 5978/6864
+                - cell "成功 1298 / 0" [ref=f1e903]:
+                  - text: 成功 1298
+                  - generic [ref=f1e904]: /
+                  - generic [ref=f1e905]: "0"
+                - cell "在途 0" [ref=f1e906]
+                - cell [ref=f1e907]:
+                  - text: 用量
+                  - generic "最近一次：1303 次 / 173.6m / 延迟 3.5s / 292.9tok/s" [ref=f1e908]:
+                    - generic [ref=f1e909]:
+                      - generic [ref=f1e910]: "1303"
+                      - emphasis [ref=f1e911]: 次
+                    - generic [ref=f1e912]:
+                      - generic [ref=f1e913]: 173.6m
+                      - emphasis [ref=f1e914]: tok
+                    - generic [ref=f1e915]: 3.5s
+                    - generic [ref=f1e917]: 292.9tok/s
+                - cell "最近 1 天前" [ref=f1e919]
+                - cell [ref=f1e920]:
+                  - button "已签" [ref=f1e921] [cursor=pointer]
+                  - button "余额" [ref=f1e922] [cursor=pointer]
+                  - button "任务" [ref=f1e923] [cursor=pointer]
+                  - button "暂停" [ref=f1e924] [cursor=pointer]
+                  - button "禁用" [ref=f1e925] [cursor=pointer]
+                  - button "移除" [ref=f1e926] [cursor=pointer]
+              - row [ref=f1e927]:
+                - cell "逐浪 d999a766-1e8d-41…" [ref=f1e928]:
+                  - generic [ref=f1e929]: 逐浪
+                  - generic [ref=f1e930]: d999a766-1e8d-41…
+                - cell "可用" [ref=f1e931]
+                - cell "积分 7734/8257" [ref=f1e933]:
+                  - text: 积分
+                  - generic [ref=f1e934]: 7734/8257
+                - cell "成功 45 / 0" [ref=f1e937]:
+                  - text: 成功 45
+                  - generic [ref=f1e938]: /
+                  - generic [ref=f1e939]: "0"
+                - cell "在途 0" [ref=f1e940]
+                - cell [ref=f1e941]:
+                  - text: 用量
+                  - generic "最近一次：46 次 / 8.7m / 延迟 4.3s / 140.6tok/s" [ref=f1e942]:
+                    - generic [ref=f1e943]:
+                      - generic [ref=f1e944]: "46"
+                      - emphasis [ref=f1e945]: 次
+                    - generic [ref=f1e946]:
+                      - generic [ref=f1e947]: 8.7m
+                      - emphasis [ref=f1e948]: tok
+                    - generic [ref=f1e949]: 4.3s
+                    - generic [ref=f1e951]: 140.6tok/s
+                - cell "最近 1 天前" [ref=f1e953]
+                - cell [ref=f1e954]:
+                  - button "已签" [ref=f1e955] [cursor=pointer]
+                  - button "余额" [ref=f1e956] [cursor=pointer]
+                  - button "任务" [ref=f1e957] [cursor=pointer]
+                  - button "暂停" [ref=f1e958] [cursor=pointer]
+                  - button "禁用" [ref=f1e959] [cursor=pointer]
+                  - button "移除" [ref=f1e960] [cursor=pointer]
+              - row [ref=f1e961]:
+                - cell "初来乍到 e837c661-d7be-48…" [ref=f1e962]:
+                  - generic [ref=f1e963]: 初来乍到
+                  - generic [ref=f1e964]: e837c661-d7be-48…
+                - cell "可用" [ref=f1e965]
+                - cell "积分 7436/8570" [ref=f1e967]:
+                  - text: 积分
+                  - generic [ref=f1e968]: 7436/8570
+                - cell "成功 30 / 0" [ref=f1e971]:
+                  - text: 成功 30
+                  - generic [ref=f1e972]: /
+                  - generic [ref=f1e973]: "0"
+                - cell "在途 0" [ref=f1e974]
+                - cell [ref=f1e975]:
+                  - text: 用量
+                  - generic "最近一次：31 次 / 6.4m / 延迟 1s / —" [ref=f1e976]:
+                    - generic [ref=f1e977]:
+                      - generic [ref=f1e978]: "31"
+                      - emphasis [ref=f1e979]: 次
+                    - generic [ref=f1e980]:
+                      - generic [ref=f1e981]: 6.4m
+                      - emphasis [ref=f1e982]: tok
+                    - generic [ref=f1e983]: 1s
+                    - generic [ref=f1e985]: —
+                - cell "最近 2 天前" [ref=f1e987]
+                - cell [ref=f1e988]:
+                  - button "已签" [ref=f1e989] [cursor=pointer]
+                  - button "余额" [ref=f1e990] [cursor=pointer]
+                  - button "任务" [ref=f1e991] [cursor=pointer]
+                  - button "暂停" [ref=f1e992] [cursor=pointer]
+                  - button "禁用" [ref=f1e993] [cursor=pointer]
+                  - button "移除" [ref=f1e994] [cursor=pointer]
+              - row [ref=f1e995]:
+                - cell "逐梦zhi光 fc3a3b80-c778-41…" [ref=f1e996]:
+                  - generic [ref=f1e997]: 逐梦zhi光
+                  - generic [ref=f1e998]: fc3a3b80-c778-41…
+                - cell "可用" [ref=f1e999]
+                - cell "积分 7145/8901" [ref=f1e1001]:
+                  - text: 积分
+                  - generic [ref=f1e1002]: 7145/8901
+                - cell "成功 126 / 0" [ref=f1e1005]:
+                  - text: 成功 126
+                  - generic [ref=f1e1006]: /
+                  - generic [ref=f1e1007]: "0"
+                - cell "在途 0" [ref=f1e1008]
+                - cell [ref=f1e1009]:
+                  - text: 用量
+                  - generic "最近一次：126 次 / 12.3m / 延迟 4.6s / 176.4tok/s" [ref=f1e1010]:
+                    - generic [ref=f1e1011]:
+                      - generic [ref=f1e1012]: "126"
+                      - emphasis [ref=f1e1013]: 次
+                    - generic [ref=f1e1014]:
+                      - generic [ref=f1e1015]: 12.3m
+                      - emphasis [ref=f1e1016]: tok
+                    - generic [ref=f1e1017]: 4.6s
+                    - generic [ref=f1e1019]: 176.4tok/s
+                - cell "最近 1 天前" [ref=f1e1021]
+                - cell [ref=f1e1022]:
+                  - button "已签" [ref=f1e1023] [cursor=pointer]
+                  - button "余额" [ref=f1e1024] [cursor=pointer]
+                  - button "任务" [ref=f1e1025] [cursor=pointer]
+                  - button "暂停" [ref=f1e1026] [cursor=pointer]
+                  - button "禁用" [ref=f1e1027] [cursor=pointer]
+                  - button "移除" [ref=f1e1028] [cursor=pointer]
+        - generic [ref=f1e1029]:
+          - heading "模型锁池 哪些模型不能用、还要锁多久" [level=3] [ref=f1e1031]
+          - table [ref=f1e1033]:
+            - rowgroup [ref=f1e1034]:
+              - row [ref=f1e1035]:
+                - cell "当前没有模型级限流 —— 所有模型均可选" [ref=f1e1036]
+      - text: 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 倍率 默认档 档位 上下文 输出 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 总额 / 已用 可用包 7 天内到期 最近到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 包名 / 来源 面额 剩余 已用 发放 到期 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 账号 变动 变动后余额 说明 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 时间 结果 模型 账号 来源 IP User-Agent 耗时 Token 积分 请求 ID 模型 请求 失败 输入 输出 合计 缓存命中 估算价值 模型 请求 失败 输入 输出 合计 缓存命中 估算价值 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率 账号 请求 扣除积分 有效样本 Token 积分 / 1M Token 缓存命中率
+  - text: … … …

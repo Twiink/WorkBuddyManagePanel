@@ -1,0 +1,5 @@
+﻿time,request_id,path,account,model,status,ok,outcome,duration_ms,ttfb_ms,attempts,prompt_tokens,completion_tokens,total_tokens,credit,credit_known,cache_hit_tokens,cache_miss_tokens,client_ip,user_agent
+2026-10-29 11:53:49,req-e182481b8fca733a,/v1/chat/completions,示例号B(demo-uid),kimi-k3,503,false,http_error,1561,0,2,0,0,0,0,false,0,0,127.0.0.1,curl/8.18.0
+2026-10-29 11:53:49,req-b9391f6e914448b2,/v1/chat/completions,-,glm-5.2,503,false,http_error,1,0,0,0,0,0,0,false,0,0,127.0.0.1,probe-ua/3
+2026-10-29 11:53:49,req-1cd0055776fb329e,/v1/chat/completions,-,glm-5.2,503,false,http_error,1,0,0,0,0,0,0,false,0,0,127.0.0.1,probe-ua/2
+2026-10-29 11:53:49,req-219d16835bc59a43,/v1/chat/completions,-,glm-5.2,503,false,http_error,1,0,0,0,0,0,0,false,0,0,127.0.0.1,probe-ua/1

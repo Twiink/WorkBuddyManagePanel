@@ -1,0 +1,121 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - navigation [ref=f1e3]:
+      - generic "WorkBuddy Manage Panel" [ref=f1e4]:
+        - generic [ref=f1e5]: WorkBuddy
+        - generic [ref=f1e6]: Manage Panel
+      - list [ref=f1e7]:
+        - listitem [ref=f1e8]:
+          - link "账号池" [ref=f1e9] [cursor=pointer]:
+            - /url: "#accounts"
+        - listitem [ref=f1e13]:
+          - link "用量" [ref=f1e14] [cursor=pointer]:
+            - /url: "#usage"
+        - listitem [ref=f1e17]:
+          - link "健康" [ref=f1e18] [cursor=pointer]:
+            - /url: "#health"
+        - listitem [ref=f1e21]:
+          - link "积分构成" [ref=f1e22] [cursor=pointer]:
+            - /url: "#packages"
+        - listitem [ref=f1e26]:
+          - link "任务中心" [ref=f1e27] [cursor=pointer]:
+            - /url: "#taskscenter"
+        - listitem [ref=f1e31]:
+          - link "模型与档位" [ref=f1e32] [cursor=pointer]:
+            - /url: "#models"
+        - listitem [ref=f1e36]:
+          - link "配置" [ref=f1e37] [cursor=pointer]:
+            - /url: "#config"
+        - listitem [ref=f1e41]:
+          - link "数据检索" [ref=f1e42] [cursor=pointer]:
+            - /url: "#store"
+        - listitem [ref=f1e46]:
+          - link "运行日志" [ref=f1e47] [cursor=pointer]:
+            - /url: "#logs"
+      - generic [ref=f1e50]:
+        - generic [ref=f1e51]: 服务正常
+        - generic [ref=f1e54]:
+          - generic "版本 v1.16.0-panel" [ref=f1e55]: v1.16.0
+          - generic [ref=f1e56]: 本地内存
+    - generic [ref=f1e57]:
+      - generic [ref=f1e58]:
+        - heading "数据检索" [level=2] [ref=f1e59]
+        - generic [ref=f1e60]: /
+        - generic [ref=f1e61]: 运行 0 时 1 分
+        - button "切换主题" [ref=f1e62] [cursor=pointer]
+        - button "刷新" [ref=f1e66] [cursor=pointer]
+        - button "添加账号" [ref=f1e67] [cursor=pointer]
+      - text: ▸
+      - generic [ref=f1e68]:
+        - generic [ref=f1e69]:
+          - generic [ref=f1e70]:
+            - generic [ref=f1e71]: 已开启
+            - generic [ref=f1e72]: SQLite 存储
+          - generic [ref=f1e73]:
+            - generic [ref=f1e74]: "0"
+            - generic [ref=f1e75]: 请求记录
+          - generic [ref=f1e76]:
+            - generic [ref=f1e77]: "1"
+            - generic [ref=f1e78]: 运行日志
+          - generic [ref=f1e79]:
+            - generic [ref=f1e80]: 32.0 KB
+            - generic [ref=f1e81]: 文件大小 / 上限 500 MiB
+          - generic [ref=f1e82]:
+            - generic "10/29 11:53:20" [ref=f1e83]: 0 秒前
+            - generic [ref=f1e84]: 最早记录
+        - generic [ref=f1e85]:
+          - generic [ref=f1e86]:
+            - heading "检索" [level=3] [ref=f1e87]
+            - tablist [ref=f1e88]:
+              - tab "请求记录" [ref=f1e89] [cursor=pointer]
+              - tab "运行日志" [ref=f1e90] [cursor=pointer]
+            - button "导出 CSV" [ref=f1e91] [cursor=pointer]
+            - button "导出 JSONL" [ref=f1e92] [cursor=pointer]
+          - generic [ref=f1e93]:
+            - searchbox "搜索" [ref=f1e94]
+            - combobox "按结果筛选" [ref=f1e95] [cursor=pointer]:
+              - option "全部结果" [selected]
+              - option "成功"
+              - option "HTTP 错误"
+              - option "流错误"
+              - option "中断"
+            - combobox "时间范围" [ref=f1e97] [cursor=pointer]:
+              - option "今天"
+              - option "近 24 小时"
+              - option "近 3 天"
+              - option "近 7 天"
+              - option "近 30 天"
+              - option "全部历史" [selected]
+              - option "自定义…"
+            - generic [ref=f1e98]: 命中 0 条
+          - table [ref=f1e100]:
+            - rowgroup [ref=f1e101]:
+              - row [ref=f1e102]:
+                - columnheader "时间" [ref=f1e103]
+                - columnheader "结果" [ref=f1e104]
+                - columnheader "模型" [ref=f1e105]
+                - columnheader "账号" [ref=f1e106]
+                - columnheader "来源 IP" [ref=f1e107]
+                - columnheader "客户端" [ref=f1e108]
+                - columnheader "耗时" [ref=f1e109]
+                - columnheader "Token" [ref=f1e110]
+                - columnheader "积分" [ref=f1e111]
+                - columnheader "请求 ID" [ref=f1e112]
+            - rowgroup [ref=f1e113]:
+              - row [ref=f1e114]:
+                - cell "没有符合条件的记录" [ref=f1e115]
+          - generic [ref=f1e116]:
+            - combobox "每页条数" [ref=f1e117]:
+              - option "50 条/页"
+              - option "100 条/页" [selected]
+              - option "200 条/页"
+              - option "500 条/页"
+            - generic [ref=f1e118]: 第 1 / 1 页
+            - button "上一页" [disabled] [ref=f1e119]
+            - button "下一页" [disabled] [ref=f1e120]
+        - group [ref=f1e122]:
+          - generic "▸ 存储设置 保留 30 天 · 不限行数 · 上限 500 MiB" [ref=f1e123] [cursor=pointer]:
+            - text: ▸ 存储设置
+            - generic [ref=f1e124]: 保留 30 天 · 不限行数 · 上限 500 MiB
+  - text: … … …
+  - generic [ref=f1e125]: SQLite 存储设置已保存
