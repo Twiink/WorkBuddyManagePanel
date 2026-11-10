@@ -282,6 +282,8 @@ label.fld > .hint { display: block; font-size: 11.5px; color: var(--ink-3); marg
 .box > header h3 { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
 .box > header > .note { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
 .box > header > button, .box > header > select, .box > header > label, .box > header > .vtabs, .box > header > .chips, .box > header > .trange { flex: none; }
+.refresh-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 18px; border-bottom: 1px solid var(--line); }
+.refresh-status .note { flex: 1; min-width: 0; color: var(--ink-2); font-size: 12px; overflow-wrap: anywhere; }
 .box .pad { padding: 18px; }
 /* 补偿活动行：昵称 / 状态标 / 截止倒计时 / 额度 / 领取按钮，单行紧凑排布。
    沿用 .tag 体系染色（ok=已领、warn=待领、bad=临期、mute=中性信息）。 */
@@ -1229,6 +1231,10 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
           <button class="xs" id="btnActivityAll">活跃上报</button>
           <button class="xs" id="btnKeepaliveAll">全部保活</button>
         </header>
+        <div class="refresh-status">
+          <span class="note" id="overviewFreshness" role="status" aria-live="polite">正在读取状态…</span>
+          <button class="xs" id="btnRefreshOverview">刷新状态</button>
+        </div>
         <div class="tbl-wrap tbl-scroll">
         <table class="acc">
           <thead><tr>

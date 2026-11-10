@@ -411,13 +411,11 @@ func TestChatSoftCoolsOnRateLimitBody(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.2","messages":[]}`)))
-	// 429 属账号级限流：不换号重发（换号=同一请求从另一个账号重放，是号池规避特征），
-	// 如实返回 429，由客户端退避重试。
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("code=%d body=%s want 429", rec.Code, rec.Body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s want 200 after account failover", rec.Code, rec.Body)
 	}
-	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 0 {
-		t.Errorf("calls=%v want bad 1 次、good 0 次（429 不换号）", calls)
+	if calls["Bearer at-bad"] != 1 || calls["Bearer at-good"] != 1 {
+		t.Errorf("calls=%v want bad=1 good=1", calls)
 	}
 	st, _ := p.Status("bad")
 	if !st.Cooling || st.CoolKind != "soft_rate" {
@@ -490,7 +488,7 @@ func TestChat11140QuarantinesWithoutRotation(t *testing.T) {
 	}
 }
 
-// 5xx 与 429 同属账号/通道当前不可用，匿名请求也不应在同一轮内换号重放。
+// 5xx 可能来自共享上游通道，匿名请求保留不换号重放的策略。
 func TestChat5xxDoesNotRotateAnonymous(t *testing.T) {
 	calls := map[string]int{}
 	up := newFakeUpstream(t, func(authz string) (int, string, bool) {
@@ -767,8 +765,8 @@ func TestNewHandlerSoftCooldownDefault(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.2","messages":[]}`)))
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("code=%d body=%s want 429（429 不换号）", rec.Code, rec.Body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s want 200 after account failover", rec.Code, rec.Body)
 	}
 	st, _ := p.Status("bad")
 	if !st.Cooling || st.CoolKind != "soft_rate" {
@@ -993,11 +991,11 @@ func TestChat6004ModelResetCoolsToParsedTime(t *testing.T) {
 		strings.NewReader(`{"model":"glm-5.3","messages":[]}`))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("code=%d body=%s want 429（6004 不换号重发）", rec.Code, rec.Body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s want 200 after model rate limit failover", rec.Code, rec.Body)
 	}
-	if calls != 1 {
-		t.Fatalf("calls=%d want 1（只打触发限流的账号，不换号重放）", calls)
+	if calls != 2 {
+		t.Fatalf("calls=%d want 2", calls)
 	}
 	// bad 已进入 6004 模型级独立冷却：账号级不 cooling，台账单行 until ≈ reset。
 	st, _ := p.Status("bad")
@@ -1045,11 +1043,11 @@ func TestChat6004WithoutResetFallsBackToBackoff(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/chat/completions",
 		strings.NewReader(`{"model":"glm-5.3","messages":[]}`)))
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("code=%d body=%s want 429（6004 不换号重发）", rec.Code, rec.Body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s want 200 after account cooldown failover", rec.Code, rec.Body)
 	}
-	if calls != 1 {
-		t.Fatalf("calls=%d want 1（只打触发限流的账号）", calls)
+	if calls != 2 {
+		t.Fatalf("calls=%d want 2", calls)
 	}
 	st, _ := p.Status("bad")
 	if !st.Cooling || st.CoolKind != "soft_rate" {

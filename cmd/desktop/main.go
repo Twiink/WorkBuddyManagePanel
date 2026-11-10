@@ -146,6 +146,9 @@ func run() error {
 	d.window.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
 		d.forwardDroppedFiles(event)
 	})
+	d.window.OnWindowEvent(events.Common.WindowFocus, func(*application.WindowEvent) {
+		d.window.ExecJS("window.dispatchEvent(new Event('focus'));")
+	})
 	d.window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		if d.quitting.Load() {
 			return
@@ -209,6 +212,7 @@ func (d *desktop) showWindow() {
 	d.window.Restore()
 	d.window.UnMinimise()
 	d.window.Focus()
+	d.window.ExecJS("window.dispatchEvent(new Event('focus'));")
 }
 
 // forwardDroppedFiles 把拖进窗口的 JSON 文件转发给面板导入队列。

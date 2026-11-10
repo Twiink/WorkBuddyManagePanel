@@ -92,6 +92,25 @@ func TestSameKeySameAccount(t *testing.T) {
 	}
 }
 
+func TestUnbindAccountKeepsNewBinding(t *testing.T) {
+	store := newCountingStore()
+	r := routerWith(store, []string{"old", "new"}, time.Hour)
+	r.Bind("conversation", "old")
+	r.Bind("conversation", "new")
+	if r.UnbindAccount("conversation", "old") {
+		t.Fatal("late failure removed a newer binding")
+	}
+	if uid, ok := r.LookupBinding("conversation"); !ok || uid != "new" {
+		t.Fatalf("binding=%q/%v want new", uid, ok)
+	}
+	if !r.UnbindAccount("conversation", "new") || r.Count() != 0 {
+		t.Fatal("current account should be unbound")
+	}
+	if len(store.LoadBinds()) != 0 {
+		t.Fatal("binding mirror should be cleared")
+	}
+}
+
 func TestTTLExpiryReassigns(t *testing.T) {
 	st := newCountingStore()
 	r := routerWith(st, []string{"a1", "a2"}, 10*time.Millisecond)

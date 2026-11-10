@@ -97,7 +97,7 @@ const sandbox = new Proxy({
   // 该文件不在本沙箱内执行，但保留此桩，将来把 mobile.js 纳入冒烟时可直接复用。
   MutationObserver: class { constructor() {} observe() {} disconnect() {} takeRecords() { return []; } },
   setInterval, clearInterval, setTimeout, clearTimeout,
-  console, JSON, Math, Date, Number, String, Boolean, Object, Array, Promise, Map, Set, RegExp, Error, TypeError, isNaN, parseInt, parseFloat, encodeURIComponent, decodeURIComponent, URL, URLSearchParams, Symbol, Proxy, Reflect,
+  console, JSON, Math, Date, Number, String, Boolean, Object, Array, Promise, Map, Set, RegExp, Error, TypeError, AbortController, isNaN, parseInt, parseFloat, encodeURIComponent, decodeURIComponent, URL, URLSearchParams, Symbol, Proxy, Reflect,
 }, { get(t, k) { return t[k]; }, has() { return true; } });
 sandbox.window = sandbox; sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
@@ -193,7 +193,7 @@ const end = src.indexOf('function rateLimitRowsHtml');
 if (start < 0 || end < 0) throw new Error('rate limit helpers not found');
 const ctx = { Date, Number, String, Math };
 vm.createContext(ctx);
-vm.runInContext(src.slice(start, end) + '\nthis.rateLimitMeta=rateLimitMeta;', ctx);
+vm.runInContext('"use strict";\n' + src.slice(start, end) + '\nthis.rateLimitMeta=rateLimitMeta;', ctx);
 const now = new Date(2026, 8, 28, 14, 0, 0).getTime();
 const reset = new Date(2026, 8, 28, 16, 0, 0).getTime();
 const until = new Date(2026, 8, 28, 15, 0, 0).getTime();
@@ -1266,7 +1266,7 @@ const sameSet = ctx.packageCacheMatchesAccounts({accounts: [{uid: 'a'}, {uid: 'b
 const added = ctx.packageCacheMatchesAccounts({accounts: [{uid: 'a'}, {uid: 'b'}, {uid: 'c'}]});
 const missingOverview = ctx.packageCacheMatchesAccounts(null);
 
-const overviewStart = src.indexOf('async function loadOverview');
+const overviewStart = src.indexOf('function loadOverview');
 const overviewEnd = src.indexOf('function renderListenStatus', overviewStart);
 const packagesStart = src.indexOf('async function loadPackages');
 const packagesEnd = src.indexOf('/* ── 积分到期提醒', packagesStart);

@@ -293,6 +293,20 @@ func (r *Router) Unbind(key string) bool {
 	return found
 }
 
+// UnbindAccount 只解除仍属于 uid 的绑定，避免较早失败的并发请求删除新账号的绑定。
+func (r *Router) UnbindAccount(key, uid string) bool {
+	r.mu.Lock()
+	e, found := r.entries[key]
+	if !found || e.uid != uid {
+		r.mu.Unlock()
+		return false
+	}
+	delete(r.entries, key)
+	r.cfg.Store.DelBind(key)
+	r.mu.Unlock()
+	return true
+}
+
 // Count 返回当前绑定数（供 /status 观测）。
 func (r *Router) Count() int {
 	r.mu.RLock()

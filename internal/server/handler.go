@@ -787,8 +787,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	stickyUID := ""
 	stickyReused := false
 	if h.cfg.Session != nil && sessKey != "" {
-		// 只复用已有绑定，新会话交给 Pool 选号。这里必须查「未过期绑定」而非
-		// 「当前模型可用绑定」：原号冷却/隔离/满载时也要原地失败，不能悄悄换号。
+		// 先取已有绑定；选号时区分限流与其他不可用原因，限流允许换号。
 		if uid, ok := h.cfg.Session.LookupBinding(sessKey); ok {
 			stickyUID = uid
 			stickyReused = true
@@ -820,11 +819,8 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 			heldUID = ""
 		}
 	}
-	// 会话钉死（防「一个会话横跨多账号」）：请求带显式会话身份，或网关已有未过期
-	// 绑定时，整个请求只允许落在一个账号上。换号重发会让同一个
-	// X-Conversation-ID / X-Conversation-Request-ID 从多个账号发出——这是上游
-	// 识别「号池反代」最强的信号，比任何头部指纹都直接。
-	// 只有尚无绑定的内容派生键/匿名请求才允许首次选号失败后换新 ID 路由。
+	// 已有会话优先留在原账号。限流可以解除绑定并换号，其他错误仍保留原有重试策略。
+	// 出站会话 ID 在实际调用时按账号派生，同一客户端会话换号后也保持账号间隔离。
 	pinned := sessionExplicit || stickyReused
 	pinnedUID := ""
 	// attempted 标记本次请求是否已经真正向某个账号发起过上游调用。只有发过之后
@@ -835,7 +831,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	// 幂等：stickyUID 已空则空操作；不会误解绑其他轮的绑定。仅当 Session != nil 时 stickyUID 才会非空。
 	unbindSticky := func() {
 		if stickyUID != "" {
-			h.cfg.Session.Unbind(sessKey)
+			h.cfg.Session.UnbindAccount(sessKey, stickyUID)
 			stickyUID = ""
 		}
 	}
@@ -942,7 +938,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// 会话头族（issue #35）：后台按 X-Conversation-Request-ID（对话轮级）聚合请求。
 	// 同一账号内的降级/重试复用原 ID；只有匿名请求确实换到另一账号时才生成全套新 ID。
-	// 有客户端会话身份的请求在首次出站后禁止换号，避免同一会话横跨账号。
+	// 有客户端会话身份的请求优先留在原号；限流换号时通过 accountChatMeta 隔离标识。
 	//   - conversationID：body 提取（透传客户端原值，缺省空串——不伪造）；
 	//   - conversationRequestID：入站 X-Conversation-Request-ID 透传优先，否则按
 	//     粘性 key 进程内稳定生成；粘性 key 也空时走轮级兜底（TurnKey/TurnRequestID），
@@ -974,9 +970,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		chatMeta.ConversationRequestID = session.TurnRequestID("")
 	}
 	chatMeta.TraceID = r.Header.Get("X-Trace-ID")
-	// 换到另一个账号重发前必须切断上游会话关联：保留客户端粘性键（网关内部仍防跨号），
-	// 但出站 X-Conversation-ID / Request-ID / Trace-ID 全部换新。否则上游会把两次请求
-	// 归并成“同一会话从两个账号发出”，是号池规避的强特征。
+	// 匿名模型路由回退创建独立会话；所有出站标识还会通过 accountChatMeta 按账号派生。
 	freshChatMeta := func() upstream.ChatMeta {
 		id := session.NewMessageID()
 		return upstream.ChatMeta{
@@ -998,9 +992,13 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		} else if stickyUID != "" {
 			acct = h.cfg.Pool.PickByUIDForModel(stickyUID, bareModel)
 			if acct == nil || (realm != "" && acct.Realm() != realm && !crossRealm) {
-				// 已绑定会话的原号暂时不可用：不换号、不解绑，等原号恢复后客户端
-				// 重试仍落回同一账号。
-				break
+				if acct == nil && h.accountRateLimited(stickyUID, bareModel) {
+					tried[stickyUID] = true
+					unbindSticky()
+				} else {
+					// 满载、风控隔离等原因仍保留绑定，只有限流触发自动换号。
+					break
+				}
 			}
 		}
 		if acct == nil {
@@ -1091,7 +1089,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		attemptStarted := time.Now()
 		// 从这里开始，请求可能已经到达上游：钉死该会话到本账号。
 		attempted = true
-		rc, status, respBody, terr := h.cfg.Upstream.ChatStreamContext(r.Context(), acct, body, clientIP, chatMeta)
+		rc, status, respBody, terr := h.cfg.Upstream.ChatStreamContext(r.Context(), acct, body, clientIP, accountChatMeta(chatMeta, acct.UID))
 		// 分类信封一次成型：upstream 已在错误路径返回 *upstream.Error（Kind +
 		// Retry-After 头解析）。传输层错误（非 *Error）走抖动换号分支；防御分支
 		// （terr 为 nil 但 status>=400，如 ErrNone 兜底）回落本地 Classify，双保险。
@@ -1258,7 +1256,19 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 			if kind == upstream.ErrWafBlock && h.wafIP.noteWaf(acct.UID) {
 				break
 			}
-			// 会话钉死 + 账号级错误不再换号：429（限流）、11140（账号限制）、5xx
+			if kind == upstream.ErrSoftRate {
+				// 冷却只属于当前账号（6004 还限定模型），释放绑定后继续选号。
+				// 即便是带显式会话 ID 的请求，也不能把单号额度当成整池额度。
+				if h.cfg.Session != nil && sessKey != "" {
+					h.cfg.Session.UnbindAccount(sessKey, acct.UID)
+				}
+				stickyUID, pinnedUID = "", ""
+				if !rotateBackoff(i, r.Context()) {
+					break
+				}
+				continue
+			}
+			// 会话钉死 + 其他账号级错误不再换号：11140（账号限制）、5xx
 			// 都是「这个号/这条通道此刻不行」，换号重发等于用另一个账号重放同一
 			// 会话——上游按会话聚合时看到的就是一个会话横跨多号，属于号池规避特征。
 			// 正确做法是把错误如实返回，由客户端在同一会话上退避重试。
@@ -1277,7 +1287,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 				unbindSticky()
 				chatMeta = freshChatMeta()
 			}
-			if !modelRouteErr && ((pinned && attempted) || kind == upstream.ErrSoftRate || kind == upstream.ErrAccountFault || status >= 500) {
+			if !modelRouteErr && ((pinned && attempted) || kind == upstream.ErrAccountFault || status >= 500) {
 				break
 			}
 			if !rotateBackoff(i, r.Context()) {
@@ -1465,6 +1475,21 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	upstreamMsgPassed := false
 	var ue *upstream.Error
 	if errors.As(lastErr, &ue) {
+		if ue.Kind == upstream.ErrSoftRate {
+			remaining := h.cfg.Pool.ServableForModelRealm(bareModel, realm)
+			if crossRealm {
+				remaining += h.cfg.Pool.ServableForModelRealm(bareModel, otherRealm(realm))
+			}
+			if remaining > 0 {
+				// 轮换次数用完不代表整池限额。避免把最后一个账号的恢复时间返回给
+				// Magpie，导致它将仍有可用账号的整个入口暂停数小时。
+				writeOpenAIErrorHint(w, http.StatusServiceUnavailable, "account_rotation_exhausted",
+					"account retry limit reached; other accounts remain available, please retry shortly", "")
+				st.status = http.StatusServiceUnavailable
+				st.outcome = reqlog.OutcomeHTTPError
+				return
+			}
+		}
 		hint = h.hintOf(ue.Kind, ue.Msg, bareModel, reqHasImage, ue)
 		switch ue.Kind {
 		case upstream.ErrSoftRate:
@@ -1534,6 +1559,38 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	writeOpenAIErrorHint(w, status, code, msg, hint)
 	st.status = status
 	st.outcome = reqlog.OutcomeHTTPError
+}
+
+// accountRateLimited 区分限流与满载、禁用、风控隔离等不可用原因。
+func (h *Handler) accountRateLimited(uid, model string) bool {
+	st, ok := h.cfg.Pool.Status(uid)
+	if !ok || st.Disabled || st.Paused || st.RiskHold {
+		return false
+	}
+	if st.Cooling && st.CoolKind == "soft_rate" {
+		return true
+	}
+	for _, row := range st.RateLimitedModels {
+		if row.Model == model && row.Kind == "rate_limit" {
+			return true
+		}
+	}
+	return false
+}
+
+// accountChatMeta 保持同号会话稳定，并让账号切换后的会话、轮次和链路标识独立。
+func accountChatMeta(meta upstream.ChatMeta, uid string) upstream.ChatMeta {
+	scope := func(kind, value string) string {
+		if value == "" {
+			return ""
+		}
+		return session.RequestIDForKey(uid + "\x00" + kind + "\x00" + value)
+	}
+	return upstream.ChatMeta{
+		ConversationID:        scope("conversation", meta.ConversationID),
+		ConversationRequestID: scope("turn", meta.ConversationRequestID),
+		TraceID:               scope("trace", meta.TraceID),
+	}
 }
 
 // tokensPerSecond 计算吐字速率（token/s），返回 (速率, 是否有意义)。

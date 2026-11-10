@@ -9,6 +9,7 @@ let pkDetailUid = '';
 let theme = localStorage.getItem(LS_THEME) || 'auto';   // auto | light | dark
 let view = 'accounts';
 let overviewData = null, cfgLoaded = null;
+let overviewRequest = null, overviewUpdatedAt = 0, overviewError = '';
 /* 账号池默认只展示可用账号；禁用账号仅在显式打开管理视图时出现。 */
 let showDisabledAccounts = false;
 let listenFallbackNotified = false;
@@ -272,6 +273,7 @@ function rateLimitMeta(row, now) {
     };
   }
   const title = [model, resetAt ? '上游重置：' + fmtLocalDateTime(resetAt) : '上游重置：时间未知'];
+  let detail;
   if (until && resetAt && until < resetAt) {
     // 双时钟（issue #171 问题二）：黄框出现/消失由 until 决定（网关为防超长
     // 限流拖死全池，把重试封顶在 now+softRateMax），主文字却按 resetAt 显示，
@@ -407,6 +409,7 @@ function go(v) {
   document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== 'view-' + v);
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
   $('ttl').textContent = TITLES[v];
+  if (v === 'accounts') loadOverview(true);
   if (v === 'models' && !$('mdBody').children.length) loadModels();
   if (v === 'models') loadPricing();
   if (v === 'config') loadConfig();
@@ -572,14 +575,47 @@ function renderModelLocks(rows) {
   }
 }
 
-async function loadOverview(quiet) {
-  try {
-    const d = await api('overview');
-    overviewData = d;
-    if (!packageCacheMatchesAccounts(d)) clearPackageCache();
-    renderOverview(d);
-  } catch (e) { if (!quiet) toast(e.message, 'err'); }
+function renderOverviewFreshness() {
+  const el = $('overviewFreshness');
+  if (!el) return;
+  const age = overviewUpdatedAt ? ago(new Date(overviewUpdatedAt).toISOString()) : '';
+  const text = overviewError
+    ? (overviewUpdatedAt ? '数据未更新（' + age + '） · ' : '') + overviewError
+    : (overviewUpdatedAt ? '状态已更新 · ' + age : '正在读取状态…');
+  if (el.textContent !== text) el.textContent = text;
+  el.style.color = overviewError ? 'var(--bad)' : 'var(--ink-2)';
 }
+
+function loadOverview(quiet) {
+  // 切页、定时器和桌面恢复可能同时触发。合并在途请求，避免旧响应覆盖新状态。
+  if (overviewRequest) return overviewRequest;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  overviewRequest = (async () => {
+    try {
+      const d = await api('overview', { cache: 'no-store', signal: controller.signal });
+      if (!Array.isArray(d.accounts) || !Object.prototype.hasOwnProperty.call(d, 'model_locks')) {
+        throw new Error('状态数据不完整');
+      }
+      if (!packageCacheMatchesAccounts(d)) clearPackageCache();
+      renderOverview(d);
+      overviewData = d;
+      overviewUpdatedAt = Date.now();
+      overviewError = '';
+    } catch (e) {
+      overviewError = controller.signal.aborted ? '刷新超时，正在重试' : '刷新失败，正在重试';
+      console.error('[panel] overview refresh failed', e);
+      if (!quiet) toast(overviewError, 'err');
+    } finally {
+      clearTimeout(timeout);
+      overviewRequest = null;
+      renderOverviewFreshness();
+    }
+  })();
+  return overviewRequest;
+}
+
+if ($('btnRefreshOverview')) $('btnRefreshOverview').onclick = () => loadOverview(false);
 
 function renderOverview(d) {
   const accounts = poolVisibleAccounts(d.accounts, showDisabledAccounts);
@@ -1958,6 +1994,13 @@ function refreshVisible() {
   else if (view === 'store') loadStoreStats();
   else if (view === 'taskscenter') reattachQueueView();
 }
+function refreshOnReturn() {
+  if (!document.hidden) refreshVisible();
+}
+addEventListener('focus', refreshOnReturn);
+addEventListener('pageshow', refreshOnReturn);
+addEventListener('online', refreshOnReturn);
+document.addEventListener('visibilitychange', refreshOnReturn);
 function start() {
   loadOverview(true);
   loadCompensation();                       // 补偿状态：首次进页面查一次（之后靠新鲜窗口）
