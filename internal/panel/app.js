@@ -3796,11 +3796,11 @@ if ($('usRange')) trangeBind('usRange', loadUsage);
    完全一致的账号，余额可能差上千——差别只在包里。这里把逐包明细摊开，并给每个
    包名一个稳定配色，跨账号对比时同色即同类。 */
 
-const PK_COLORS = ['#4f8cff', '#25b08b', '#e8a33d', '#c96bd6', '#e2607a',
-                   '#5aa9e6', '#8fbf3f', '#b58b5a', '#7d8fa8', '#d4785c'];
-const PK_ACCOUNT_COLORS = ['#4f8cff', '#25b08b', '#e8a33d', '#c96bd6',
-                           '#e2607a', '#20a4a4', '#8fbf3f', '#d4785c',
-                           '#7c83db', '#c48a2f', '#b45f8c', '#5aa9e6'];
+const PK_COLORS = ['#2e7d64', '#6f8f3c', '#c37a4d', '#5e7c94', '#a76a82',
+                   '#758a60', '#bfa55a', '#96695c', '#6c7f87', '#a67e5f'];
+const PK_ACCOUNT_COLORS = ['#2e7d64', '#6f8f3c', '#c37a4d', '#5e7c94',
+                           '#a76a82', '#758a60', '#bfa55a', '#96695c',
+                           '#6c7f87', '#a67e5f', '#7f7f9c', '#5c9b83'];
 
 function pkColor(i) { return PK_COLORS[i % PK_COLORS.length]; }
 

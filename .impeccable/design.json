@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-20T21:55:00+08:00",
+  "title": "Design System: WorkBuddy Manage Panel",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "行动绿", "canonical": "#237c61" },
+      "surface": { "role": "neutral", "displayName": "工作卡面", "canonical": "#ffffff" },
+      "workspace": { "role": "neutral", "displayName": "工作纸面", "canonical": "#f5f7f5" }
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "主操作按钮，用于添加账号与保存配置。",
+      "html": "<button class=\"ds-btn-primary\">添加账号</button>",
+      "css": ".ds-btn-primary { background: #237c61; color: #ffffff; border: 1px solid #237c61; border-radius: 8px; padding: 8px 14px; font: 650 14px system-ui, sans-serif; } .ds-btn-primary:hover, .ds-btn-primary:focus-visible { background: #1d6852; outline: 2px solid #237c61; outline-offset: 3px; }"
+    },
+    {
+      "name": "Work Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "面板、表格和指标摘要的通用容器。",
+      "html": "<div class=\"ds-card\"><h3>账号池</h3></div>",
+      "css": ".ds-card { background: #ffffff; color: #203c32; border: 1px solid #dce5dd; border-radius: 12px; padding: 20px; box-shadow: 0 3px 12px rgba(29,65,44,.035); } .ds-card h3 { margin: 0; font: 650 15px/1.4 system-ui, sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "轻盈运营台",
+    "overview": "白色工作区配合浅灰页面底色和鼠尾草绿行动色；数据紧凑，控件和分区保持呼吸感。",
+    "keyCharacteristics": ["清爽分区", "语义状态色", "高可读数据", "移动卡片化"],
+    "dos": ["用语义色表达状态", "观测数据保持 tabular-nums"],
+    "donts": ["不用高饱和色大面积铺底", "不用装饰性渐变"]
+  }
+}

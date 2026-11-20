@@ -811,7 +811,7 @@ process.stdout.write(JSON.stringify({
 	if err != nil {
 		t.Fatalf("expiry summary node test failed: %v\n%s", err, out)
 	}
-	const want = `{"rows":[{"days":1,"credits":50},{"days":7,"credits":70}],"accountCount":3,"unavailable":1,"colorA":"#4f8cff","colorB":"#25b08b"}`
+	const want = `{"rows":[{"days":1,"credits":50},{"days":7,"credits":70}],"accountCount":3,"unavailable":1,"colorA":"#2e7d64","colorB":"#6f8f3c"}`
 	if strings.TrimSpace(string(out)) != want {
 		t.Fatalf("expiry summary=%s want %s", out, want)
 	}

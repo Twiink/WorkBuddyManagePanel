@@ -44,6 +44,7 @@
   .nav.open { transform: translateX(0); }
   .nav ul { display: block; padding: 10px 8px; }
   .nav .sig { border-top: 1px solid var(--line-soft); }
+  .nav .brand { padding: 24px 20px; }
   .nav-btn { display: inline-flex; align-items: center; padding: 6px 8px; }
   .nav-veil {
     display: block; position: fixed; inset: 0; z-index: 65;
@@ -79,21 +80,21 @@
   .acc tr {
     display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
     grid-auto-rows: min-content; align-items: center; gap: 4px 8px;
-    padding: 8px 10px; margin-bottom: 8px;
+    padding: 12px; margin-bottom: 10px;
     background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
   }
   .acc tr:last-child { margin-bottom: 0; }
   .acc tbody tr:hover { background: var(--surface); }
   .acc td {
     display: flex; align-items: center; flex-wrap: wrap; min-width: 0; padding: 0; border: 0;
-    font-size: 11.5px; line-height: 1.3; overflow-wrap: anywhere;
+    font-size: 12px; line-height: 1.4; overflow-wrap: anywhere;
   }
   /* 字段名 = 表头该列纯文本（app.js 从 <th> 的文本节点抄进 data-l）。
      没有标签的单元格（行首色条、跨列提示、账号/模型名）保持干净。 */
   .acc td::before {
     content: attr(data-l); flex: none; color: var(--ink-3);
-    font-size: 9.5px; line-height: 1.2; margin-right: 3px;
-    white-space: nowrap; letter-spacing: .2px;
+    font-size: 11px; line-height: 1.3; margin-right: 4px;
+    white-space: nowrap; letter-spacing: 0;
   }
   .acc td:not([data-l])::before, .acc td.who::before { content: none; }
   /* 行首健康色条：桌面端是 3px 竖条，卡片模式改成卡片顶部通栏横条 */
@@ -109,14 +110,14 @@
   .acc tr > td { grid-column: span 4; }
   .acc .who { display: block; min-width: 0; max-width: none; }
   .acc .who .nm { font-size: 13.5px; line-height: 1.25; }
-  .acc .who .id { font-size: 10px; line-height: 1.3; margin-top: 1px; }
+  .acc .who .id { font-size: 11px; line-height: 1.3; margin-top: 1px; }
   .acc .num { white-space: normal; }
-  .acc .tag { font-size: 10px; padding: 1px 7px; }
+  .acc .tag { font-size: 11px; padding: 2px 8px; }
   .acc .bar { flex: 1 1 auto; min-width: 18px; max-width: none; height: 2px; margin-top: 0; border-radius: 2px; }
   .acc .usage-line { flex-wrap: wrap; gap: 3px; white-space: normal; }
   .acc .usage-item { padding: 1px 5px; border-radius: 5px; }
-  .acc .usage-item b { font-size: 10px; }
-  .acc .usage-item em { font-size: 8.5px; }
+  .acc .usage-item b { font-size: 11px; }
+  .acc .usage-item em { font-size: 11px; }
   /* ④ 操作按钮：固定占满一行并平分宽度 → 全部按钮永远一行（主按钮蓝） */
   .acc .acts { grid-column: 1 / -1; display: flex; gap: 5px; }
   .acc .acts button { flex: 1 1 0; min-width: 0; padding: 5px 2px; font-size: 11.5px; white-space: nowrap; border-radius: 8px; }
@@ -127,7 +128,7 @@
   #accBody tr > td:nth-child(4)::before { content: none; }
   #accBody tr > td:nth-child(4) .hint { font-size: 9.5px; margin-top: 0; text-align: right; }
   #accBody tr > .cred { grid-column: 1 / 7; gap: 5px; }
-  #accBody tr > .cred .n { font-size: 10.5px; }
+  #accBody tr > .cred .n { font-size: 11px; }
   #accBody tr > td:nth-child(6) { grid-column: 7 / 10; }
   #accBody tr > td:nth-child(7) { grid-column: 10 / 13; }
   #accBody tr > td:nth-child(9) { grid-column: 1 / 4; order: 1; }
@@ -190,8 +191,8 @@
   .trange select, .trange input { padding: 4px 7px; font-size: 12px; }
   .vtabs { padding: 2px; flex-wrap: wrap; }
   .vtabs button { padding: 3px 9px; font-size: 12px; }
-  .kpis { gap: 8px; padding: 10px 11px 0; }
-  .kpi { padding: 8px 10px 9px 12px; border-radius: 10px; }
+  .kpis { gap: 10px; padding: 12px 12px 0; }
+  .kpi { padding: 13px 12px; border-radius: 10px; }
 
   /* ── 用量「Token 时序」：窄屏在 mobile.js 里重画成 440×230 ────────────
      上游那张固定 viewBox 1200×200、靠 width:100% 缩放的图，在 360px 宽下缩放比只有
@@ -264,8 +265,8 @@
   /* 配置页：字段行更矮，标签/提示更小 */
   label.fld { margin-bottom: 9px; }
   label.fld > .lb { font-size: 11.5px; margin-bottom: 3px; }
-  label.fld > .hint, .hint { font-size: 10px; margin-top: 2px; }
-  input, select { padding: 6px 9px; font-size: 12.5px; border-radius: 8px; }
+  label.fld > .hint, .hint { font-size: 11px; margin-top: 3px; }
+  input, select { padding: 8px 10px; font-size: 12.5px; border-radius: 8px; }
   button { padding: 6px 10px; font-size: 12.5px; border-radius: 8px; }
   .switch { padding: 6px 0; }
   .switch .lb { font-size: 12.5px; }
@@ -273,12 +274,12 @@
   legend { font-size: 11px; padding-bottom: 7px; }
 
   /* ── 5. 其余栅格与列表：全部收紧间距，统一 12px 圆角卡片感 ──────── */
-  .view { padding: 10px 10px 40px; }
-  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); border-radius: 0; margin-bottom: 10px; }
-  .stat { padding: 7px 9px; min-width: 0; }
-  .stat .v { font-size: 15px; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; }
-  .stat .k { font-size: 11px; margin-top: 2px; }
-  .box { border-radius: 0 0 8px 8px; margin-bottom: 12px; }
+  .view { padding: 16px 12px 40px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border-radius: 0; margin-bottom: 16px; }
+  .stat { padding: 14px; min-width: 0; border: 1px solid var(--line); }
+  .stat .v { font-size: 23px; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; }
+  .stat .k { font-size: 11px; margin-top: 5px; }
+  .box { border-radius: 12px; margin-bottom: 16px; }
   .box > header { flex-wrap: wrap; gap: 6px 8px; padding: 9px 11px; }
   .box > header h3 { font-size: 12.5px; white-space: normal; }
   /* 上游 .box > header .note 也是 nowrap（L200）：v1.12.0 起 packages 页每个账号盒头部的
@@ -301,7 +302,7 @@
   .qrow .code { flex: 1 1 auto; white-space: normal; overflow-wrap: anywhere; }
   .qrow .prog { flex: none; text-align: left; font-size: 11.5px; }
   .qrow .st { flex: none; font-size: 11.5px; }
-  .qrow .msg { flex: 1 1 100%; font-size: 10.5px; white-space: normal; overflow-wrap: anywhere; }
+  .qrow .msg { flex: 1 1 100%; font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
   #view-logs > .box { height: calc(100vh - 110px); min-height: 360px; }
   #logBox { padding: 4px 0 8px; font-size: 11.5px; }
   #logBox .ln { grid-template-columns: 58px 40px minmax(0, 1fr); column-gap: 6px; row-gap: 1px; padding: 5px 10px 5px 8px; }
@@ -312,7 +313,7 @@
   .us-sharerow { max-width: none; flex: 1 1 100%; }
   .pk-card { padding: 9px 11px; border-radius: 12px; }
   .pk-card .big { font-size: 19px; }
-  .pk-card .sub { font-size: 10.5px; }
+  .pk-card .sub { font-size: 11px; }
   .qprog { padding: 8px 11px 0; }
   .pk-expiry-hdr, .pk-expiry-row { grid-template-columns: 52px minmax(60px, 1fr) 62px; gap: 6px; }
   .pk-expiry-chart { padding-right: 4px; }
@@ -327,7 +328,7 @@
   .exp-when { grid-column: 1 / -1; }
   .exp-big { font-size: 17px; }
   .exp-kv b { font-size: 13px; }
-  .exp-kv em { display: block; font-size: 10.5px; white-space: normal; }
+  .exp-kv em { display: block; font-size: 11px; white-space: normal; }
   .exp-rest { grid-column: 1 / -1; flex-wrap: wrap; -webkit-mask-image: none; mask-image: none; }
   .exp-rest > em { display: inline; }
   /* 积分到期分布：KPI 两列；账号格子网格改成两列；柱状图保留横向滚动 */
@@ -346,6 +347,9 @@
      横向滚动条。overflow-wrap 必须用 anywhere 而不是 break-word：只有 anywhere 参与
      min-content 计算，flex 项才肯收缩。*/
   .qgroup header, .vc .hd, .vc-acct, .pk-card .who, .nav .sig .row { flex-wrap: wrap; }
+  .comp-row { align-items: flex-start; flex-wrap: wrap; }
+  .comp-row > span:first-child { flex: 1 1 150px; }
+  .comp-row > .hint { flex: 1 1 100%; order: 3; }
   .box > header h3, .qgroup header .nm, .qrow .name .t,
   .vc .hd .nm, .vc-acct .nm, .vc .ft code, .vc .meta,
   .pk-card .nm, .pk-card .realm, .pk-legend span, .pk-expiry-legend span,
