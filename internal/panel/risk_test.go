@@ -106,3 +106,46 @@ func TestRiskNavigationAndLoaderPresent(t *testing.T) {
 		}
 	}
 }
+
+func TestReleaseRiskEndpoint(t *testing.T) {
+	pl := pool.New("")
+	defer pl.Close()
+	pl.Add(&auth.Auth{UID: "held"})
+	pl.Pause("held")
+	pl.Quarantine("held", time.Hour, "11140")
+	p := New(Config{Pool: pl, APIKey: "test-key"})
+
+	request := func(method, path string, authenticated bool) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(method, path, nil)
+		if authenticated {
+			req.Header.Set("Authorization", "Bearer test-key")
+		}
+		rec := httptest.NewRecorder()
+		p.ServeHTTP(rec, req)
+		return rec
+	}
+	path := "/panel/api/accounts/held/release-risk"
+	if rec := request(http.MethodPost, path, false); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous release = %d", rec.Code)
+	}
+	if rec := request(http.MethodPost, "/panel/api/accounts/unknown/release-risk", true); rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown account = %d", rec.Code)
+	}
+	for _, wantReleased := range []bool{true, false} {
+		rec := request(http.MethodPost, path, true)
+		var result map[string]bool
+		if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil || rec.Code != http.StatusOK ||
+			!result["ok"] || result["released"] != wantReleased {
+			t.Fatalf("want released=%v; got %d %s", wantReleased, rec.Code, rec.Body)
+		}
+	}
+	rec := request(http.MethodGet, "/panel/api/risk", true)
+	var risk riskSnapshot
+	if err := json.Unmarshal(rec.Body.Bytes(), &risk); err != nil || len(risk.Accounts) != 1 {
+		t.Fatalf("risk after release: %s", rec.Body)
+	}
+	if a := risk.Accounts[0]; a.RiskHold || !a.Paused || len(risk.Alerts) != 0 {
+		t.Fatalf("risk after release = %+v", risk)
+	}
+}

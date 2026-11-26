@@ -4,10 +4,12 @@
 package panel
 
 import (
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/health"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/logfmt"
 )
 
 // riskAlert 一条风控告警。
@@ -49,6 +51,7 @@ type accountRiskView struct {
 	RiskUntil    time.Time `json:"risk_until,omitempty"`
 	RiskProbeDue bool      `json:"risk_probe_due,omitempty"`
 	Disabled     bool      `json:"disabled"`
+	Paused       bool      `json:"paused,omitempty"`
 	Cooling      bool      `json:"cooling"`
 
 	InFlight      int `json:"in_flight"`
@@ -89,13 +92,13 @@ func (p *Panel) risk(w http.ResponseWriter, r *http.Request) {
 				HourReq: s.HourReq, DayReq: s.DayReq,
 				HourShare: s.HourShare, DayShare: s.DayShare,
 				RiskHold: s.RiskHold, RiskUntil: s.RiskUntil, RiskProbeDue: s.RiskProbeDue,
-				Disabled: s.Disabled, Cooling: s.Cooling,
+				Disabled: s.Disabled, Paused: s.Paused, Cooling: s.Cooling,
 				InFlight: s.InFlight, InFlightLimit: s.InFlightLimit,
 			})
 			if s.RiskHold {
 				out.Alerts = append(out.Alerts, riskAlert{
 					Level: "warn", Code: "risk_hold", UID: s.UID,
-					Message: "账号处于 11140 风控隔离，只有成功的只读余额探活才会回池",
+					Message: "账号因上游 11140 进入本地隔离，可等待余额探活成功或手动解除隔离",
 				})
 			}
 			// 单号小时份额 > 8%：28 号池里正常应 ~3.6%，>8% 已经开始向单号集中。
@@ -212,4 +215,17 @@ func (p *Panel) risk(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (p *Panel) accountReleaseRisk(w http.ResponseWriter, r *http.Request) {
+	uid := r.PathValue("uid")
+	released, found := p.cfg.Pool.ReleaseRiskHold(uid)
+	if !found {
+		writeErr(w, http.StatusNotFound, "account not found")
+		return
+	}
+	if released {
+		log.Printf("panel: uid=%s 人工解除本地风控隔离", logfmt.UID8(uid))
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "released": released})
 }

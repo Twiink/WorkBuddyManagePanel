@@ -72,7 +72,7 @@ func (p *Pool) pick(tried map[string]bool, reqModel, realm string) *auth.Auth {
 		if p.inFlightFull(e) {
 			continue // 在途占满：跳过（max=0 不限时不触发）
 		}
-		if p.shareBlockedLocked(e, now) {
+		if p.shareBlockReasonLocked(e, now) != "" {
 			continue // 份额/日请求上限：让流量摊到池内其他号
 		}
 		cands = append(cands, e)

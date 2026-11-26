@@ -216,11 +216,32 @@ func (p *Pool) Quarantine(uid string, d time.Duration, reason string) {
 	if d <= 0 {
 		d = 24 * time.Hour
 	}
-	e.reason = reason
+	now := time.Now()
+	// reason 也供禁用和账号冷却使用。保留仍生效的原因，单独解除隔离时仍能展示。
+	if !e.disabled && !now.Before(e.until) {
+		e.reason = reason
+	}
 	e.riskHold = true
-	e.riskUntil = time.Now().Add(d)
+	e.riskUntil = now.Add(d)
 	clearRoutingModelCooldownsLocked(e)
 	p.dirty.Store(true)
+}
+
+// ReleaseRiskHold 仅解除本地 11140 隔离。返回本次是否解除了隔离、账号是否存在。
+func (p *Pool) ReleaseRiskHold(uid string) (released, found bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	e, found := p.byUID[uid]
+	if !found || !e.riskHold {
+		return false, found
+	}
+	e.riskHold = false
+	e.riskUntil = time.Time{}
+	if !e.disabled && !time.Now().Before(e.until) {
+		e.reason = ""
+	}
+	p.dirty.Store(true)
+	return true, true
 }
 
 // RiskHoldUntil 返回账号当前是否处于 11140 风控隔离，以及下一次允许探活的时间。

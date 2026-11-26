@@ -696,6 +696,8 @@ func finishStart(
 		RiskProbeEnabled: cfg.Risk.ProbeEnabled,
 	})
 
+	pn.SetModelChecker(h.CheckAccountModel)
+
 	i.wg.Add(1)
 	go func() {
 		defer i.wg.Done()

@@ -33,6 +33,7 @@ import (
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/reqlog"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/scheduler"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/server"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/upstream"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/usage"
 )
@@ -101,10 +102,11 @@ type ListenInfo struct {
 // Panel 管理面板 handler。挂载方式：外层 mux Handle("/panel/", panel)，
 // 本 mux 的 pattern 均带 /panel 前缀（外层不做前缀剥离）。
 type Panel struct {
-	cfg     Config
-	mux     *http.ServeMux
-	started time.Time
-	logs    *Ring
+	cfg        Config
+	mux        *http.ServeMux
+	started    time.Time
+	logs       *Ring
+	checkModel func(context.Context, *auth.Auth, string) server.ModelCheckResult
 
 	// logins 进行中的 OAuth 设备授权会话（state → 会话信息）。
 	// poll 成功或超时（loginTTL）后剔除；面板常驻进程，容量天然有界。
@@ -204,12 +206,14 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("GET /panel/api/login/regions", p.withAuth(p.loginRegions))
 	p.mux.HandleFunc("POST /panel/api/import/cockpit", p.withAuth(p.importCockpit))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/revive", p.withAuth(p.accountRevive))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/release-risk", p.withAuth(p.accountReleaseRisk))
 	p.mux.HandleFunc("GET /panel/api/accounts/{uid}/export", p.withAuth(p.accountExportSingle))
 	p.mux.HandleFunc("POST /panel/api/accounts/export", p.withAuth(p.accountExportBatch))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/disable", p.withAuth(p.accountDisable))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/pause", p.withAuth(p.accountPause))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/resume", p.withAuth(p.accountResume))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/checkin", p.withAuth(p.accountCheckin))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/model-check", p.withAuth(p.accountModelCheck))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/balance", p.withAuth(p.accountBalance))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/remove", p.withAuth(p.accountRemove))
 	p.mux.HandleFunc("GET /panel/api/accounts/{uid}/tasks", p.withAuth(p.accountTasks))

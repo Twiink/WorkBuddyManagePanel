@@ -28,6 +28,10 @@ func IsEmptyStreamError(err error) bool { return errors.Is(err, errEmptyStream) 
 // 分片/半行由 bufio.Reader.ReadString 处理；遇到 "data: [DONE]" 结束。
 // tool_calls 以流式 delta 到达（按 index 合并：首片带 id/type/name，后续只带 arguments 片段）。
 func Aggregate(r io.Reader) (map[string]any, error) {
+	return aggregate(r, false)
+}
+
+func aggregate(r io.Reader, check bool) (map[string]any, error) {
 	br := bufio.NewReaderSize(r, 64*1024)
 	var (
 		id, model     string
@@ -145,6 +149,17 @@ func Aggregate(r io.Reader) (map[string]any, error) {
 			return nil, err
 		}
 		line = strings.TrimRight(line, "\r\n")
+		if check && strings.HasPrefix(line, "data:") && !strings.HasPrefix(line, "data: ") {
+			line = "data: " + strings.TrimPrefix(line, "data:")
+		}
+		if check && strings.HasPrefix(line, "{") {
+			var envelope map[string]any
+			if json.Unmarshal([]byte(line), &envelope) == nil {
+				if failure := checkEnvelopeError(envelope, line); failure != nil {
+					return nil, failure
+				}
+			}
+		}
 		if strings.HasPrefix(line, "data: ") {
 			payload := strings.TrimPrefix(line, "data: ")
 			if payload == "[DONE]" {
@@ -156,6 +171,11 @@ func Aggregate(r io.Reader) (map[string]any, error) {
 				if json.Unmarshal([]byte(payload), &chunk) == nil {
 					// 有效事件计数：仅 JSON 解析成功的数据帧计入（解析失败沿用静默 continue）。
 					validEvents++
+					if check {
+						if failure := checkEnvelopeError(chunk, payload); failure != nil {
+							return nil, failure
+						}
+					}
 					if v, ok := chunk["id"].(string); ok && id == "" {
 						id = v
 					}
@@ -207,7 +227,7 @@ func Aggregate(r io.Reader) (map[string]any, error) {
 			break
 		}
 	}
-	if validEvents == 0 {
+	if validEvents == 0 || (check && !gotAnyContent && reasoning.Len() == 0) {
 		// 上游返回 200 但没有任何有效数据事件（空流/只有 [DONE]/只有注释行）：
 		// 不再合成空 content 的假成功响应，直接报错，由 handler 映射为 502 upstream_parse。
 		return nil, errEmptyStream

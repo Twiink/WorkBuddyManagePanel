@@ -332,6 +332,10 @@ func (p *Pool) Acquire(uid string) bool {
 	}
 	limit := p.inFlightLimit(e)
 	p.mu.RUnlock()
+	return e.acquire(limit)
+}
+
+func (e *entry) acquire(limit int) bool {
 	if limit <= 0 {
 		// 不限：计数仍累加（供状态观测），但永不拒绝。
 		e.inFlight.Add(1)
@@ -346,6 +350,52 @@ func (p *Pool) Acquire(uid string) bool {
 			return true
 		}
 	}
+}
+
+// AcquireForModelCheck 为指定账号的一次模型检测占用名额。暂停选号的账号仍可手动检测。
+// 返回空串表示成功，调用方须在请求结束时 Release；拒绝时不计费、不记请求次数。
+func (p *Pool) AcquireForModelCheck(a *auth.Auth, model string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if a == nil {
+		return "账号不存在"
+	}
+	e := p.byUID[a.UID]
+	if e == nil || e.a != a {
+		return "账号已移除或凭证已更新，请重新检测"
+	}
+	now := time.Now()
+	switch {
+	case e.disabled:
+		return "账号已禁用"
+	case e.riskHold:
+		return "账号处于风控隔离中"
+	case !e.expiry(now).IsZero():
+		return "账号正在冷却，请稍后再检测"
+	case e.modelCooled(now, model):
+		return "此模型正在冷却"
+	case p.floorBlockedForRealmModel(e, model, a.Realm(), now):
+		return "账号余额低于收费模型的积分保底"
+	}
+	switch p.dailyBlockReasonLocked(e, model, a.Realm(), now) {
+	case DailyBlockTokens:
+		return "已达到账号每日 Token 上限"
+	case DailyBlockModelTokens:
+		return "已达到此模型的每日 Token 上限"
+	case DailyBlockCredits:
+		return "已达到账号每日积分上限"
+	}
+	if reason := p.shareBlockReasonLocked(e, now); reason != "" {
+		return reason
+	}
+	if !e.acquire(p.inFlightLimit(e)) {
+		return "账号正在处理其他请求，已达到并发上限"
+	}
+	e.lastUsed = now
+	p.pickSeq++
+	e.usedSeq = p.pickSeq
+	p.notePickedLocked(e, now)
+	return ""
 }
 
 // Release 释放一个在途名额。幂等减到 0 为止（防重复释放扣成负数）。

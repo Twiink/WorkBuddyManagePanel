@@ -99,8 +99,6 @@
   .acc td:not([data-l])::before, .acc td.who::before { content: none; }
   /* 行首健康色条：桌面端是 3px 竖条，卡片模式改成卡片顶部通栏横条 */
   .acc .mark { display: none; }
-  #accBody tr > .select-col { grid-column: 1 / 3; }
-  #accBody tr > .select-col input { margin: 0; }
   .acc.md .mark { display: none; }
   /* 跨列单元格（空态提示、包分组汇总）整行铺满 */
   .acc td[colspan] { grid-column: 1 / -1; }
@@ -114,26 +112,42 @@
   .acc .num { white-space: normal; }
   .acc .tag { font-size: 11px; padding: 2px 8px; }
   .acc .bar { flex: 1 1 auto; min-width: 18px; max-width: none; height: 2px; margin-top: 0; border-radius: 2px; }
-  .acc .usage-line { flex-wrap: wrap; gap: 3px; white-space: normal; }
-  .acc .usage-item { padding: 1px 5px; border-radius: 5px; }
-  .acc .usage-item b { font-size: 11px; }
-  .acc .usage-item em { font-size: 11px; }
   /* ④ 操作按钮：固定占满一行并平分宽度 → 全部按钮永远一行（主按钮蓝） */
   .acc .acts { grid-column: 1 / -1; display: flex; gap: 5px; }
   .acc .acts button { flex: 1 1 0; min-width: 0; padding: 5px 2px; font-size: 11.5px; white-space: nowrap; border-radius: 8px; }
 
-  /* 账号卡：① 标题/ID + 状态 ② 积分细条+积分+成功失败+在途 ③ 用量标签+最近成功 ④ 按钮 */
-  #accBody tr > .who { grid-column: 3 / 9; }
-  #accBody tr > td:nth-child(4) { grid-column: 9 / 13; flex-direction: column; align-items: flex-end; gap: 1px; }
-  #accBody tr > td:nth-child(4)::before { content: none; }
-  #accBody tr > td:nth-child(4) .hint { font-size: 9.5px; margin-top: 0; text-align: right; }
-  #accBody tr > .cred { grid-column: 1 / 7; gap: 5px; }
-  #accBody tr > .cred .n { font-size: 11px; }
-  #accBody tr > td:nth-child(6) { grid-column: 7 / 10; }
-  #accBody tr > td:nth-child(7) { grid-column: 10 / 13; }
-  #accBody tr > td:nth-child(9) { grid-column: 1 / 4; order: 1; }
-  #accBody tr > .usage-cell { grid-column: 4 / 13; order: 2; }
-  #accBody tr > .acts { order: 3; }
+  #rkBody tr > td:first-child, #rkBody tr > td:last-child { grid-column: 1 / -1; }
+  #rkBody .risk-control { flex: 1; justify-content: space-between; }
+
+  #accBody .account-row { gap: 12px 8px; }
+  .account-pool .refresh-status { display: grid; grid-template-columns: auto auto 1fr auto; gap: 6px 8px; padding: 8px 12px; }
+  .account-pool #accSelected { grid-column: 3 / -1; }
+  .account-pool #overviewFreshness { grid-column: 1 / 4; }
+  .account-pool .account-batch-actions { flex: 1 0 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .account-pool .account-batch-actions button { padding-inline: 3px; font-size: 12px; }
+  #accBody .account-row > td { padding: 0; }
+  #accBody .select-col { grid-column: 1 / 2; align-self: start; width: auto; }
+  #accBody .select-col input { margin: 4px 0 0; }
+  #accBody .who { grid-column: 2 / 8; }
+  #accBody .who .id { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #accBody .account-state { grid-column: 8 / 13; display: grid; justify-items: end; }
+  #accBody .account-tags { justify-content: flex-end; }
+  #accBody .account-state::before, #accBody .account-row-actions::before { content: none; }
+  #accBody .account-traffic, #accBody .cred, #accBody .account-usage {
+    grid-column: span 4; display: block; align-self: start; min-width: 0; white-space: normal;
+  }
+  #accBody .account-row > td[data-l]::before { margin: 0 0 3px; }
+  #accBody .account-traffic::before, #accBody .cred::before, #accBody .account-usage::before { display: block; }
+  #accBody .account-traffic::before { content: '成功 / 失败'; }
+  #accBody .cred .bar { margin-top: 6px; height: 3px; }
+  #accBody .account-row-actions { grid-column: 1 / -1; padding-top: 9px; border-top: 1px solid var(--line-soft); }
+  #accBody .account-row-actions > div { width: 100%; }
+  #accBody .account-row-actions button, #accBody .account-detail-actions button { min-height: 34px; }
+  #accBody .account-release { min-height: 26px; }
+  #accBody .account-row:has(.account-more[aria-expanded="true"]) { margin-bottom: 0; border-radius: 12px 12px 0 0; }
+  #accBody .account-detail-row { padding: 0; border-top: 0; border-radius: 0 0 12px 12px; overflow: hidden; }
+  #accBody .account-detail-row > td { display: block; width: 100%; }
+  #accBody .account-detail { padding: 12px; }
 
   /* 模型锁池（v1.12.0 新增，8 列）：模型 / 域 / 状态 / 可选·总数 / 锁定账号 / 最早解锁 / 全池解锁 / 原因 */
   #mlBody tr > td:nth-child(1) { grid-column: 1 / 9; }

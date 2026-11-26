@@ -67,15 +67,15 @@ func (p *Pool) rollShareWindowsLocked(now time.Time) {
 	}
 }
 
-// shareBlockedLocked 判断账号是否已吃满份额/日请求上限。仅用于新会话选号。
+// shareBlockReasonLocked 判断账号是否已吃满份额/日请求上限，供新会话与手动检测使用。
 // 调用方必须已持 p.mu。
-func (p *Pool) shareBlockedLocked(e *entry, now time.Time) bool {
+func (p *Pool) shareBlockReasonLocked(e *entry, now time.Time) string {
 	p.rollShareWindowsLocked(now)
 	if p.dailyRequestLimit > 0 && e.dayReq >= p.dailyRequestLimit {
-		return true
+		return "已达到账号每日请求上限"
 	}
 	if p.accountShareCap <= 0 {
-		return false
+		return ""
 	}
 	// 份额按 realm 分别计算：cn/global 是两条独立的账号池，用全池数量做分母会
 	// 让小池（例如只有 2 个 cn 号）在低流量时被误判为「吃满份额」。
@@ -89,18 +89,21 @@ func (p *Pool) shareBlockedLocked(e *entry, now time.Time) bool {
 	hourTotal := p.hourRealmTotals[realm]
 	dayTotal := p.dayRealmTotals[realm]
 	if n < shareWindowMinAccounts || hourTotal < n*shareWindowMinSamples {
-		return false
+		return ""
 	}
 	// 再选一次这个号是否会让它超过 cap 倍公平份额。
 	hourLimit := p.accountShareCap * float64(hourTotal) / float64(n)
 	if float64(e.hourReq+1) > hourLimit {
-		return true
+		return "已达到账号每小时请求份额上限"
 	}
 	if dayTotal < n*shareWindowMinSamples {
-		return false
+		return ""
 	}
 	dayLimit := p.accountShareCap * float64(dayTotal) / float64(n)
-	return float64(e.dayReq+1) > dayLimit
+	if float64(e.dayReq+1) > dayLimit {
+		return "已达到账号当日请求份额上限"
+	}
+	return ""
 }
 
 // notePickedLocked 记账一次选中（成功进入请求即计入，失败也计入——
@@ -127,6 +130,7 @@ type ShareStat struct {
 	RiskUntil     time.Time `json:"risk_until,omitempty"`
 	RiskProbeDue  bool      `json:"risk_probe_due,omitempty"`
 	Disabled      bool      `json:"disabled"`
+	Paused        bool      `json:"paused,omitempty"`
 	Cooling       bool      `json:"cooling"`
 	InFlight      int       `json:"in_flight"`
 	InFlightLimit int       `json:"in_flight_limit"`
@@ -146,6 +150,7 @@ func (p *Pool) ShareSnapshot() (hourTotal, dayTotal int64, stats []ShareStat) {
 			HourReq:       e.hourReq,
 			DayReq:        e.dayReq,
 			Disabled:      e.disabled,
+			Paused:        e.paused,
 			Cooling:       now.Before(e.expiry(now)),
 			InFlight:      int(e.inFlight.Load()),
 			InFlightLimit: p.inFlightLimit(e),

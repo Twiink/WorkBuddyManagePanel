@@ -50,7 +50,7 @@ $('btnTheme').onclick = () => {
 applyTheme();
 
 /* ── 请求 ─────────────────────────────────────────────────────────── */
-async function api(path, opts = {}) {
+async function panelResponse(path, opts = {}) {
   const h = Object.assign({}, opts.headers || {});
   const k = localStorage.getItem(LS_KEY);
   if (k) h['Authorization'] = 'Bearer ' + k;
@@ -60,9 +60,15 @@ async function api(path, opts = {}) {
     openKey();
     throw new Error('密钥无效或未填写');
   }
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-  return d;
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.error || ('HTTP ' + r.status));
+  }
+  return r;
+}
+async function api(path, opts = {}) {
+  const r = await panelResponse(path, opts);
+  return r.json().catch(() => ({}));
 }
 function toast(msg, cls) {
   const el = document.createElement('div');
@@ -359,7 +365,11 @@ function formatRate(rate) {
 }
 
 /* ── 密钥门 ───────────────────────────────────────────────────────── */
-function openKey() { $('keyVeil').classList.add('on'); setTimeout(() => $('keyInput').focus(), 60); }
+function openKey() {
+  if ($('modelCheck').open) $('modelCheck').close();
+  $('keyVeil').classList.add('on');
+  setTimeout(() => $('keyInput').focus(), 60);
+}
 $('btnKey').onclick = async () => {
   const v = $('keyInput').value.trim();
   if (!v) return;
@@ -515,29 +525,43 @@ async function downloadAccountExport(uids, button) {
 function renderAccounts(list) {
   const tb = $('accBody');
   if (!list.length) {
-    tb.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="big">账号池是空的</div>点击右上角「添加账号」，用浏览器登录一个 WorkBuddy 账号</div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="big">当前没有可显示的账号</div>可从右上角添加账号，或显示已禁用的账号</div></td></tr>';
     syncExportSelection(list);
     return;
   }
+  const expanded = new Set(Array.from(tb.querySelectorAll('.account-more[aria-expanded="true"]'), b => b.dataset.u));
+  const focused = tb.contains(document.activeElement) ? document.activeElement : null;
+  const now = Date.now();
   // 有总额度（credits_total）→ 进度条按自身 剩余/总额 百分比；旧数据无总额 → 退回池内最高=100%
   const maxCred = Math.max(1, ...list.map(s => s.credits || 0));
-  tb.innerHTML = list.map(s => {
-    const bl = (new Date(s.breaker_until || 0) - Date.now()) / 1000;
-    const dg = (new Date(s.degrade_until || 0) - Date.now()) / 1000;
+  tb.innerHTML = list.map((s, index) => {
+    const uid = esc(s.uid);
+    const bl = (parseAPITime(s.breaker_until) - now) / 1000;
+    const dg = (parseAPITime(s.degrade_until) - now) / 1000;
     const cool = Math.max(s.cool_remaining_sec || 0, bl > 0 ? bl : 0, dg > 0 ? dg : 0);
     let cls = '', tag;
-    if (s.disabled) { cls = 'off'; tag = '<span class="tag bad">已禁用</span>'; }
+    if (s.risk_hold) {
+      cls = 'off';
+      tag = '<span class="tag bad">风控隔离</span>';
+      if (s.disabled) tag += '<span class="tag mute">已禁用</span>';
+      else if (s.paused) tag += '<span class="tag mute">已暂停选号</span>';
+    } else if (s.disabled) { cls = 'off'; tag = '<span class="tag bad">已禁用</span>'; }
     else if (s.paused) { cls = 'off'; tag = '<span class="tag warn">已暂停选号</span>'; }
     else if (cool > 0) {
       cls = 'cool';
-      const kind = bl > Math.max(s.cool_remaining_sec || 0, dg > 0 ? dg : 0) ? '熔断'
-        : (dg > (s.cool_remaining_sec || 0) ? '连败降权' : (s.cool_kind === 'hard_credit' ? '积分冷却' : '限流冷却'));
+      const kind = dg >= cool ? '连败降权'
+        : (s.cool_kind === 'breaker' || bl >= cool ? '熔断' : (s.cool_kind === 'hard_credit' ? '积分冷却' : '限流冷却'));
       tag = '<span class="tag warn">' + kind + ' · ' + dur(cool) + '</span>';
     } else if (s.daily && s.daily.token_blocked) { cls = 'cool'; tag = '<span class="tag warn">今日额度已满</span>'; }
-    else tag = '<span class="tag ok">可用</span>' + (s.in_flight ? '' : '');
-    const note = s.reason ? '<div class="hint" style="font-size:11.5px;color:var(--ink-3);margin-top:3px">' + esc(s.reason) + '</div>' : '';
-    const rateLimits = rateLimitRowsHtml(s.rate_limited_models, Date.now()) + dailyGuardHtml(s.daily);
-    const short = s.uid.length > 16 ? s.uid.slice(0, 16) + '…' : s.uid;
+    else if ((s.rate_limited_models || []).length || (s.daily && (s.daily.credit_blocked || (s.daily.blocked_models || []).length))) {
+      cls = 'cool'; tag = '<span class="tag warn">部分模型受限</span>';
+    } else tag = '<span class="tag ok">可用</span>';
+    const release = s.risk_hold ? '<button class="account-release" data-act="release-risk" data-u="' + uid + '">解除本地风控</button>' : '';
+    const riskUntil = parseAPITime(s.risk_until);
+    const riskNote = s.risk_hold ? '<p>' + (riskUntil > now ? '下次可探活时间 ' + fmtLocalDateTime(riskUntil) : '隔离中，等待探活') + '</p>' : '';
+    const reason = s.reason || s.disabled_reason;
+    const note = reason ? '<p class="account-reason">' + esc(reason) + '</p>' : '';
+    const rateLimits = rateLimitRowsHtml(s.rate_limited_models, now) + dailyGuardHtml(s.daily);
     // 企业版不限量：上游 limitNum == -1，网关以 credits_total=-1 透出（见 upstream
     // enterpriseUnlimitedTotal）。此时剩余额度不参与展示，直接标「不限」。
     const unlimited = s.credits_total === -1;
@@ -564,26 +588,26 @@ function renderAccounts(list) {
     const tu = s.token_usage || {};
     const req = tu.request_count || 0;
     const totalTok = formatTokenCount(tu.total_tokens);
-    const totalTokUnit = totalTok === '—' ? '' : '<em>tok</em>';
     const latency = formatLatency(tu.last_latency_ms);
     const rate = formatRate(tu.last_tokens_per_second);
-    const usageTitle = '最近一次：' + req + ' 次 / ' + totalTok + ' / 延迟 ' + latency + ' / ' + rate;
-    return '<tr class="' + cls + '" title="uid: ' + esc(s.uid) + '">' +
+    const isOpen = expanded.has(String(s.uid));
+    const detailID = 'account-detail-' + index;
+    return '<tr class="account-row ' + cls + '">' +
       '<td class="mark" aria-hidden="true"><i></i></td>' +
       '<td class="select-col"><input class="acc-export-check" type="checkbox" data-u="' + esc(s.uid) + '" aria-label="选择账号 ' + esc(s.nickname || s.uid) + '" title="选择导出"></td>' +
-      '<td class="who"><div class="nm">' + remarkName(s.uid, s.nickname ? esc(s.nickname) : '<span style="color:var(--ink-3)">未命名</span>') + (s.realm === 'global' ? ' <span class="realm-tag">国际版</span>' : '') + (s.enterprise ? ' <span class="realm-tag">企业版</span>' : '') + '</div><div class="id">' + esc(short) + '</div></td>' +
-      '<td>' + tag + note + rateLimits + '</td>' +
+      '<td class="who"><div class="nm">' + remarkName(s.uid, s.nickname ? esc(s.nickname) : '<span style="color:var(--ink-3)">未命名</span>') + (s.realm === 'global' ? ' <span class="realm-tag">国际版</span>' : '') + (s.enterprise ? ' <span class="realm-tag">企业版</span>' : '') + '</div><div class="id" title="' + uid + '">' + uid + '</div></td>' +
+      '<td class="account-state"><div class="account-tags">' + tag + '</div>' + release + '</td>' +
       '<td class="cred" title="' + esc(credTip) + '"><div class="n">' + cred + '</div><div class="bar"><i style="width:' + pct + '%"></i></div></td>' +
-      '<td class="num">' + (s.success_count || 0) + ' <span style="color:var(--ink-3)">/</span> <span style="color:var(--bad)">' + (s.err_total || 0) + '</span></td>' +
-      '<td class="num">' + (s.in_flight || 0) + '</td>' +
-      '<td class="num usage-cell" title="' + esc(usageTitle) + '"><span class="usage-line" aria-label="' + esc(usageTitle) + '">' +
-        '<span class="usage-item usage-count"><b>' + req + '</b><em>次</em></span>' +
-        '<span class="usage-item usage-total"><b>' + totalTok + '</b>' + totalTokUnit + '</span>' +
-        '<span class="usage-item usage-latency"><b>' + latency + '</b></span>' +
-        '<span class="usage-item usage-rate"><b>' + rate + '</b></span>' +
-      '</span></td>' +
-      '<td class="num" style="color:var(--ink-3)">' + ago(s.last_success) + '</td>' +
-      '<td class="acts">' +
+      '<td class="account-traffic"><div>' + (s.success_count || 0) + ' <span class="account-dim">/</span> <span' + (s.err_total ? ' class="account-errors"' : '') + '>' + (s.err_total || 0) + '</span></div>' +
+        '<small>在途 ' + (s.in_flight || 0) + '</small></td>' +
+      '<td class="account-usage"><div><span>' + req + ' 次</span>' + (totalTok === '—' ? '' : '<span>' + totalTok + ' tok</span>') + '</div>' +
+        '<small>' + (latency === '—' ? '' : '<span title="最近一次延迟">' + latency + '</span>') +
+        (rate === '—' ? '' : '<span title="最近一次生成速率">' + rate + '</span>') + '</small></td>' +
+      '<td class="account-row-actions"><div><button class="xs account-probe" data-act="probe-account" data-u="' + uid + '">检测账号</button>' +
+        '<button class="xs ghost account-more" data-u="' + uid + '" aria-expanded="' + isOpen + '" aria-controls="' + detailID + '">详情</button></div></td></tr>' +
+      '<tr class="account-detail-row" id="' + detailID + '"' + (isOpen ? '' : ' hidden') + '><td colspan="8"><div class="account-detail">' +
+        '<div class="account-detail-info"><span>UID <b>' + uid + '</b></span><span>最近成功 <b>' + ago(s.last_success) + '</b></span></div>' +
+        riskNote + note + rateLimits + '<div class="account-detail-actions">' +
         // 企业版无个人成长体系（签到 400「企业账号不支持该操作」/ 成长任务 403）：
         // 不渲染「签到」「任务」按钮，只留「额度」——点它走 /balance，企业额度由
         // upstream 的 get-enterprise-user-usage 口径填充。
@@ -598,9 +622,14 @@ function renderAccounts(list) {
                             : '<button class="xs ghost" data-a="pause" data-u="' + esc(s.uid) + '" title="' + (s.enterprise ? '退出选号，但照常保活 / 刷新额度' : '退出选号，但照常签到 / 活跃上报 / 保活 / 刷新余额') + '">暂停选号</button>')) +
         (s.disabled ? '' : '<button class="xs ghost" data-a="disable" data-u="' + esc(s.uid) + '">禁用</button>') +
         '<button class="xs ghost danger" data-a="remove" data-u="' + esc(s.uid) + '">移除</button>' +
-      '</td></tr>';
+      '</div></div></td></tr>';
   }).join('');
   syncExportSelection(list);
+  if (focused && focused.dataset.u) {
+    const match = Array.from(tb.querySelectorAll('[data-u]')).find(el => el.dataset.u === focused.dataset.u
+      && el.dataset.a === focused.dataset.a && el.dataset.act === focused.dataset.act && el.tagName === focused.tagName);
+    if (match) match.focus({ preventScroll: true });
+  }
 }
 
 // renderModelLocks 模型锁池：哪些模型不能用、锁了几个号、还要锁多久。
@@ -751,6 +780,14 @@ $('accBody').addEventListener('change', ev => {
   else selectedExportUIDs.delete(box.dataset.u);
   const accounts = poolVisibleAccounts((overviewData && overviewData.accounts) || [], showDisabledAccounts);
   syncExportSelection(accounts);
+});
+
+$('accBody').addEventListener('click', ev => {
+  const more = ev.target.closest('.account-more');
+  if (!more) return;
+  const detail = $(more.getAttribute('aria-controls'));
+  detail.hidden = !detail.hidden;
+  more.setAttribute('aria-expanded', String(!detail.hidden));
 });
 
 $('btnExportSelected').onclick = ev => {
@@ -926,6 +963,159 @@ $('btnActivityAll').onclick = async () => {
 };
 
 /* ── 模型 ─────────────────────────────────────────────────────────── */
+let checkSubject = null, checkController = null;
+
+function openModelCheck(uid) {
+  const account = (overviewData?.accounts || []).find(a => a.uid === uid);
+  checkSubject = uid;
+  $('modelCheckSubject').textContent = [remarkOf(uid) || account?.nickname, uid].filter(Boolean).join(' · ');
+  $('modelCheckIntro').hidden = false;
+  $('modelCheckStatus').textContent = '';
+  $('modelCheckStatus').classList.remove('error');
+  $('modelCheckProgress').hidden = $('modelCheckList').hidden = true;
+  $('modelCheckList').replaceChildren();
+  $('runModelCheck').textContent = '开始检测';
+  $('closeModelCheck').textContent = '关闭';
+  $('modelCheck').showModal();
+}
+
+// 网络分片可以落在一行 JSON 或一个多字节字符中间。
+async function readCheckEvents(response, handle) {
+  if (!response.body?.getReader) {
+    (await response.text()).split('\n').filter(line => line.trim()).forEach(line => handle(JSON.parse(line)));
+    return;
+  }
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let pending = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      pending += decoder.decode(value, { stream: !done });
+      const lines = pending.split('\n');
+      pending = lines.pop();
+      for (const line of lines) if (line.trim()) handle(JSON.parse(line));
+      if (done) break;
+    }
+    if (pending.trim()) handle(JSON.parse(pending));
+  } finally { reader.releaseLock(); }
+}
+
+async function runModelCheck() {
+  if (checkController) {
+    checkController.abort();
+    return;
+  }
+  const uid = checkSubject, controller = new AbortController();
+  checkController = controller;
+  const action = $('runModelCheck'), status = $('modelCheckStatus'), progress = $('modelCheckProgress'), list = $('modelCheckList');
+  const models = new Map();
+  let completed = 0, done = false;
+  action.textContent = '停止检测';
+  $('closeModelCheck').textContent = '关闭并停止';
+  status.classList.remove('error');
+  status.textContent = '正在读取此账号的模型目录…';
+  $('modelCheckIntro').hidden = true;
+  progress.hidden = list.hidden = true;
+  list.replaceChildren();
+  function nextModel() {
+    const next = list.children[completed];
+    if (next) {
+      const tag = next.querySelector('.tag');
+      tag.textContent = '检测中';
+      tag.className = 'tag warn';
+    }
+    progress.value = completed;
+    status.textContent = '检测进度 ' + completed + ' / ' + models.size;
+  }
+  try {
+    const response = await panelResponse('accounts/' + encodeURIComponent(uid) + '/model-check', { method: 'POST', signal: controller.signal });
+    await readCheckEvents(response, event => {
+      if (controller.signal.aborted) return;
+      if (event.type === 'start') {
+        for (const model of event.models) {
+          const row = document.createElement('li');
+          row.innerHTML = '<span class="model">' + esc(model) + '</span><span class="tag mute">待检测</span>';
+          models.set(model, row);
+          list.appendChild(row);
+        }
+        progress.max = models.size || 1;
+        list.hidden = progress.hidden = !models.size;
+        nextModel();
+      } else if (event.type === 'result') {
+        const row = models.get(event.model);
+        const tag = row.querySelector('.tag');
+        const passed = event.status === 'passed', skipped = event.status === 'skipped';
+        tag.className = 'tag ' + (passed ? 'ok' : skipped ? 'mute' : 'bad');
+        tag.textContent = passed ? '通过' : skipped ? '跳过' : '失败';
+        const detail = [event.message, event.elapsed_ms > 0 ? event.elapsed_ms + ' ms' : ''].filter(Boolean);
+        if (detail.length) {
+          const note = document.createElement('small');
+          note.textContent = detail.join(' · ');
+          row.appendChild(note);
+        }
+        completed++;
+        nextModel();
+      } else if (event.type === 'done') {
+        done = true;
+        let verdict = '本次未调用模型';
+        if (event.stop_reason) verdict = event.stop_reason;
+        else if (event.passed > 0) verdict = event.passed === models.size ? '全部模型可用' : '部分模型可用';
+        else if (event.failed > 0) verdict = '本次未测得可用模型';
+        status.classList.toggle('error', Boolean(event.stop_reason));
+        status.textContent = verdict + ' · ' + event.passed + ' 通过 / ' + (event.failed || 0) + ' 失败 / ' + (event.skipped || 0) + ' 跳过';
+      }
+    });
+    if (!done) throw new Error('连接已中断，检测未完成');
+  } catch (e) {
+    if (checkController === controller) {
+      status.textContent = controller.signal.aborted ? '检测已停止' : e.message;
+      status.classList.toggle('error', !controller.signal.aborted);
+      for (const row of Array.from(models.values()).slice(completed)) {
+        const tag = row.querySelector('.tag');
+        tag.className = 'tag mute';
+        tag.textContent = '未检测';
+      }
+    }
+  } finally {
+    controller.abort();
+    if (checkController === controller) {
+      checkController = null;
+      action.textContent = '重新检测';
+      $('closeModelCheck').textContent = '关闭';
+    }
+    loadOverview(true);
+  }
+}
+$('runModelCheck').onclick = runModelCheck;
+$('closeModelCheck').onclick = () => $('modelCheck').close();
+$('modelCheck').addEventListener('close', () => {
+  checkController?.abort();
+  checkController = null;
+  const trigger = Array.from($('accBody').querySelectorAll('[data-act="probe-account"]')).find(b => b.dataset.u === checkSubject);
+  (trigger || $('btnRefreshOverview')).focus();
+  checkSubject = null;
+});
+
+async function accountControl(ev) {
+  const b = ev.target.closest('button[data-act]');
+  if (!b) return;
+  if (b.dataset.act === 'probe-account') {
+    openModelCheck(b.dataset.u);
+  } else if (b.dataset.act === 'release-risk') {
+    b.disabled = true;
+    try {
+      const r = await api('accounts/' + encodeURIComponent(b.dataset.u) + '/release-risk', { method: 'POST' });
+      toast(r.released ? '已解除本地风控隔离' : '该账号已无本地风控隔离', 'ok');
+      if (view === 'risk') await loadRisk();
+      if (overviewRequest) await overviewRequest;
+      await loadOverview(true);
+    } catch (e) { toast(e.message, 'err'); }
+    finally { b.disabled = false; }
+  }
+}
+$('accBody').addEventListener('click', accountControl);
+$('rkBody').addEventListener('click', accountControl);
+
 /* 实测上限标注：scripts/probe_max_tokens.py --panel-out 写入探测结果，
    /panel/api/model_probes 只读透传。探测键带域前缀（cn:glm-5.2），模型表
    显示裸名，按「精确命中或 :后缀」关联。无数据时本列退回上游声称值。 */
@@ -2622,6 +2812,7 @@ function renderRisk(d) {
       const left = Math.max(0, (new Date(a.risk_until || 0) - Date.now()) / 1000);
       tag = '<span class="tag bad">风控隔离 · ' + (left > 0 ? dur(left) : '待探活') + '</span>';
     } else if (a.disabled) tag = '<span class="tag bad">已禁用</span>';
+    else if (a.paused) tag = '<span class="tag warn">已暂停选号</span>';
     else if (a.cooling) tag = '<span class="tag warn">冷却中</span>';
     else tag = '<span class="tag ok">可用</span>';
     const name = esc(a.nickname || '') + '<div class="hint" style="font-size:11px">' + esc(String(a.uid || '').slice(0, 12)) + '</div>';
@@ -2639,7 +2830,9 @@ function renderRisk(d) {
       + '<td class="num">' + (a.soft_rate_24h || 0) + '</td>'
       + '<td class="num">' + (a.account_restricted_24h || 0) + '</td>'
       + '<td class="num">' + (a.channel_refused_24h || 0) + '</td>'
-      + '<td>' + tag + '</td></tr>';
+      + '<td><div class="risk-control">' + tag + (a.risk_hold
+        ? '<button class="xs" data-act="release-risk" data-u="' + esc(a.uid) + '">解除本地风控</button>'
+        : '') + '</div></td></tr>';
   }).join('');
 }
 

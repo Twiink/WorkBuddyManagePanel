@@ -341,26 +341,6 @@ label.fld > .hint { display: block; font-size: 11.5px; color: var(--ink-3); marg
 .realm-seg input:checked + span { background: var(--surface); color: var(--accent); border-color: var(--accent); font-weight: 650; }
 .realm-seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.usage-cell { min-width: 268px; }
-.usage-line {
-  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
-  font: 600 11.5px/1.25 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-.usage-item {
-  display: inline-flex; align-items: baseline; padding: 3px 6px; border: 1px solid var(--line-soft);
-  border-radius: 3px; background: var(--surface-2); color: var(--ink-2);
-}
-.usage-item b { font-weight: 650; }
-.usage-item em { margin-left: 2px; font: 500 10px/1 var(--sans); font-style: normal; opacity: .8; }
-.usage-count { color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 18%, transparent); }
-.usage-total {
-  color: var(--ink); background: var(--surface);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
-}
-.usage-total b { font-size: 12px; letter-spacing: -.02em; }
-.usage-total em { color: var(--ink-3); }
-.usage-latency { color: var(--warn); background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 18%, transparent); }
-.usage-rate { color: var(--ok); background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 18%, transparent); }
 .cred { min-width: 92px; }
 .cred .n { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .cred .n .of { color: var(--ink-3); font-size: 11px; font-weight: 400; }
@@ -564,6 +544,22 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 .dlg .body { padding: 18px 22px; overflow: auto; }
 .dlg footer { padding: 13px 22px; border-top: 1px solid var(--line); display: flex; gap: 8px; background: var(--surface-2); }
 .dlg footer .grow { flex: 1; }
+.model-check {
+  margin: auto; padding: 0; width: min(540px, calc(100% - 32px)); max-height: 86vh;
+  color: var(--ink); font: inherit; overflow: hidden;
+}
+.model-check:not([open]) { display: none; }
+.model-check::backdrop { background: rgba(14,28,20,.48); }
+.model-check .body { min-height: 0; }
+.model-check .subject { margin-top: 5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.model-check .status { font-weight: 650; }
+.model-check progress { display: block; margin-top: 9px; width: 100%; height: 6px; accent-color: var(--accent); }
+.model-check ul { margin-top: 14px; list-style: none; }
+.model-check li { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 2px 12px; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.model-check .model { font-weight: 550; overflow-wrap: anywhere; }
+.model-check small { grid-column: 1/-1; color: var(--ink-2); overflow-wrap: anywhere; }
+.model-check .error { color: var(--bad); }
+#rkBody .risk-control { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .dlg .tabs { display: inline-flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); padding: 2px; margin-left: 10px; vertical-align: middle; }
 .dlg .tabs .tab { padding: 4px 14px; border-radius: 3px; border: none; background: transparent; color: var(--ink-3); font: 600 12.5px var(--sans); cursor: pointer; }
 .dlg .tabs .tab:hover { color: var(--ink); background: transparent; }
@@ -735,7 +731,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 /* ── 全局组件校准 ─────────────────────────────────────────────────── */
 .realm-seg, .dlg .tabs, .vtabs, .st-tabs { border-radius: 9px; }
 .realm-seg span, .dlg .tabs .tab, .vtabs button { border-radius: 6px; }
-.realm-tag, .rate-limit, .usage-item, .exp-chip { border-radius: 6px; }
+.realm-tag, .rate-limit, .exp-chip { border-radius: 6px; }
 .bar, .bar i, .us-mix, .us-share, .us-share i, .mixbar, .expirybar { border-radius: 999px; }
 .exp-head { letter-spacing: 0; }
 .exp-row { padding-top: 11px; padding-bottom: 11px; }
@@ -1003,9 +999,61 @@ label.fld { margin-bottom: 19px; }
      不再把下面的面板推出好几屏。行距同时收紧一档。 */
   .tbl-scroll { max-height: 600px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
   .tbl-scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); box-shadow: inset 0 -1px 0 var(--line); }
-  #accBody td { padding: 7px 9px; }
+  .account-pool > header { flex-wrap: wrap; }
+  .account-batch-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .account-pool .tbl-wrap { container: account-list / inline-size; }
+  .account-pool .c-acts { text-align: right; }
+  .account-pool .select-col { width: 30px; }
+  .account-pool input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); vertical-align: middle; }
+  .account-select-all { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; cursor: pointer; }
+  .account-pool #accSelected { flex: none; }
+  #accBody td { padding: 10px 12px; }
+  #accBody .select-col { padding-inline: 8px 2px; }
   #accBody td.mark { padding: 0; }
   #accBody .mark i { min-height: 30px; }
+  #accBody .who .id { max-width: 17ch; }
+  .account-tags, .account-row-actions > div, .account-detail-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+  .account-traffic, .account-usage { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .account-traffic small, .account-usage small, .account-dim { color: var(--ink-3); }
+  .account-traffic small, .account-usage small { display: block; margin-top: 2px; font-size: 11.5px; }
+  .account-usage > div, .account-usage small { display: flex; flex-wrap: wrap; gap: 0 8px; }
+  .account-usage span { white-space: nowrap; }
+  .account-usage small:empty { display: none; }
+  .account-errors { color: var(--bad); }
+  .account-row-actions > div { justify-content: flex-end; flex-wrap: nowrap; }
+  button.account-probe { color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 25%, var(--line)); }
+  button.account-release { padding: 3px 0; background: transparent; border: 0; border-radius: 3px; color: var(--bad); font-size: 12px; white-space: nowrap; }
+  button.account-release:hover:not(:disabled) { background: transparent; text-decoration: underline; }
+  .account-more::after { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 1px 3px 6px; border: solid currentColor; border-width: 0 1px 1px 0; transform: rotate(45deg); }
+  .account-more[aria-expanded="true"]::after { transform: rotate(225deg); vertical-align: -2px; }
+  #accBody .account-detail-row > td { padding: 0; background: var(--surface-2); }
+  .account-detail { padding: 14px 22px 16px; overflow-wrap: anywhere; }
+  .account-detail-info { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-3); font-size: 12px; }
+  .account-detail-info b { color: var(--ink-2); font-weight: 500; }
+  .account-detail p { margin-top: 5px; font-size: 12px; color: var(--ink-2); }
+  .account-detail .rate-limits { min-width: 0; }
+  .account-detail .rate-limit { flex-wrap: wrap; }
+  .account-detail-actions { margin-top: 11px; gap: 5px 7px; }
+  .account-detail-actions button.ghost { background: var(--surface); border-color: var(--line); }
+  /* 窄桌面仍有侧栏，按表格实际可用宽度分行，把检测入口保留在视野内。 */
+  @media (min-width: 761px) {
+    @container account-list (max-width: 820px) {
+      .account-pool table, #accBody { display: block; min-width: 0; }
+      .account-pool thead { display: none; }
+      #accBody .account-row { display: grid; grid-template-columns: 20px repeat(3, minmax(0, 1fr)) auto; align-items: center; gap: 8px 12px; padding: 12px; border-bottom: 1px solid var(--line); }
+      #accBody .account-row > td { padding: 0; border: 0; min-width: 0; }
+      #accBody .account-row > .mark { display: none; }
+      #accBody .who { grid-column: 2 / 4; }
+      #accBody .account-state { grid-column: 4; }
+      #accBody .account-row-actions { grid-column: 5; grid-row: 1; }
+      #accBody .cred { grid-column: 2; }
+      #accBody .account-usage { grid-column: 4 / 6; }
+      #accBody .account-traffic, #accBody .cred, #accBody .account-usage { align-self: start; }
+      #accBody .account-traffic::before, #accBody .cred::before, #accBody .account-usage::before { content: attr(data-l); display: block; color: var(--ink-3); font-size: 11px; }
+      #accBody .account-traffic::before { content: '成功 / 失败'; }
+      #accBody .account-detail-row, #accBody .account-detail-row > td { display: block; }
+    }
+  }
   .req-wrap thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 1; box-shadow: inset 0 -1px 0 var(--line); }
   .clip { display: block; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .clip.ip { max-width: 150px; font-family: var(--mono); font-size: 12.5px; }
@@ -1253,31 +1301,34 @@ label.fld { margin-bottom: 19px; }
         <div class="pad"><div id="compList"></div></div>
       </div>
 
-      <div class="box">
+      <div class="box account-pool">
         <header>
-          <h3>账号池</h3>
+          <h3 id="accountListHeading">账号池</h3>
           <span class="grow"></span>
           <span class="note" id="accNote"></span>
-          <button class="xs" id="btnExportSelected" disabled title="导出所选账号的完整凭据与运行状态">导出所选</button>
-          <span class="note" id="accSelected" aria-live="polite"></span>
           <button class="xs ghost" id="btnShowDisabled" hidden>显示已禁用</button>
           <button class="xs" id="btnRemarks">备注</button>
-          <button class="xs" id="btnCheckinAll">全部签到</button>
-          <button class="xs" id="btnTravelAll">旅行巡检</button>
-          <button class="xs" id="btnActivityAll">活跃上报</button>
-          <button class="xs" id="btnKeepaliveAll">全部保活</button>
+          <div class="account-batch-actions" role="group" aria-label="批量维护">
+            <button class="xs" id="btnCheckinAll">全部签到</button>
+            <button class="xs" id="btnTravelAll">旅行巡检</button>
+            <button class="xs" id="btnActivityAll">活跃上报</button>
+            <button class="xs" id="btnKeepaliveAll">全部保活</button>
+          </div>
         </header>
         <div class="refresh-status">
+          <label class="account-select-all"><input type="checkbox" id="accSelectAll" aria-label="选择当前显示的全部账号">全选</label>
+          <button class="xs" id="btnExportSelected" disabled title="导出所选账号的完整凭据与运行状态">导出所选</button>
+          <span class="note" id="accSelected" aria-live="polite"></span>
           <span class="note" id="overviewFreshness" role="status" aria-live="polite">正在读取状态…</span>
           <button class="xs" id="btnRefreshOverview">刷新状态</button>
         </div>
-        <div class="tbl-wrap tbl-scroll">
-        <table class="acc">
+        <div class="tbl-wrap tbl-scroll" role="region" aria-labelledby="accountListHeading" tabindex="0">
+        <table class="acc" aria-labelledby="accountListHeading">
           <thead><tr>
             <th class="mark" aria-hidden="true"></th>
-            <th class="select-col"><input type="checkbox" id="accSelectAll" aria-label="选择当前显示的全部账号" title="选择当前显示的全部账号"></th>
-            <th>账号</th><th>状态</th><th>积分</th>
-            <th>成功 / 失败</th><th>在途</th><th>用量</th><th>最近成功</th><th class="c-acts"></th>
+            <th scope="col" class="select-col" aria-label="选择账号"></th>
+            <th scope="col">账号</th><th scope="col">状态</th><th scope="col">积分</th>
+            <th scope="col">成功 / 失败</th><th scope="col">用量</th><th scope="col" class="c-acts">操作</th>
           </tr></thead>
           <tbody id="accBody"></tbody>
         </table>
@@ -2085,6 +2136,25 @@ label.fld { margin-bottom: 19px; }
 
 <!-- 抽屉遮罩：仅 ≤760px 由 app.js 切 .on；桌面端 display:none，不参与布局 -->
 <div class="nav-veil" id="navVeil"></div>
+
+<!-- 单账号模型检测 -->
+<dialog class="dlg model-check" id="modelCheck" aria-labelledby="modelCheckTitle" aria-describedby="modelCheckSubject">
+  <header>
+    <h3 id="modelCheckTitle">模型检测</h3>
+    <p class="subject" id="modelCheckSubject"></p>
+  </header>
+  <div class="body">
+    <p id="modelCheckIntro">将使用此账号逐个调用所属区域的模型，每次发送一条简短请求，可能消耗积分。</p>
+    <p id="modelCheckStatus" class="status" role="status"></p>
+    <progress id="modelCheckProgress" aria-label="模型检测进度" hidden></progress>
+    <ul id="modelCheckList" aria-label="各模型检测结果" hidden></ul>
+  </div>
+  <footer>
+    <button type="button" id="closeModelCheck">关闭</button>
+    <span class="grow"></span>
+    <button type="button" class="primary" id="runModelCheck">开始检测</button>
+  </footer>
+</dialog>
 
 <!-- 移除账号确认 -->
 <div class="veil" id="removeVeil">

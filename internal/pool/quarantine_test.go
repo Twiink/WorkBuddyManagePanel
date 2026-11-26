@@ -93,3 +93,47 @@ func TestQuarantinePersistsAcrossRestart(t *testing.T) {
 		t.Fatalf("restored quarantine must not be pickable, got %s", got.UID)
 	}
 }
+
+func TestReleaseRiskHoldPreservesOtherRestrictionsAcrossRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	p := New(path)
+	defer p.Close()
+	for _, uid := range []string{"paused", "disabled", "ready"} {
+		p.Add(&auth.Auth{UID: uid})
+	}
+	p.SetBreaker(1, time.Hour, time.Hour)
+	p.Pause("paused")
+	p.Cooldown("paused", CoolSoft, time.Hour, "account rate limit")
+	p.NoteError("paused")
+	p.Disable("disabled", "manual disable")
+	for _, uid := range []string{"paused", "disabled", "ready"} {
+		p.Quarantine(uid, time.Hour, "11140")
+	}
+	p.BlockModelBackoff("paused", "model-a", "model unavailable")
+	p.Flush()
+	for _, uid := range []string{"paused", "disabled", "ready"} {
+		if released, found := p.ReleaseRiskHold(uid); !released || !found {
+			t.Fatalf("release %s = %v, %v", uid, released, found)
+		}
+	}
+	p.Flush()
+	restored := New(path)
+	defer restored.Close()
+	for _, s := range restored.List() {
+		if s.RiskHold || !s.RiskUntil.IsZero() {
+			t.Errorf("%s still held after restart", s.UID)
+		}
+	}
+	paused, _ := restored.Status("paused")
+	if !paused.Paused || !paused.Cooling || paused.Reason != "account rate limit" ||
+		paused.BreakerUntil.IsZero() || len(paused.RateLimitedModels) != 1 {
+		t.Errorf("lost independent restrictions: %+v", paused)
+	}
+	disabled, _ := restored.Status("disabled")
+	if !disabled.Disabled || disabled.DisabledReason != "manual disable" {
+		t.Errorf("lost manual disable: %+v", disabled)
+	}
+	if a := restored.Pick(); a == nil || a.UID != "ready" {
+		t.Errorf("pick after release = %+v, want ready", a)
+	}
+}

@@ -272,8 +272,8 @@ func (c *Client) probeGlobalModels(ctx context.Context, a *auth.Auth) (names []s
 	if v3.err != nil {
 		// /v3 失败降级：不拖累企业端点结果（降级仅企业端点 + warn）。
 		log.Printf("WARN: [upstream] global models: v3/config probe failed (degraded to enterprise endpoint): %v", v3.err)
-		names, infos, efforts, defaults = extractEfforts(enterprise.infos)
-		return names, infos, efforts, defaults, nil
+		_, infos, efforts, defaults = extractEfforts(enterprise.infos)
+		return enterprise.names, infos, efforts, defaults, nil
 	}
 	if enterprise.err != nil {
 		log.Printf("WARN: [upstream] global models: enterprise endpoint failed (v3/config only): %v", enterprise.err)
@@ -462,7 +462,7 @@ func (c *Client) globalModelsOnce(ctx context.Context, a *auth.Auth, path string
 		return nil, nil, fmt.Errorf("read body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("global models status %d: %s", resp.StatusCode, truncate(string(raw), 120))
+		return nil, nil, modelCatalogError(resp.StatusCode, raw)
 	}
 	names, infos, _, _, err := parseGlobalModelNames(raw)
 	return names, infos, err
@@ -497,7 +497,7 @@ func parseGlobalModelNames(raw []byte) (names []string, infos []ModelInfo, effor
 	if codeRaw, ok := envelope["code"]; ok {
 		var code int
 		if json.Unmarshal(codeRaw, &code) == nil && code != 0 {
-			return fail(fmt.Errorf("global models code=%d", code))
+			return fail(catalogBusinessError(code, raw))
 		}
 	}
 	payload := json.RawMessage(raw)

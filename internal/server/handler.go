@@ -848,68 +848,11 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	// 显式入参而不是读 st.ttfb：后者在流式分支里是**调用之后**才赋值的，
 	// 靠顺序传递会让将来重排代码时静默把速率算回旧的错口径。
 	recordAttempt := func(uid string, delta pool.TokenUsageDelta, credit float64, hasCredit bool, started time.Time, ttfb time.Duration) {
-		st.attempts++
-		if delta.HasPromptTokens {
-			st.promptTokens = delta.PromptTokens
+		model := bareModel
+		if model == "" {
+			model = peek.Model
 		}
-		if delta.HasCompletionTokens {
-			st.completionTokens = delta.CompletionTokens
-		}
-		if delta.HasTotalTokens {
-			st.totalTokens = delta.TotalTokens
-		} else if delta.HasPromptTokens || delta.HasCompletionTokens {
-			st.totalTokens = st.promptTokens + st.completionTokens
-		}
-		delta.Model = bareModel
-		if delta.Model == "" {
-			delta.Model = peek.Model
-		}
-		latency := time.Since(started)
-		latencyMs := latency.Milliseconds()
-		if latencyMs < 1 {
-			latencyMs = 1
-		}
-		delta.HasLatencyMs = true
-		delta.LatencyMs = latencyMs
-
-		// HasCompletionTokens 是「本次有没有 token 观测」的独立判断，与速率怎么算
-		// 无关，所以留在调用点；速率本身的边界（TTFB 缺失/超界）收在 tokensPerSecond。
-		if delta.HasCompletionTokens {
-			if tps, ok := tokensPerSecond(delta.CompletionTokens,
-				time.Duration(latencyMs)*time.Millisecond, ttfb); ok {
-				delta.HasTokensPerSecond = true
-				delta.TokensPerSecond = tps
-			}
-		}
-		h.cfg.Pool.RecordTokenUsage(uid, delta)
-
-		// 用量时序记录。ok 以「上游是否给了 usage」判定：空 delta 意味着这次尝试
-		// 没拿到任何 token 统计（传输错误 / >=400 / 解析失败），计为失败尝试。
-		// 失败也计入请求数——否则重试放大在「用量」视图里看不见。
-		if h.cfg.Usage != nil {
-			realm := "cn"
-			if a, ok := h.cfg.Pool.Status(uid); ok && a.Realm != "" {
-				realm = a.Realm
-			}
-			h.cfg.Usage.Add(time.Now(), realm, uid, delta.Model, usage.Delta{
-				PromptTokens:     delta.PromptTokens,
-				HasPromptTokens:  delta.HasPromptTokens,
-				CompletionTokens: delta.CompletionTokens,
-				HasCompletion:    delta.HasCompletionTokens,
-				TotalTokens:      delta.TotalTokens,
-				HasTotal:         delta.HasTotalTokens,
-				Credit:           credit,
-				HasCredit:        hasCredit,
-				HasCacheTokens:   st.hasCache,
-				CacheHitTokens:   st.cacheHit,
-				CacheMissTokens:  st.cacheMiss,
-				ModelRate:        modelRate,
-				LatencyMs:        delta.LatencyMs,
-				HasLatency:       delta.HasLatencyMs,
-				TokensPerSecond:  delta.TokensPerSecond,
-				HasTPS:           delta.HasTokensPerSecond,
-			}, delta.HasTotalTokens || delta.HasCompletionTokens || delta.HasPromptTokens)
-		}
+		h.recordModelAttempt(st, uid, model, modelRate, delta, credit, hasCredit, started, ttfb)
 	}
 
 	// 系统提示词改写（出站前、轮转前；每个请求一次）。
@@ -1561,6 +1504,69 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	st.outcome = reqlog.OutcomeHTTPError
 }
 
+// recordModelAttempt 统一记录普通请求和面板实测的实际用量，供每日护栏读取。
+func (h *Handler) recordModelAttempt(st *chatStat, uid, model, modelRate string, delta pool.TokenUsageDelta, credit float64, hasCredit bool, started time.Time, ttfb time.Duration) {
+	st.attempts++
+	if delta.HasPromptTokens {
+		st.promptTokens = delta.PromptTokens
+	}
+	if delta.HasCompletionTokens {
+		st.completionTokens = delta.CompletionTokens
+	}
+	if delta.HasTotalTokens {
+		st.totalTokens = delta.TotalTokens
+	} else if delta.HasPromptTokens || delta.HasCompletionTokens {
+		st.totalTokens = st.promptTokens + st.completionTokens
+	}
+	delta.Model = model
+	latency := time.Since(started)
+	latencyMs := latency.Milliseconds()
+	if latencyMs < 1 {
+		latencyMs = 1
+	}
+	delta.HasLatencyMs = true
+	delta.LatencyMs = latencyMs
+
+	// HasCompletionTokens 是「本次有没有 token 观测」的独立判断，与速率怎么算
+	// 无关，所以留在调用点；速率本身的边界（TTFB 缺失/超界）收在 tokensPerSecond。
+	if delta.HasCompletionTokens {
+		if tps, ok := tokensPerSecond(delta.CompletionTokens,
+			time.Duration(latencyMs)*time.Millisecond, ttfb); ok {
+			delta.HasTokensPerSecond = true
+			delta.TokensPerSecond = tps
+		}
+	}
+	h.cfg.Pool.RecordTokenUsage(uid, delta)
+
+	// 用量时序记录。ok 以「上游是否给了 usage」判定：空 delta 意味着这次尝试
+	// 没拿到任何 token 统计（传输错误 / >=400 / 解析失败），计为失败尝试。
+	// 失败也计入请求数——否则重试放大在「用量」视图里看不见。
+	if h.cfg.Usage != nil {
+		realm := "cn"
+		if a, ok := h.cfg.Pool.Status(uid); ok && a.Realm != "" {
+			realm = a.Realm
+		}
+		h.cfg.Usage.Add(time.Now(), realm, uid, delta.Model, usage.Delta{
+			PromptTokens:     delta.PromptTokens,
+			HasPromptTokens:  delta.HasPromptTokens,
+			CompletionTokens: delta.CompletionTokens,
+			HasCompletion:    delta.HasCompletionTokens,
+			TotalTokens:      delta.TotalTokens,
+			HasTotal:         delta.HasTotalTokens,
+			Credit:           credit,
+			HasCredit:        hasCredit,
+			HasCacheTokens:   st.hasCache,
+			CacheHitTokens:   st.cacheHit,
+			CacheMissTokens:  st.cacheMiss,
+			ModelRate:        modelRate,
+			LatencyMs:        delta.LatencyMs,
+			HasLatency:       delta.HasLatencyMs,
+			TokensPerSecond:  delta.TokensPerSecond,
+			HasTPS:           delta.HasTokensPerSecond,
+		}, delta.HasTotalTokens || delta.HasCompletionTokens || delta.HasPromptTokens)
+	}
+}
+
 // accountRateLimited 区分限流与满载、禁用、风控隔离等不可用原因。
 func (h *Handler) accountRateLimited(uid, model string) bool {
 	st, ok := h.cfg.Pool.Status(uid)
@@ -1745,6 +1751,10 @@ func (h *Handler) quarantineAccount(uid, reason string) {
 // 携带的模型名。uerr 是 ChatStreamContext 返回的分类信封（可携带 RetryAfter）；
 // 零值/防御路径下为 nil，冷却时长回落既有计算。
 func (h *Handler) applyErrorPolicy(uid string, kind upstream.ErrKind, body, model string, uerr *upstream.Error) {
+	h.applyErrorPolicyWithMessage(uid, kind, body, model, uerr, body)
+}
+
+func (h *Handler) applyErrorPolicyWithMessage(uid string, kind upstream.ErrKind, body, model string, uerr *upstream.Error, healthMessage string) {
 	status := 0
 	if uerr != nil {
 		status = uerr.Status
@@ -1754,7 +1764,7 @@ func (h *Handler) applyErrorPolicy(uid string, kind upstream.ErrKind, body, mode
 		// account_fault 还包含 14017 等可自愈业务码；风控面板需要精确统计 11140。
 		healthKind = "account_restricted"
 	}
-	h.cfg.Health.Failure(uid, healthKind, status, model, body)
+	h.cfg.Health.Failure(uid, healthKind, status, model, healthMessage)
 	switch kind {
 	case upstream.ErrHardCredit:
 		// 402 + 余额关键词即积分耗尽：同步冷却到次日 04:00（签到任务 09/21 点恢复），
